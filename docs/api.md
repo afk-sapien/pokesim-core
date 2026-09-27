@@ -1,7 +1,7 @@
 # API compatibility
 
-The Python import is `pokisim_core`. The distribution and repository are
-`pokisim-core`. `__version__` identifies the package release and `API_VERSION`
+The Python import is `pokesim_core`. The distribution and repository are
+`pokesim-core`. `__version__` identifies the package release and `API_VERSION`
 identifies the major data contract, initially 1.
 
 ## ROM module

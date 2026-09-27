@@ -1,6 +1,6 @@
 import pytest
 
-from pokisim_core import gen1
+from pokesim_core import gen1
 
 
 class ReadOnlyMemory:

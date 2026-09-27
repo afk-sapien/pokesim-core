@@ -3,8 +3,8 @@ requires = ["setuptools>=77,<85"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pokisim-core"
-version = "0.1.0"
+name = "pokesim-core"
+version = "0.1.1"
 description = "Shared read-only Pokemon Red and Blue decoding and emulator primitives"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -17,14 +17,14 @@ emulator = ["pyboy==2.7.0", "pillow>=10,<13"]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
 
 [project.urls]
-Repository = "https://github.com/afk-sapien/pokisim-core"
-Issues = "https://github.com/afk-sapien/pokisim-core/issues"
+Repository = "https://github.com/afk-sapien/pokesim-core"
+Issues = "https://github.com/afk-sapien/pokesim-core/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-pokisim_core = ["py.typed"]
+pokesim_core = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

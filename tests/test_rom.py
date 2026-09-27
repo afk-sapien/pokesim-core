@@ -2,7 +2,7 @@ import hashlib
 
 import pytest
 
-from pokisim_core.rom import BLUE_SHA1, KNOWN_ROM_SHA1, RED_SHA1, inspect_rom, require_rom
+from pokesim_core.rom import BLUE_SHA1, KNOWN_ROM_SHA1, RED_SHA1, inspect_rom, require_rom
 
 
 def test_unknown_rom_is_hashed_without_modifying_it(tmp_path):

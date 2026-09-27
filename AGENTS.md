@@ -1,4 +1,4 @@
-# PokiSim Core
+# PokeSim Core
 
 - Keep the base package independent of both applications and external libraries.
 - PyBoy and Pillow belong to the optional emulator extra and must be imported lazily.

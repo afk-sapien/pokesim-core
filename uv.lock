@@ -286,8 +286,8 @@ wheels = [
 ]
 
 [[package]]
-name = "pokisim-core"
-version = "0.1.0"
+name = "pokesim-core"
+version = "0.1.1"
 source = { editable = "." }
 
 [package.optional-dependencies]

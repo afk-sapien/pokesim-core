@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokisim_core.emulator import GameBoy
-from pokisim_core.rom import RomInfo
+from pokesim_core.emulator import GameBoy
+from pokesim_core.rom import RomInfo
 
 
 class FakeImage:
@@ -60,7 +60,7 @@ def fake(monkeypatch):
         if "red" not in allowed_games:
             raise ValueError("Excluded game")
         return RomInfo("sha1", "sha256", "red", "Red", True)
-    monkeypatch.setattr("pokisim_core.emulator.require_rom", require)
+    monkeypatch.setattr("pokesim_core.emulator.require_rom", require)
     return FakePyBoy
 
 

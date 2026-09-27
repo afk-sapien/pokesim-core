@@ -1,4 +1,4 @@
-# PokiSim Core
+# PokeSim Core
 
 Shared Pokemon Red and Blue primitives for simulation and agent research.
 
@@ -13,30 +13,30 @@ Python 3.11 or newer is required.
 Install the published wheel directly from GitHub, without requiring Git:
 
 ```bash
-pip install https://github.com/afk-sapien/pokisim-core/releases/download/v0.1.0/pokisim_core-0.1.0-py3-none-any.whl
+pip install https://github.com/afk-sapien/pokesim-core/releases/download/v0.1.1/pokesim_core-0.1.1-py3-none-any.whl
 ```
 
 For emulator support, select the optional extra:
 
 ```bash
-pip install "pokisim-core[emulator] @ https://github.com/afk-sapien/pokisim-core/releases/download/v0.1.0/pokisim_core-0.1.0-py3-none-any.whl"
+pip install "pokesim-core[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.1.1/pokesim_core-0.1.1-py3-none-any.whl"
 ```
 
 A Git source install is also supported:
 
 ```bash
-pip install "pokisim-core @ git+https://github.com/afk-sapien/pokisim-core.git@v0.1.0"
+pip install "pokesim-core @ git+https://github.com/afk-sapien/pokesim-core.git@v0.1.1"
 ```
 
 Applications should pin the release wheel's SHA-256 from `SHA256SUMS` or pin a
 full Git commit instead of following a moving branch. Releases are not published
-to PyPI in v0.1.0. `pip install pokisim-core` is not the documented installation path.
+to PyPI in v0.1.1. `pip install pokesim-core` is not the documented installation path.
 
 ## Decode without an emulator dependency
 
 ```python
-from pokisim_core.gen1 import read_bag, read_party, read_progress
-from pokisim_core.rom import inspect_rom
+from pokesim_core.gen1 import read_bag, read_party, read_progress
+from pokesim_core.rom import inspect_rom
 
 identity = inspect_rom("/path/to/pokemon-red.gb")
 print(identity.game, identity.sha256, identity.verified)
@@ -56,8 +56,8 @@ silently. `read_progress` does not award points or decide that the game is compl
 ## Run an isolated emulator
 
 ```python
-from pokisim_core.emulator import GameBoy
-from pokisim_core.gen1 import read_party
+from pokesim_core.emulator import GameBoy
+from pokesim_core.gen1 import read_party
 
 with GameBoy("/path/to/pokemon-red.gb") as game:
     game.tick(1800)

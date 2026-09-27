@@ -23,7 +23,7 @@ class GameBoy:
         try:
             from pyboy import PyBoy
         except ImportError as error:
-            raise ImportError("Install pokisim-core with the emulator extra to use GameBoy") from error
+            raise ImportError("Install pokesim-core with the emulator extra to use GameBoy") from error
         self._closed = False
         self._pb = PyBoy(str(rom), window="null", sound_emulated=False,
                          ram_file=io.BytesIO(bytes(32768)), rtc_file=io.BytesIO())

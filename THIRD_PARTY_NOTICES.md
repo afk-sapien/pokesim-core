@@ -9,7 +9,7 @@ Addresses and event identifiers correspond to the
 No ROM code, artwork, generated content tables, or disassembly source is bundled.
 
 PyBoy and Pillow are optional dependencies installed separately. Their licenses
-remain their own. A base PokiSim Core installation does not install or import
+remain their own. A base PokeSim Core installation does not install or import
 either dependency. Review their notices when distributing a bundled application.
 
 Pokemon and related names belong to their respective rights holders. This is an
