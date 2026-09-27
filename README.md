@@ -1,0 +1,115 @@
+# PokiSim Core
+
+Shared Pokemon Red and Blue primitives for simulation and agent research.
+
+The package extracts low-level functionality used by PokeSim and a separate
+agent benchmark. The base install uses only Python's standard library. The
+optional emulator extra supplies a controller-driven PyBoy adapter.
+
+## Install
+
+Python 3.11 or newer is required.
+
+Install the published wheel directly from GitHub, without requiring Git:
+
+```bash
+pip install https://github.com/afk-sapien/pokisim-core/releases/download/v0.1.0/pokisim_core-0.1.0-py3-none-any.whl
+```
+
+For emulator support, select the optional extra:
+
+```bash
+pip install "pokisim-core[emulator] @ https://github.com/afk-sapien/pokisim-core/releases/download/v0.1.0/pokisim_core-0.1.0-py3-none-any.whl"
+```
+
+A Git source install is also supported:
+
+```bash
+pip install "pokisim-core @ git+https://github.com/afk-sapien/pokisim-core.git@v0.1.0"
+```
+
+Applications should pin the release wheel's SHA-256 from `SHA256SUMS` or pin a
+full Git commit instead of following a moving branch. Releases are not published
+to PyPI in v0.1.0. `pip install pokisim-core` is not the documented installation path.
+
+## Decode without an emulator dependency
+
+```python
+from pokisim_core.gen1 import read_bag, read_party, read_progress
+from pokisim_core.rom import inspect_rom
+
+identity = inspect_rom("/path/to/pokemon-red.gb")
+print(identity.game, identity.sha256, identity.verified)
+
+# memory can be a PyBoy memory view or a synthetic bytearray in a test.
+memory = bytearray(65536)
+party = read_party(memory)
+bag = read_bag(memory)
+progress = read_progress(memory)
+```
+
+Decoders return numerical fields and read-only facts. Applications add local game
+labels, user interfaces, validation, and derived state. `read_party` preserves
+pending and incomplete party slots for callers to interpret. It never drops them
+silently. `read_progress` does not award points or decide that the game is complete.
+
+## Run an isolated emulator
+
+```python
+from pokisim_core.emulator import GameBoy
+from pokisim_core.gen1 import read_party
+
+with GameBoy("/path/to/pokemon-red.gb") as game:
+    game.tick(1800)
+    game.press("start")
+    game.tick(8)
+    game.release("start")
+    game.tick(2)
+    image_bytes = game.screenshot()
+    state_bytes = game.save()
+    party = read_party(game.memory)
+```
+
+Each instance uses fresh in-memory SRAM and never reads or writes save files next
+to the ROM. Nothing advances until `tick` is called. There is no background loop,
+autoplayer, navigation, recovery, or memory editing helper. The adapter accepts
+verified English Red and Blue ROMs. Applications can narrow accepted games with
+`allowed_games=("red",)`.
+
+`GameBoy.load` restores a trusted state. The caller owns state provenance and
+compatibility checks. The memory view and load method are trusted application
+APIs. Do not expose them directly to an agent. This library is not a sandbox.
+
+## Shared boundary
+
+| Core owns | Applications own |
+| --- | --- |
+| ROM identification and validation | Supported-game policy and warnings |
+| WRAM constants and numerical decoding | Labels, rendering, and derived app state |
+| Progress flags and party/bag facts | Scoring, event confirmation, and completion rules |
+| Explicit controller and frame operations | Agent tools, permissions, and budgets |
+| Screenshot and state primitives | State manifests, recovery policy, and replay logs |
+
+PokeSim retains its own emulator lifecycle because it manages existing adventures,
+trading, saves, and recovery. It shares the decoder and ROM identity primitives.
+The agent benchmark also uses the isolated `GameBoy` adapter. Both can adopt
+future core releases deliberately, without changing existing experiments silently.
+
+The library imports neither application and does not bundle a database, MCP
+server, model SDK, provider key, ROM, generated game table, or game artwork.
+
+## Development
+
+```bash
+uv sync --extra dev
+uv run pytest
+uv run ruff check .
+uv build
+```
+
+Tests use synthetic memory and a fake emulator. CI runs without ROMs, PyBoy,
+model API keys, or paid services. Real cartridge smoke checks are performed
+locally with user-supplied files and their artifacts are never committed.
+
+See [API compatibility](docs/api.md), [release notes](CHANGELOG.md), and
+[third-party notices](THIRD_PARTY_NOTICES.md).
