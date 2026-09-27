@@ -73,3 +73,18 @@ interpretation must be reflected in the consuming benchmark's own version.
 Keep recorded core versions, artifact provenance, emulator versions, and scenario
 hashes with experiments. Shared code fixes are available to both applications,
 but neither automatically takes an unreviewed upstream update.
+
+## DV probability reference
+
+`pokesim_core.dvs.dv_probabilities(dvs)` accepts HP, Attack, Defense, Speed,
+Special as a list or tuple. It returns `None` for missing, malformed, or
+inconsistent HP data. Valid results contain `total`, `outcomes`, `at_least`,
+`better`, `at_least_probability`, and `better_probability`.
+
+The denominator is 65,536 equally weighted combinations of the four stored DVs.
+HP is derived from their low bits, never sampled independently. `at_least`
+includes ties, while `better` means a strictly higher five-DV total. Perfect
+DVs have inclusive probability 1/65,536 and strictly better probability zero.
+These are reference probabilities, not measured cartridge encounter odds or
+species encounter rates. Game RNG timing can affect observed distributions.
+Consumer applications own scoring, training priorities, and replacement rules.
