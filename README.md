@@ -113,3 +113,12 @@ locally with user-supplied files and their artifacts are never committed.
 
 See [API compatibility](docs/api.md), [release notes](CHANGELOG.md), and
 [third-party notices](THIRD_PARTY_NOTICES.md).
+
+## Read-only UI facts
+
+Version 0.1.3 adds `pokesim_core.gen1_ui`: screen text and cursor decoding,
+raw sprite positions, active battler data and banked owned-storage inspection.
+These functions never advance emulation or write memory. They are not an
+observation policy. Consumers must hide enemy internals, offscreen sprites and
+unseen content before exposing facts to an agent. Unavailable storage banks
+are marked unavailable rather than assumed empty.
