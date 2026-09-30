@@ -4,6 +4,11 @@ Generation I decoder routines and address constants are adapted from
 [PokeSim](https://github.com/afk-sapien/PokeSim), copyright 2026 AFK Sapien.
 They retain the MIT License in [LICENSE](LICENSE).
 
+Controller menu macros and visible menu decoding are adapted from
+[PokeAgent Bench](https://github.com/afk-sapien/pokeagent-bench), copyright 2026
+AFK Sapien, under the MIT License. Naming and storage mechanics are adapted
+from PokeSim under the same license.
+
 Addresses and event identifiers correspond to the
 [pret/pokered disassembly](https://github.com/pret/pokered/tree/a1a22aaf84d1675bcdbaeb194592379d586d838e).
 No ROM code, artwork, generated content tables, or disassembly source is bundled.
