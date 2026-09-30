@@ -3,16 +3,27 @@
 Addresses follow pret/pokered a1a22aaf84d1675bcdbaeb194592379d586d838e.
 These are raw facts, not an agent observation policy. Consumers must filter them.
 """
+from .storage import decode_box, memory_bytes
 from .gen1 import W_TILEMAP, decode_text, W_CURRENT_BOX, W_BOX_COUNT, BOX_DATA_SIZE
 
 
-def read_screen(memory):
+_RAW_GLYPHS = tuple(decode_text(bytes([tile])) or " " for tile in range(256))
+_VISIBLE_GLYPHS = tuple(
+    ">" if tile == 0xED else "?" if tile == 0xE6 else _RAW_GLYPHS[tile].replace("?", " ")
+    for tile in range(256))
+
+
+def screen_rows(raw, *, raw_text=False):
+    """Decode exactly one tilemap, using cached immutable glyph tables."""
+    if len(raw) != 360:
+        raise ValueError("A screen tilemap must contain 360 bytes")
+    glyphs = _RAW_GLYPHS if raw_text else _VISIBLE_GLYPHS
+    return ["".join(glyphs[tile] for tile in raw[y * 20:(y + 1) * 20]) for y in range(18)]
+
+
+def read_screen(memory, *, raw_text=False):
     raw = bytes(memory[W_TILEMAP:W_TILEMAP + 360])
-    def glyph(tile):
-        if tile == 0xED:
-            return ">"
-        return "?" if tile == 0xE6 else decode_text(bytes([tile])).replace("?", " ") or " "
-    rows = ["".join(glyph(tile) for tile in raw[y * 20:(y + 1) * 20]) for y in range(18)]
+    rows = screen_rows(raw, raw_text=raw_text)
     cursors = [(i % 20, i // 20) for i, tile in enumerate(raw) if tile == 0xED]
     active = (memory[0xCC25], memory[0xCC24] + 2 * memory[0xCC26])
     cursor = active if active in cursors else next(iter(cursors), None)
@@ -56,16 +67,14 @@ def read_storage(memory):
         get = (lambda address: memory[address]) if box == active else (lambda address: memory[2 + box // 6, address])
         try:
             count = min(get(base), 20) if box == active or current & 0x80 else 0
-            mons = []
-            for index in range(count):
-                start = base + 22 + index * 33
-                block = bytes(get(start + offset) for offset in range(33))
-                nick = bytes(get(base + 902 + index * 11 + offset) for offset in range(11))
-                mons.append({"slot": index + 1, "species": block[0], "level": block[3],
-                             "hp": int.from_bytes(block[1:3], "big"), "status": block[4],
-                             "types": list(block[5:7]), "moves": list(block[8:12]),
-                             "pp": [value & 63 for value in block[29:33]], "nick": decode_text(nick)})
+            bank = None if box == active else 2 + box // 6
+            structs = memory_bytes(memory, bank, base + 22, count * 33)
+            names = memory_bytes(memory, bank, base + 902, count * 11)
+            mons = [{"slot": mon.position + 1, "species": mon.species, "level": mon.level,
+                     "hp": mon.hp, "status": mon.status, "types": list(mon.types),
+                     "moves": list(mon.moves), "pp": list(mon.pp), "nick": mon.nick}
+                    for mon in decode_box(structs, names)]
             boxes.append({"box": box + 1, "available": True, "pokemon": mons})
-        except (TypeError, IndexError, KeyError):
+        except (TypeError, IndexError, KeyError, ValueError):
             boxes.append({"box": box + 1, "available": False, "pokemon": []})
     return {"active_box": active + 1, "boxes": boxes, "available": True}

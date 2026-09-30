@@ -88,3 +88,83 @@ DVs have inclusive probability 1/65,536 and strictly better probability zero.
 These are reference probabilities, not measured cartridge encounter odds or
 species encounter rates. Game RNG timing can affect observed distributions.
 Consumer applications own scoring, training priorities, and replacement rules.
+
+
+## Controller helpers
+
+`controls.ControllerPort` adapts a consumer's serialized controller. The consumer
+supplies `memory`, `send(button, hold, gap)`, `choose(visible_label)`,
+`observe()` and `frame()`. Optional callbacks are `stopped()` and
+`continue_ready()`. `item_labels` maps string item IDs to cartridge menu labels.
+`send` and `choose` return false when they cannot continue. They must enforce
+frame budgets and record every input. No helper bypasses these callbacks.
+
+`observe` returns `kind`, `text`, `cursor_tile`, `selected_text` and
+`visible_choices` from the consumer's visible UI classifier. `kind` uses
+`overworld`, `battle_menu`, `move_menu`, `menu`, `naming`, `dialogue`,
+`transition` or an unsupported state. Continue readiness must only approve
+continue-only dialogue, never a choice. The default waits without confirming.
+`choose` selects only the supplied visible label and must also be bounded.
+
+- `use_item(port, item_id, party_slot)` supports status cures, potions, revives
+  and Elixers. It does not choose a target, use balls, teach moves or select PP
+  targets. Missing items and invalid slots produce no input. Slots are zero based.
+- `switch_pokemon(port, party_slot)` switches a battler or rearranges the field
+  party lead. Fainted or already active battle targets are rejected.
+- Both return `outcome` and, once validated, `shortcut` metadata. `completed`
+  records the observed effect, even if the controller budget expires during
+  cleanup. `item_consumed` reports a verified bag decrement, not a promise of
+  a particular HP change. No unconfirmed effect is repeated automatically.
+- `naming.name_step(rows, cursor, name, limit=10)` returns a `ButtonAction` or
+  None outside the keyboard. It reads back partial text and corrects mismatches.
+- `naming.enter_name(port, name, limit=10, max_actions=256)` drives a supplied
+  uppercase ASCII name from an already open naming keyboard. Use limit 7 for
+  player and rival names. It does not accept nickname prompts or pick names.
+- `naming.menu_button(current, target)` returns one linear menu direction or A.
+- `menus.menu_options(memory, screen, kind=None)` reads visible menu rows.
+  Consumer observation filtering remains required.
+
+Menu macros have a 200-iteration ceiling in addition to the consumer's frame
+budget. They do not own threads, emulator lifecycle, logging, replay or locks.
+Call them only with exclusive access to the emulator. All helpers support the
+verified English Red/Blue layouts, not ROM hacks or other generations.
+
+## Cached readers
+
+`gen1_ui.read_screen(memory, raw_text=False)` preserves the 0.1.3 default glyph
+semantics. `raw_text=True` preserves the original decoder's unknown glyphs for
+PokeSim. Both use immutable glyph lookup tables. `screen_rows(raw, raw_text=False)`
+accepts exactly 360 tile bytes.
+
+`storage.memory_bytes(memory, bank, start, size)` uses bulk reads with a scalar
+fallback. `storage.decode_box(structs, names)` returns frozen `BoxMon` records
+with zero based positions and tuple fields. Its 128-entry cache is keyed only
+by complete immutable bytes. It cannot go stale after a restore, trade or box
+switch. No species validity policy is applied. `read_storage` retains its
+existing dictionaries and list fields, returning fresh mutable values each call.
+
+## Trusted resets
+
+`resets` is deliberately separate from read-only facts and controller actions.
+Never register these functions as benchmark agent commands. A fixture builder
+may use them before a run, then record its setup and resulting initial-state
+hash. Existing benchmark runs never import or call this module.
+
+- `Flag(base, bit)` describes one WRAM flag and validates its address.
+- `update_flags(memory, [(flag, bool), ...])` is the low-level trusted primitive.
+  It preserves other bits, merges updates to one byte and preflights all reads.
+  Conflicting assignments fail before writes. It returns immutable `Change`
+  records containing address, before and after bytes. An unchanged update
+  returns an empty tuple. Failed writes trigger verified rollback attempts.
+- `reset_events(memory, flags, rooms=...)` clears a caller-defined group. It
+  rejects loaded target rooms, battle, visible menus, dialogue and display
+  transitions. Consumers must additionally ensure scripts are idle.
+- `reset_encounter(memory, event=..., visibility=..., room=...)` clears the
+  encounter event and object-hide bits together through `reset_events`.
+
+Consumers supply verified event definitions for their cartridge. Core does not
+ship generated game tables or guess reset flags. Callers must verify the ROM,
+stop emulation or hold its exclusive lock, and retain reward eligibility and
+claim history. These helpers do not refund items, heal, rewind a save or reset
+unrelated story progress. A rollback failure is attached to the original
+exception and requires the caller to stop using that state.

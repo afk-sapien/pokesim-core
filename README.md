@@ -13,24 +13,24 @@ Python 3.11 or newer is required.
 Install the published wheel directly from GitHub, without requiring Git:
 
 ```bash
-pip install https://github.com/afk-sapien/pokesim-core/releases/download/v0.1.1/pokesim_core-0.1.1-py3-none-any.whl
+pip install https://github.com/afk-sapien/pokesim-core/releases/download/v0.1.4/pokesim_core-0.1.4-py3-none-any.whl
 ```
 
 For emulator support, select the optional extra:
 
 ```bash
-pip install "pokesim-core[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.1.1/pokesim_core-0.1.1-py3-none-any.whl"
+pip install "pokesim-core[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.1.4/pokesim_core-0.1.4-py3-none-any.whl"
 ```
 
 A Git source install is also supported:
 
 ```bash
-pip install "pokesim-core @ git+https://github.com/afk-sapien/pokesim-core.git@v0.1.1"
+pip install "pokesim-core @ git+https://github.com/afk-sapien/pokesim-core.git@v0.1.4"
 ```
 
 Applications should pin the release wheel's SHA-256 from `SHA256SUMS` or pin a
 full Git commit instead of following a moving branch. Releases are not published
-to PyPI in v0.1.1. `pip install pokesim-core` is not the documented installation path.
+to PyPI in v0.1.4. `pip install pokesim-core` is not the documented installation path.
 
 ## Decode without an emulator dependency
 
@@ -122,3 +122,26 @@ These functions never advance emulation or write memory. They are not an
 observation policy. Consumers must hide enemy internals, offscreen sprites and
 unseen content before exposing facts to an agent. Unavailable storage banks
 are marked unavailable rather than assumed empty.
+
+## Shared controller and setup helpers
+
+Version 0.1.4 consolidates observed name entry, restorative item use, party
+switching, visible menu rows, bulk box reads and immutable decoding caches.
+The apps still choose names, targets, routes and rewards. Core performs the
+mechanical operations through a caller-owned controller adapter.
+
+```python
+from pokesim_core.controls import use_item, switch_pokemon
+from pokesim_core.naming import enter_name
+
+# port routes every input through your existing frame budget and action log.
+use_item(port, item_id=16, party_slot=0)
+switch_pokemon(port, party_slot=2)
+enter_name(port, "SPARK")
+```
+
+Trusted setup tools can separately import `pokesim_core.resets` to reopen a
+stationary encounter or clear a supplied event group. These are explicit memory
+mutations with context checks and change receipts. They are never called by
+controller helpers and must not be exposed to benchmark agents. See the
+[API contracts](docs/api.md) for adapter requirements and supported operations.

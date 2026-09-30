@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pokesim-core"
-version = "0.1.3"
+version = "0.1.4"
 description = "Shared read-only Pokemon Red and Blue decoding and emulator primitives"
 readme = "README.md"
 requires-python = ">=3.11"
