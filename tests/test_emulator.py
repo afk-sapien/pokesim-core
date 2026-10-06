@@ -21,8 +21,10 @@ class FakePyBoy:
         self.rom = rom
         self.options = options
         self.memory = bytearray(65536)
-        self.screen = SimpleNamespace(image=FakeImage())
+        self.screen = SimpleNamespace(raw_buffer=bytes(160 * 144 * 4))
         self.frames = 0
+        self.frame_count = 0
+        self.sound = SimpleNamespace(raw_buffer=b"", raw_buffer_head=0)
         self.inputs = []
         self.stops = []
         self.instances.append(self)
@@ -36,8 +38,9 @@ class FakePyBoy:
     def button_release(self, button):
         self.inputs.append(("release", button))
 
-    def tick(self, frames, render=True):
+    def tick(self, frames, render=True, sound=True):
         self.frames += frames
+        self.frame_count += frames
         self.render = render
 
     def save_state(self, stream):
@@ -48,19 +51,20 @@ class FakePyBoy:
         if self.loaded == b"invalid":
             raise ValueError("Invalid state")
 
-    def stop(self, save=True):
+    def stop(self, save=True, ram_file=None):
         self.stops.append(save)
 
 
 @pytest.fixture
 def fake(monkeypatch):
     FakePyBoy.instances = []
-    monkeypatch.setitem(sys.modules, "pyboy", SimpleNamespace(PyBoy=FakePyBoy))
+    monkeypatch.setitem(sys.modules, "pyboy_rs", SimpleNamespace(PyBoy=FakePyBoy))
     def require(path, *, allowed_games):
         if "red" not in allowed_games:
             raise ValueError("Excluded game")
         return RomInfo("sha1", "sha256", "red", "Red", True)
     monkeypatch.setattr("pokesim_core.emulator.require_rom", require)
+    monkeypatch.setattr("pokesim_core.emulator.Path.read_bytes", lambda _: bytes(32768))
     return FakePyBoy
 
 
@@ -68,10 +72,10 @@ def test_no_background_frames_and_explicit_inputs(fake):
     with GameBoy("synthetic.gb") as game:
         underlying = fake.instances[-1]
         assert underlying.frames == 0
-        assert game.rom_sha256 == "sha256"
-        assert game.screenshot() == b"fake-png"
+        assert len(game.rom_sha256) == 64
+        assert len(game.screen.raw_buffer) == 160 * 144 * 4
         assert game.save() == b"saved-state"
-        assert game.memory is underlying.memory
+        assert game.memory[0] == underlying.memory[0]
         assert underlying.frames == 0
         game.press("a")
         game.tick(8, render=False)
@@ -88,8 +92,7 @@ def test_each_instance_uses_independent_sram(fake):
     first, second = GameBoy("one.gb"), GameBoy("two.gb")
     one, two = fake.instances
     assert isinstance(one.options["ram_file"], io.BytesIO)
-    assert isinstance(one.options["rtc_file"], io.BytesIO)
-    assert one.options["rtc_file"] is not two.options["rtc_file"]
+    assert "rtc_file" not in one.options
     one.options["ram_file"].write(b"changed")
     assert two.options["ram_file"].getvalue() == bytes(32768)
     assert one.speed == 0

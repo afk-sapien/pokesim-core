@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pokesim-core"
-version = "0.1.4"
+version = "0.2.0.dev0"
 description = "Shared read-only Pokemon Red and Blue decoding and emulator primitives"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 dependencies = []
 
 [project.optional-dependencies]
-emulator = ["pyboy==2.7.0", "pillow>=10,<13"]
+emulator = ["pyboy-rs==0.1.0", "pillow>=10,<13"]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
 
 [project.urls]
@@ -34,3 +34,6 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E9", "F"]
+
+[tool.uv.sources]
+pyboy-rs = { path = "../pyboy-rs" }
