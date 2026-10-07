@@ -6,18 +6,24 @@ The package extracts low-level functionality used by PokeSim and a separate
 agent benchmark. The base install uses only Python's standard library. The
 optional emulator extra supplies the Rust-backed Core emulator interface.
 
-## Unreleased Rust integration
+## Rust emulator interface (0.2.0)
 
-Version `0.2.0.dev0` uses PyBoy RS as its only production emulator. Both
-applications import Core. Only Core imports the native Python package.
-The working checkouts must be siblings named `pyboy-rs`, `pokesim-core`,
-`pokesim`, and `pokeagent-bench`. Until releases are published, `uv` resolves
-these local source overrides:
+Version `0.2.0` uses PyBoy RS as its only emulator backend. Both applications
+import Core and only Core imports the native Python package. The `emulator`
+extra requires `pyboy-rs>=0.1.1,<0.2` and Pillow. Core 0.1.x keeps its PyBoy 2.7.0
+backend and its published wheels are unchanged. The pure Python surface that 0.1.x
+exposed imports and behaves the same without any emulator installed.
+
+For development, the PyBoy RS wheel must be built from the `afk-sapien/pyboy-rs`
+repository until it is on PyPI. Build it with `maturin build --release` and
+install the wheel. Do not use `maturin develop`, which installs an editable
+build into the active environment. Then run the tests:
 
 ```bash
-uv sync --extra dev --extra emulator
-uv run pytest
-uv run ruff check .
+pip install -e ".[dev]" pillow numpy
+pip install /path/to/pyboy_rs-0.1.1-*.whl
+pytest
+ruff check .
 ```
 
 A source install needs Rust and Maturin. Released application installations
@@ -30,6 +36,10 @@ It has no application thread, automatic file writes, or agent policy.
 `GameBoy` adds verified Red/Blue ROM selection for the benchmark. Core memory
 writes and hooks are trusted host APIs. Applications decide which observations
 and actions their agents can access.
+
+`press` and `release` queue the input. It reaches the machine at the start of the
+next `tick`, so a raw `save()` between `press` and `tick` does not contain the press.
+`checkpoint()` stores the queue as `pending_inputs` and `restore_checkpoint` restores it.
 
 Batched `tick` advances exactly the requested positive number of frames and
 renders and samples its last frame. Tick one frame at a time for continuous
@@ -46,10 +56,22 @@ must be registered on a fresh machine before resuming instrumented execution.
 
 `emulator_state` owns runtime fingerprints and known legacy import rules.
 `checkpoint_audio` owns the format-specific conversion for silent legacy
-checkpoints. Ordinary imports can accept PyBoy 2.7.0 format-15 saves. Exact
-benchmark resumes require the recorded Rust build. New manifests identify
-PyBoy RS explicitly, including the native extension and binding hashes.
-Trade outputs retain an explicit source-to-output runtime migration record.
+checkpoints. Ordinary imports can accept PyBoy 2.7.0 format-15 saves. New
+manifests identify PyBoy RS explicitly, including the version, state format and
+the native extension and binding hashes. Trade outputs retain an explicit
+source-to-output runtime migration record.
+
+`restore_checkpoint(checkpoint, match="version")` compares the backend, its
+version and the state format. A wheel rebuilt in CI or built for another
+operating system restores earlier checkpoints of the same version. Pass
+`match="exact"` to also require the identical compiled binary and binding hashes,
+or `match="state_format"` to accept any version of the same backend and format.
+
+Manifests from `checkpoint_metadata()` and `retag_checkpoint()` keep
+`pyboy_version: "2.7.0"` beside the `emulator` record while the state format is
+PyBoy 2.7.0 format 15, so a downgrade to a PokeSim release that requires the field can
+still load them. It is omitted when the source lineage is not 2.7.0 and for
+checkpoints saved with a locked clock, which PyBoy 2.7.0 cannot reproduce.
 
 `gen1_cable.CableEndpoint` owns the verified ROM-hook transport, queues,
 register parking, and hook cleanup. Applications own participants, navigation,
@@ -63,8 +85,12 @@ harness in `tools/benchmark_emulator.py`.
 
 ## Real-time clock
 
-MBC3 cartridges with a clock (Gold, Silver, Crystal) need clock control, which requires a PyBoy RS build with RTC support. Older builds raise `RuntimeError` from
-these methods and everything else keeps working.
+MBC3 cartridges with a clock (Gold, Silver, Crystal) need clock control, which requires a PyBoy RS build with RTC support. Core detects clock control from the build's `has_rtc` flag when it
+publishes one, and otherwise from the presence of the clock methods. Builds without it
+raise `CoreCapabilityError` from these methods, passing `rtc_file` or `stop(rtc_file=)`, and
+restoring a checkpoint saved with a locked clock. Everything else keeps working. Test
+`clock_control_available` first to avoid the error. `CoreCapabilityError` subclasses
+`RuntimeError` only, so a broad `except NotImplementedError` does not hide it.
 
 - `Emulator(rom, rtc_file=bytes_or_stream)` loads a PyBoy 2.7.0 `.rtc` file: ten
   bytes holding a little-endian float64 base timestamp (`timezero`), a halt byte and
@@ -86,9 +112,12 @@ these methods and everything else keeps working.
   jump. `clock_locked` and `clock_now()` report the state.
 
 Raw `save` states hold the base timestamp but not the lock. `checkpoint` on a
-cartridge with a clock adds `rtc_clock`, the exact lock fields or `None`, and
-`restore_checkpoint` applies it, which is what an exact resume needs. A checkpoint
-without that key leaves the lock alone, and checkpoints of other cartridges are
+cartridge with a clock always adds `rtc_clock`, the exact lock fields or `None`
+(also available as `clock_lock_state()`), and `restore_checkpoint` applies it, which
+is what an exact resume needs. A locked checkpoint written by a different backend
+version, accepted only with `match="state_format"`, is refused unless this machine
+already has the identical lock applied, because the raw state cannot carry it. A
+checkpoint without the key leaves the lock alone, and checkpoints of other cartridges are
 unchanged. Execution recording and replay still reject cartridges with a live clock.
 
 ## Experimental Core acceleration
@@ -98,12 +127,18 @@ Maturin to decode a complete WRAM snapshot in one native call. It is optional.
 The base Core package still installs without Rust or third-party dependencies.
 Neither application imports the native extension directly.
 
-From this experimental checkout, install and verify the native path with:
+The decoder is not part of the `pokesim-core` metadata, because the
+`pokesim-core-native` distribution is unpublished. It builds from `native/` in
+this repository and Core uses it automatically when it is installed. To build and
+verify it from a source checkout:
 
 ```bash
-uv sync --extra dev --extra emulator --extra acceleration
-POKESIM_CORE_DECODER=rust uv run --no-sync pytest
+maturin build --release --manifest-path native/Cargo.toml --out dist
+pip install dist/pokesim_core_native-*.whl
+POKESIM_CORE_DECODER=rust pytest
 ```
+
+Continuous integration builds and tests this crate in its own job.
 
 `POKESIM_CORE_DECODER=auto` is the default. It uses the native decoder when
 installed and otherwise uses Python. Set it to `python` to compare with the
@@ -129,9 +164,8 @@ measured.
 Pokémon signatures. A bounded cache stores only signatures of immutable integer
 inputs. Applications retain their own matching and observation rules.
 
-The native package needs a separate wheel when packaging a release. Local `uv`
-source overrides are development conveniences and are not public dependencies.
-No native package release has been published from this experiment.
+The native package needs a separate wheel when packaging a release. No native
+package release has been published.
 
 ## Previous published release
 
@@ -276,7 +310,7 @@ controller helpers and must not be exposed to benchmark agents. See the
 ## Local integration validation
 
 The 2026-10-05 integration passed 711 Rust-package Python compatibility tests,
-74 Core tests, and the benchmark suite. Real Red-to-Red cable trades passed in
+the Core suite, and the benchmark suite. Real Red-to-Red cable trades passed in
 both clock roles, including cartridge restart, checkpoint reload, movement,
 and return-to-center checks. A cartridge export and benchmark pause/resume
 checks also passed using private temporary fixtures. Blue pairings require a

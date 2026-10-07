@@ -1,8 +1,32 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
-- Add PyBoy 2.7.0 compatible RTC file import and export, explicit clock register access and a deterministic lockable clock to `Emulator`. Checkpoints of clock cartridges carry the lock.
+Release candidate. Not yet tagged or published.
+
+### Added
+
+- Native emulator interface: `Emulator` and `GameBoy` run on the Rust `pyboy-rs` backend. Install it with the `emulator` extra, which pins `pyboy-rs>=0.1.1,<0.2`.
+- RTC support: PyBoy 2.7.0 compatible RTC file import and export, explicit clock register access and a deterministic lockable clock. Capability is detected from the `pyboy-rs` clock control flag.
+- `CoreCapabilityError`, a `RuntimeError` subclass, raised when the installed backend lacks a needed capability. It does not subclass `NotImplementedError`, so existing `except NotImplementedError` handlers will not swallow it.
+- Checkpoints of RTC cartridges store the clock lock in `rtc_clock` beside the state. A locked checkpoint refuses to load on a backend without the equivalent lock.
+
+### Changed
+
+- Checkpoint restore compares the runtime version and state format by default. The old binary sha256 comparison is available as the opt-in `exact` mode.
+- Checkpoints and `retag_checkpoint` output keep `pyboy_version: "2.7.0"` when that is truthful, so PokeSim 0.4.x can still load them.
+- The README test count and `API_VERSION` documentation are corrected. `press()` is documented as waiting for the tick.
+- Backend change for 0.1.x users of `GameBoy` and the `emulator` extra: the backend is now `pyboy_rs`, not `PyBoy`. Code that monkeypatches a fake `pyboy` module must patch `pyboy_rs` instead. Eight tests in the 0.1.4 `test_emulator.py` do exactly this and fail by design against 0.2.0 without `pyboy-rs`.
+
+### Removed
+
+- The unpublished `acceleration` extra is gone from the published metadata. The native crate stays in the repository and builds from source, see the README.
+
+### Compatibility
+
+- The pure-Python 0.1.x surface (names, signatures and behavior outside the emulator) is unchanged and passes without `pyboy-rs` installed.
+- Published 0.1.x wheels are untouched. Consumers pinned by hash to a 0.1.x wheel are unaffected.
+- CI builds `pyboy-rs` from a pinned commit and runs the emulator and RTC suites. A separate job builds the native decoder.
 
 ## 0.1.4
 
