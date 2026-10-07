@@ -74,6 +74,7 @@ class ControllerPort:
     read_party: Callable = read_party
     read_bag: Callable = read_bag
     panel: Callable = panel
+    menu_rows: Callable | None = None
 
 
 def use_item(port, item_id, party_slot):

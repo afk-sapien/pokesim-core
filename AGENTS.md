@@ -57,7 +57,7 @@ checkouts that might not load this file automatically.
 ## Project conventions
 
 - Keep the base package independent of both applications and external libraries.
-- PyBoy and Pillow belong to the optional emulator extra and must be imported lazily.
+- PyBoy RS and Pillow belong to the optional emulator extra and must be imported lazily.
 - Do not ship ROMs, game tables, sprites, saves, run logs, or credentials.
 - Core decoders only read memory. Policies, scoring, and agent observation filters stay in consumers.
 - Preserve documented field shapes unless releasing a new compatible API version.

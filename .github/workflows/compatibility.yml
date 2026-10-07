@@ -1,0 +1,35 @@
+name: Experimental compatibility
+on:
+  workflow_dispatch:
+    inputs:
+      pyboy_rs_ref:
+        description: Published PyBoy RS revision with the experimental execution APIs
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pokesim-core
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: pokesim-core
+      - uses: actions/checkout@v4
+        with:
+          repository: afk-sapien/pyboy-rs
+          ref: ${{ inputs.pyboy_rs_ref }}
+          path: pyboy-rs
+      - uses: astral-sh/setup-uv@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - run: uv sync --extra dev --extra emulator --python 3.12
+      - run: uv run --no-sync pytest
+      - run: uv run --no-sync python -m pokesim_core.compatibility compatibility/synthetic.json --baseline compatibility/synthetic-baseline.json --output compatibility-result.json --repeats 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-compatibility
+          path: pokesim-core/compatibility-result.json
