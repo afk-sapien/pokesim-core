@@ -67,11 +67,13 @@ operating system restores earlier checkpoints of the same version. Pass
 `match="exact"` to also require the identical compiled binary and binding hashes,
 or `match="state_format"` to accept any version of the same backend and format.
 
-Manifests from `checkpoint_metadata()` and `retag_checkpoint()` keep
-`pyboy_version: "2.7.0"` beside the `emulator` record while the state format is
-PyBoy 2.7.0 format 15, so a downgrade to a PokeSim release that requires the field can
-still load them. It is omitted when the source lineage is not 2.7.0 and for
-checkpoints saved with a locked clock, which PyBoy 2.7.0 cannot reproduce.
+`Emulator.checkpoint()`, `checkpoint_metadata()` and `retag_checkpoint()` keep
+`pyboy_version: "2.7.0"` beside the `emulator` record. The tag is present exactly when
+PyBoy 2.7.0 could load the saved state: a PyBoy 2.7.0 format-15 raw state with no clock lock
+carried. A downgrade to a PokeSim release that requires the field (0.4.x) refuses
+a checkpoint without it. The tag is omitted when the source lineage is not 2.7.0, when the state
+format differs, and for checkpoints saved with a locked clock, which PyBoy 2.7.0 cannot
+reproduce, so 0.4.x refuses those by design.
 
 `gen1_cable.CableEndpoint` owns the verified ROM-hook transport, queues,
 register parking, and hook cleanup. Applications own participants, navigation,

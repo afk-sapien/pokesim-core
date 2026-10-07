@@ -479,17 +479,21 @@ class Emulator:
         self.load(stream.read())
 
     def checkpoint(self):
-        from .emulator_state import runtime_provenance
-        checkpoint = {"format": 1, "emulator": runtime_provenance(), "state": self.save(),
+        from .emulator_state import checkpoint_metadata
+        has_clock = self._has_rtc_cartridge()
+        # The base timestamp is in the state, but the lock's virtual time is not.
+        # Always written for clock cartridges, None meaning the clock follows the host.
+        lock = self._backend.clock_lock_state() if has_clock else None
+        # checkpoint_metadata adds pyboy_version "2.7.0" exactly when PyBoy 2.7.0 could load
+        # this checkpoint (format-15 state, no clock lock carried), so PokeSim 0.4.x can roll back to it.
+        checkpoint = {"format": 1, **checkpoint_metadata(rtc_clock=lock), "state": self.save(),
                       "pending_inputs": self.pending_inputs, "frames": self.frame_count,
                       "rom_sha256": self.rom_sha256, "settings": deepcopy(self._settings)}
         if hasattr(self._backend, 'execution_checkpoint'):
             checkpoint['format'] = 2
             checkpoint['execution'] = self._backend.execution_checkpoint()
-        if self._has_rtc_cartridge():
-            # The base timestamp is in the state, but the lock's virtual time is not.
-            # Always written for clock cartridges, None meaning the clock follows the host.
-            checkpoint['rtc_clock'] = self._backend.clock_lock_state()
+        if has_clock:
+            checkpoint['rtc_clock'] = lock
         return checkpoint
 
     def _has_rtc_cartridge(self):

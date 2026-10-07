@@ -200,6 +200,67 @@ def test_retag_keeps_the_pyboy_tag_only_when_truthful(runtime, monkeypatch):
     assert "pyboy_version" not in state.retag_checkpoint({"pyboy_version": "2.7.0"})
 
 
+# Copies of how PokeSim 0.4.19 judges a checkpoint manifest. PokeSim v0.4.19 runs PyBoy 2.7.0.
+# Each helper replicates the version check of one call site and returns normally on acceptance.
+
+INSTALLED_PYBOY = "2.7.0"
+
+
+def pokesim_0419_autosave_check(metadata):
+    """pokesim/emulator.py _load_state_file: a mismatch makes the autosave unusable."""
+    if metadata.get("pyboy_version") != INSTALLED_PYBOY:
+        raise ValueError("Checkpoint requires a different PyBoy version")
+
+
+def pokesim_0419_headless_check(metadata):
+    """pokesim/headless.py _load: indexes the key, so an untagged manifest is a KeyError."""
+    if metadata["pyboy_version"] != INSTALLED_PYBOY:
+        raise ValueError("ROM or emulator version does not match the checkpoint")
+
+
+def pokesim_0419_trade_check(metadata):
+    """pokesim/trade/pair.py inspect."""
+    if metadata.get("pyboy_version") != INSTALLED_PYBOY:
+        raise ValueError("Checkpoint runtime is incompatible with the trade worker")
+
+
+POKESIM_0419_CHECKS = (pokesim_0419_autosave_check, pokesim_0419_headless_check, pokesim_0419_trade_check)
+
+
+def test_rust_checkpoint_is_accepted_by_the_pokesim_0419_validations(require_rtc):
+    with machine() as emulator:
+        emulator.tick(10, render=False, sound=False)
+        checkpoint = emulator.checkpoint()
+        assert checkpoint["pyboy_version"] == "2.7.0" and checkpoint["emulator"]["backend"] == "pyboy-rs"
+        for check in POKESIM_0419_CHECKS:
+            check(checkpoint)
+        emulator.restore_checkpoint(checkpoint)
+    with machine(rtc_file=rtc_file(500.0)) as emulator:
+        for check in POKESIM_0419_CHECKS:  # following the host clock, no lock to lose
+            check(emulator.checkpoint())
+
+
+def test_locked_clock_checkpoint_is_refused_by_the_pokesim_0419_validations(require_rtc):
+    with machine(rtc_file=rtc_file(500.0)) as emulator:
+        emulator.lock_clock(at=1000.0)
+        checkpoint = emulator.checkpoint()
+        assert checkpoint["rtc_clock"] is not None and "pyboy_version" not in checkpoint
+        with pytest.raises(ValueError, match="different PyBoy"):
+            pokesim_0419_autosave_check(checkpoint)
+        with pytest.raises(KeyError):
+            pokesim_0419_headless_check(checkpoint)
+        with pytest.raises(ValueError, match="trade worker"):
+            pokesim_0419_trade_check(checkpoint)
+        emulator.restore_checkpoint(checkpoint)  # Core itself still restores it
+
+
+def test_checkpoint_is_untagged_for_another_state_format(require_rtc, monkeypatch):
+    with machine() as emulator:
+        assert emulator.checkpoint()["pyboy_version"] == "2.7.0"
+        monkeypatch.setattr(state, "runtime_provenance", lambda: provenance(state_format="pyboy-format-16"))
+        assert "pyboy_version" not in emulator.checkpoint()
+
+
 # Checkpoint audio patch
 
 def disabled_apu_state():
