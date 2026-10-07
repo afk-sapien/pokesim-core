@@ -306,6 +306,10 @@ class Emulator:
         """Return the ten-byte PyBoy 2.7.0 ``.rtc`` file: little-endian f64 base timestamp, halt, day carry.
 
         The latched registers are not part of the file. Raises ValueError without an RTC.
+        While the clock is locked the file is the host-following equivalent: the one that, read on
+        the host clock now, shows the time the locked clock shows now (so a real cartridge or an
+        unlocked emulator does not see a fake time). The emulator is unchanged. Pair a locked
+        checkpoint's ``rtc_clock`` with the checkpoint, not with this file, to resume exactly.
         """
         return bytes(self._rtc_method('rtc_export')())
 
@@ -546,7 +550,12 @@ class Emulator:
         requires the same backend, backend version and state format, "state_format"
         accepts any build of the same backend and state format, and "exact" also requires
         the identical compiled binary and binding. A rebuilt or repackaged wheel of the same
-        version restores under the default.
+        version restores under the default (and the backend itself checks the state format and
+        the cartridge, not the build).
+
+        On a cartridge with a clock the checkpoint's lock is applied. A checkpoint with no clock
+        data (saved with a live clock, or by an older Core) releases any lock the emulator had,
+        without shifting the clock, so the result does not depend on the emulator's earlier state.
         """
         if match not in ("version", "state_format", "exact"):
             raise ValueError("match must be 'version', 'state_format' or 'exact'")
@@ -558,8 +567,9 @@ class Emulator:
             self._execution_method('restore_execution')(checkpoint['execution'])
         else:
             self.load(checkpoint['state'])
-        if 'rtc_clock' in checkpoint and self._has_rtc_cartridge():
-            self._rtc_method('set_clock_lock_state')(checkpoint['rtc_clock'])
+        if self._has_rtc_cartridge():
+            # A missing key means no lock, the same as None: restore never keeps a stale lock.
+            self._rtc_method('set_clock_lock_state')(checkpoint.get('rtc_clock'))
         self._pending = list(checkpoint.get('pending_inputs', ()))
         self._frame_offset = checkpoint['frames'] - self._backend.frame_count
 

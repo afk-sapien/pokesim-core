@@ -156,7 +156,8 @@ def test_checkpoint_without_lock_state_and_invalid_lock(require_rtc):
         emulator.lock_clock(at=1000.0)
         legacy = {key: value for key, value in unlocked.items() if key != "rtc_clock"}
         emulator.restore_checkpoint(legacy)
-        assert emulator.clock_locked
+        assert not emulator.clock_locked  # no clock data releases the lock
+        emulator.lock_clock(at=1000.0)
         before = emulator.checkpoint()
         for bad in ({}, {"base": 1.0}, [1, 2, 3, 4]):
             with pytest.raises(ValueError, match="clock lock"):

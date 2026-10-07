@@ -102,7 +102,11 @@ restoring a checkpoint saved with a locked clock. Everything else keeps working.
 - `stop(save=False, ram_file=None, rtc_file=None)` writes the ten bytes to
   `rtc_file` (replacing its contents) and the SRAM to `ram_file`. Nothing is written
   otherwise. `export_rtc()` and `import_rtc(data)` do the same on a running machine.
-  Latched registers are not part of the file.
+  Latched registers are not part of the file. While the clock is locked, the export
+  is the host-following equivalent (the file that reads as the locked clock's current
+  time on the host clock), never the fake base, so a real cartridge or an unlocked
+  emulator does not read about three years off. Needs `pyboy-rs` with the
+  `rtc_export_follows_host` feature.
 - `has_rtc`, `rtc_registers()`, `set_rtc_registers(seconds=, minutes=, hours=,
   days=, halt=, day_carry=)`, `rtc_state()` and `set_rtc_timezero(t)` give explicit
   access. Register setters move the base timestamp so the clock reads the requested
@@ -119,8 +123,11 @@ cartridge with a clock always adds `rtc_clock`, the exact lock fields or `None`
 is what an exact resume needs. A locked checkpoint written by a different backend
 version, accepted only with `match="state_format"`, is refused unless this machine
 already has the identical lock applied, because the raw state cannot carry it. A
-checkpoint without the key leaves the lock alone, and checkpoints of other cartridges are
-unchanged. Execution recording and replay still reject cartridges with a live clock.
+checkpoint with no clock data (no key, or `None`) releases any lock the emulator had,
+without shifting the clock, whatever the emulator did before. Checkpoints of other cartridges
+are unchanged. Execution recording and replay work with a locked clock and reject a live one.
+Checkpoints restore on a rebuilt or repackaged `pyboy-rs` wheel of the same version: the backend
+checks the state format and the cartridge, not the build; `match="exact"` is the strict mode.
 
 ## Experimental Core acceleration
 

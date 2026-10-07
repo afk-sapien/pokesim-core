@@ -68,7 +68,8 @@ Real-time clock control on `Emulator` is additive: the `rtc_file` argument,
 `stop(..., rtc_file=)`, `has_rtc`, `export_rtc`, `import_rtc`, `rtc_registers`,
 `set_rtc_registers`, `rtc_state`, `set_rtc_timezero`, `lock_clock`, `unlock_clock`,
 `advance_clock`, `clock_locked`, `clock_now` and the optional `rtc_clock` checkpoint
-key. Semantics are in the README section "Real-time clock".
+key; a locked clock exports its host-following value and a checkpoint without
+clock data releases a lock. Semantics are in the README section "Real-time clock".
 
 ## Versioning and upgrades
 

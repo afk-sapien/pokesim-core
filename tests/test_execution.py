@@ -4,14 +4,16 @@ import pytest
 
 from pokesim_core.emulator import Emulator, demo_rom
 
-pytest.importorskip('pyboy_rs')
+pyboy_rs = pytest.importorskip('pyboy_rs')
 
 
 def test_core_sequence_recording_checkpoint_and_profile():
     with Emulator(demo_rom()) as first, Emulator(demo_rom()) as resumed, Emulator(demo_rom()) as replayed:
         first.tick(90)
         first.start_recording(20)
-        first.start_profiling()
+        profiling = pyboy_rs.has_feature('profiling')
+        if profiling:
+            first.start_profiling()
         first.start_sequence([(('a',), 4), ((), 2), (('down',), 5)])
         result = first.run_sequence(3)
         assert result['frames'] == 3
@@ -23,8 +25,11 @@ def test_core_sequence_recording_checkpoint_and_profile():
         first.run_sequence(5)
         resumed.run_sequence(5)
         assert first.checkpoint() == resumed.checkpoint()
-        counters = first.stop_profiling()
-        assert counters['samples'] > 0
+        if profiling:
+            assert first.stop_profiling()['samples'] > 0
+        else:
+            with pytest.raises(RuntimeError, match='not compiled'):
+                first.start_profiling()
         recording = first.stop_recording()
         assert replayed.replay(recording)['verified']
         assert replayed.checkpoint() == first.checkpoint()
