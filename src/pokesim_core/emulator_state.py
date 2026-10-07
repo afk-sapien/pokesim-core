@@ -16,9 +16,14 @@ def _runtime_provenance():
     if len(native) != 1:
         raise RuntimeError("Cannot identify the installed native emulator")
     wrapper = Path(native[0]).parent / "pyboy.py"
+    binding = hashlib.sha256(wrapper.read_bytes())
+    for name in ('execution.py', 'diagnostics.py'):
+        component = wrapper.with_name(name)
+        if component.exists():
+            binding.update(component.read_bytes())
     return {"backend": "pyboy-rs", "version": installed.version, "state_format": STATE_FORMAT,
             "native_sha256": hashlib.sha256(Path(native[0]).read_bytes()).hexdigest(),
-            "binding_sha256": hashlib.sha256(wrapper.read_bytes()).hexdigest()}
+            "binding_sha256": binding.hexdigest()}
 
 
 def runtime_provenance():

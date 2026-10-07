@@ -61,6 +61,48 @@ trade checks use temporary copies and never enter package artifacts. Upstream
 PyBoy is used only as a development oracle in emulator tests and the timing
 harness in `tools/benchmark_emulator.py`.
 
+## Experimental Core acceleration
+
+The separate `pokesim-core-native` distribution in `native/` uses PyO3 and
+Maturin to decode a complete WRAM snapshot in one native call. It is optional.
+The base Core package still installs without Rust or third-party dependencies.
+Neither application imports the native extension directly.
+
+From this experimental checkout, install and verify the native path with:
+
+```bash
+uv sync --extra dev --extra emulator --extra acceleration
+POKESIM_CORE_DECODER=rust uv run --no-sync pytest
+```
+
+`POKESIM_CORE_DECODER=auto` is the default. It uses the native decoder when
+installed and otherwise uses Python. Set it to `python` to compare with the
+reference decoder or to `rust` to require the extension. Invalid modes, an
+incompatible native API, and native decoder errors fail explicitly.
+
+`pokesim_core.snapshot.read_fields(memory, move_data=None)` returns fresh
+snapshot fields, including party dictionaries. It does not advance the emulator,
+cache mutable state, read banked storage, or choose actions. Call it on the
+emulator's owning thread between execution steps. `Memory.read_bytes(start, stop)`
+returns detached bytes and avoids intermediate Python integer lists.
+
+`Emulator.tick_read(frames, start, stop, render=True, sound=True)` is an
+experimental combined advance and byte-collection API. It preserves pending
+inputs, synchronous hooks, frame counts, and media refresh. Bytes are collected
+after the final frame completes and are detached from later execution. Invalid
+ranges fail before advancing. Older bindings fall back to separate operations.
+This generic prototype does not embed game decoding in the emulator. PokeSim
+does not select it automatically because its end-to-end benefit is still being
+measured.
+
+`pokesim_core.identity.pokemon_identity(trainer_id, dvs)` preserves existing
+Pokémon signatures. A bounded cache stores only signatures of immutable integer
+inputs. Applications retain their own matching and observation rules.
+
+The native package needs a separate wheel when packaging a release. Local `uv`
+source overrides are development conveniences and are not public dependencies.
+No native package release has been published from this experiment.
+
 ## Previous published release
 
 Python 3.11 or newer is required.
@@ -217,3 +259,15 @@ and audio. Core throughput was within about 2% of direct Rust bindings across
 these samples. With rendering and audio it delivered 39% to 64% more throughput
 than compiled PyBoy. These are single-core emulator measurements, not full
 agent throughput. The benchmark records hashes, not private ROM or state data.
+
+## Experimental execution procedures
+
+Bounded input sequences, verified input replay, complete execution checkpoints,
+and opt-in native profiling are exposed through Core. See [EXECUTION.rst](EXECUTION.rst)
+for API examples, ownership rules, replay limits and the profiling procedure.
+
+## Experimental action and compatibility procedures
+
+State-aware menu actions, intermediate replay diagnostics and the permanent
+compatibility suite are described in [COMPATIBILITY.rst](COMPATIBILITY.rst).
+The suite reports synthetic and private gameplay coverage separately.

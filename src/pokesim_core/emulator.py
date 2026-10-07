@@ -16,6 +16,14 @@ BUTTONS = ("up", "down", "left", "right", "a", "b", "start", "select")
 FPS = 4_194_304 / 70_224
 
 
+class ReplayDivergence(RuntimeError):
+    """Replay failed at a checked interval. details contains detached diagnostics."""
+
+    def __init__(self, details):
+        self.details = deepcopy(details)
+        super().__init__(f"Replay diverged at checkpoint {details['first_failed_offset']}")
+
+
 class Memory:
     """Live byte and bank access. Slices return detached lists of bytes."""
 
@@ -25,6 +33,19 @@ class Memory:
     def __getitem__(self, key):
         self._owner._ensure_open()
         return self._owner._backend.memory[key]
+
+    def read_bytes(self, start, stop):
+        """Return detached bytes from the current address-space mapping."""
+        self._owner._ensure_open()
+        backend = self._owner._backend.memory
+        read = getattr(backend, 'read_bytes', None)
+        if read is not None:
+            return read(start, stop)
+        import operator
+        start, stop = operator.index(start), operator.index(stop)
+        if not 0 <= start <= stop <= 65536:
+            raise ValueError('Invalid memory range')
+        return bytes(backend[start:stop]) if start != stop else b''
 
     def __setitem__(self, key, value):
         self._owner._ensure_open()
@@ -119,7 +140,6 @@ class Emulator:
         self._closed = False
         raw = rom.read() if hasattr(rom, "read") else Path(rom).read_bytes()
         self.rom_sha256 = hashlib.sha256(raw).hexdigest()
-        self._frames = 0
         self._settings = {"sample_rate": sound_sample_rate, "sound_emulated": sound_emulated,
                           "color_palette": list(color_palette)}
         self._ram = ram_file if ram_file is not None else io.BytesIO()
@@ -127,11 +147,13 @@ class Emulator:
                               sound_sample_rate=sound_sample_rate, color_palette=color_palette,
                               ram_file=self._ram, log_level=log_level, symbols=symbols)
         self._backend.set_emulation_speed(0)
+        self._frame_offset = -self._backend.frame_count
         self.memory = Memory(self)
         self.register_file = Registers(self)
         self.screen = Screen(self)
         self.sound = Audio(self, sound_sample_rate)
         self._pending = []
+        self._recording_initial = None
 
     def _ensure_open(self):
         if self._closed:
@@ -144,8 +166,9 @@ class Emulator:
 
     @property
     def frame_count(self):
+        """Completed frames on the Core timeline, including during callbacks."""
         self._ensure_open()
-        return self._frames
+        return self._frame_offset + self._backend.frame_count
 
     @property
     def pending_inputs(self):
@@ -172,20 +195,110 @@ class Emulator:
     button_release = release
 
     def tick(self, frames=1, render=True, sound=True):
-        self._ensure_open()
-        if type(frames) is not int or frames < 1:
-            raise ValueError("frames must be a positive integer")
+        return self._advance(frames, render, sound)
+
+    def tick_read(self, frames, start, stop, *, render=True, sound=True):
+        """Advance and collect a detached range after all synchronous hooks finish."""
+        import operator
+        start, stop = operator.index(start), operator.index(stop)
+        if not 0 <= start <= stop <= 65536:
+            raise ValueError('Invalid memory range')
+        return self._advance(frames, render, sound, (start, stop))
+
+    def _flush_inputs(self):
         for button, pressed in self._pending:
             if pressed:
                 self._backend.button_press(button)
             else:
                 self._backend.button_release(button)
         self._pending.clear()
-        before = self._backend.frame_count
+
+    def _execution_method(self, name):
+        self._ensure_open()
+        method = getattr(self._backend, name, None)
+        if method is None:
+            raise RuntimeError('This operation requires the experimental execution-enabled PyBoy RS build')
+        return method
+
+    def start_sequence(self, steps):
+        if self._pending:
+            raise RuntimeError('Advance pending Core inputs before starting a sequence')
+        return self._execution_method('start_sequence')(steps)
+
+    @property
+    def sequence_progress(self):
+        self._ensure_open()
+        return deepcopy(getattr(self._backend, 'sequence_progress', None))
+
+    def run_sequence(self, max_frames, *, render=True, sound=True, cancelled=None):
+        method = self._execution_method('run_sequence')
+        return method(max_frames, render=render, sound=sound, cancelled=cancelled,
+                      _before_frame=self._flush_inputs)
+
+    def cancel_sequence(self):
+        return self._execution_method('cancel_sequence')()
+
+    def start_recording(self, max_frames=100000, *, diagnostic_interval=0, diagnostic_ranges=((0xc000, 0xe000),)):
+        method = self._execution_method('start_recording')
+        initial = self.checkpoint()
+        if diagnostic_interval or diagnostic_ranges != ((0xc000, 0xe000),):
+            method(max_frames, diagnostic_interval=diagnostic_interval, diagnostic_ranges=diagnostic_ranges)
+        else:
+            method(max_frames)
+        self._recording_initial = initial
+
+    def stop_recording(self):
         try:
-            return self._backend.tick(frames, render=render, sound=sound)
+            backend = self._execution_method('stop_recording')()
         finally:
-            self._frames += self._backend.frame_count - before
+            initial, self._recording_initial = self._recording_initial, None
+        return {'format': 1, 'initial': initial, 'final': self.checkpoint(), 'backend': backend}
+
+    def replay(self, recording):
+        method = self._execution_method('replay')
+        if self._recording_initial is not None:
+            raise RuntimeError('Stop recording before replay')
+        if recording.get('format') != 1:
+            raise ValueError('Unsupported Core recording')
+        for name in ('initial', 'final'):
+            checkpoint = recording[name]
+            self._validate_checkpoint(checkpoint)
+            if checkpoint.get('execution') != recording['backend'][name]:
+                raise ValueError('Core and backend recording state mismatch')
+        validate = getattr(self._backend, 'validate_recording', None)
+        if validate is not None:
+            validate(recording['backend'])
+        self.restore_checkpoint(recording['initial'])
+        try:
+            result = method(recording['backend'])
+        except RuntimeError as error:
+            if hasattr(error, 'details'):
+                raise ReplayDivergence(error.details) from error
+            raise
+        self.restore_checkpoint(recording['final'])
+        return result
+
+    def start_profiling(self):
+        return self._execution_method('start_profiling')()
+
+    def profiling_counters(self):
+        return self._execution_method('profiling_counters')()
+
+    def stop_profiling(self):
+        return self._execution_method('stop_profiling')()
+
+    def _advance(self, frames, render, sound, read_range=None):
+        self._ensure_open()
+        if type(frames) is not int or frames < 1:
+            raise ValueError("frames must be a positive integer")
+        self._flush_inputs()
+        if read_range is None:
+            return self._backend.tick(frames, render=render, sound=sound)
+        combined = getattr(self._backend, 'tick_read', None)
+        if combined is not None:
+            return combined(frames, *read_range, render=render, sound=sound)
+        self._backend.tick(frames, render=render, sound=sound)
+        return self.memory.read_bytes(*read_range)
 
     def symbol_lookup(self, name):
         self._ensure_open()
@@ -222,14 +335,19 @@ class Emulator:
 
     def checkpoint(self):
         from .emulator_state import runtime_provenance
-        return {"format": 1, "emulator": runtime_provenance(), "state": self.save(),
-                "pending_inputs": self.pending_inputs, "frames": self._frames,
-                "rom_sha256": self.rom_sha256, "settings": deepcopy(self._settings)}
+        checkpoint = {"format": 1, "emulator": runtime_provenance(), "state": self.save(),
+                      "pending_inputs": self.pending_inputs, "frames": self.frame_count,
+                      "rom_sha256": self.rom_sha256, "settings": deepcopy(self._settings)}
+        if hasattr(self._backend, 'execution_checkpoint'):
+            checkpoint['format'] = 2
+            checkpoint['execution'] = self._backend.execution_checkpoint()
+        return checkpoint
 
-    def restore_checkpoint(self, checkpoint):
+    def _validate_checkpoint(self, checkpoint):
+        self._ensure_open()
         from .emulator_state import validate_runtime
         validate_runtime(checkpoint, exact=True)
-        if checkpoint.get("format") != 1:
+        if checkpoint.get("format") not in (1, 2):
             raise ValueError("Unsupported Core checkpoint")
         if checkpoint.get("rom_sha256") != self.rom_sha256 or checkpoint.get("settings") != self._settings:
             raise ValueError("Checkpoint ROM or emulator settings mismatch")
@@ -240,9 +358,21 @@ class Emulator:
         for button, pressed in pending:
             if button not in BUTTONS or type(pressed) is not bool:
                 raise ValueError("Invalid pending input")
-        self.load(checkpoint["state"])
-        self._pending = list(pending)
-        self._frames = frames
+        if checkpoint['format'] == 2:
+            if checkpoint['state'] != checkpoint['execution']['state']:
+                raise ValueError('Core and backend checkpoint state mismatch')
+
+    def restore_checkpoint(self, checkpoint):
+        checkpoint = deepcopy(checkpoint)
+        self._validate_checkpoint(checkpoint)
+        if self._recording_initial is not None:
+            raise RuntimeError('Stop recording before restoring')
+        if checkpoint['format'] == 2:
+            self._execution_method('restore_execution')(checkpoint['execution'])
+        else:
+            self.load(checkpoint['state'])
+        self._pending = list(checkpoint.get('pending_inputs', ()))
+        self._frame_offset = checkpoint['frames'] - self._backend.frame_count
 
     def screenshot(self):
         buffer = io.BytesIO()

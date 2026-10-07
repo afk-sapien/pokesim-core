@@ -14,6 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 emulator = ["pyboy-rs==0.1.0", "pillow>=10,<13"]
+acceleration = ["pokesim-core-native==0.1.0.dev0"]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
 
 [project.urls]
@@ -37,3 +38,4 @@ select = ["E9", "F"]
 
 [tool.uv.sources]
 pyboy-rs = { path = "../pyboy-rs" }
+pokesim-core-native = { path = "native" }
