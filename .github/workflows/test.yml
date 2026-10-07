@@ -50,7 +50,7 @@ jobs:
         run: |
           python -m pytest -rs -q --ignore=tests/test_snapshot_native.py | tee pytest.log
           if grep -Eq '[0-9]+ skipped' pytest.log; then echo "Unexpected skips"; exit 1; fi
-      - run: ruff check .
+      - run: ruff check src tests tools
 
   native:
     name: native decoder crate
