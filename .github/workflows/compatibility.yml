@@ -29,7 +29,7 @@ jobs:
         run: |
           uv venv --python 3.12
           uv pip install maturin
-          uv run --no-sync maturin build --release --manifest-path ../pyboy-rs/Cargo.toml --out dist
+          uv run --no-sync bash -c 'cd ../pyboy-rs && maturin build --release --locked --out "$OLDPWD/dist"'
           uv pip install dist/pyboy_rs-*.whl pillow numpy -e ".[dev]"
       - run: uv run --no-sync pytest
       - run: uv run --no-sync python -m pokesim_core.compatibility compatibility/synthetic.json --baseline compatibility/synthetic-baseline.json --output compatibility-result.json --repeats 1

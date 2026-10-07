@@ -39,7 +39,7 @@ jobs:
       - name: Build the PyBoy RS wheel
         run: |
           python -m pip install maturin
-          maturin build --release --manifest-path pyboy-rs/Cargo.toml --out dist
+          (cd pyboy-rs && maturin build --release --locked --out "$GITHUB_WORKSPACE/dist")
       - name: Install Core with the emulator
         run: |
           python -m pip install dist/pyboy_rs-*.whl
