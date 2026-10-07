@@ -4,9 +4,64 @@ Shared Pokemon Red and Blue primitives for simulation and agent research.
 
 The package extracts low-level functionality used by PokeSim and a separate
 agent benchmark. The base install uses only Python's standard library. The
-optional emulator extra supplies a controller-driven PyBoy adapter.
+optional emulator extra supplies the Rust-backed Core emulator interface.
 
-## Install
+## Unreleased Rust integration
+
+Version `0.2.0.dev0` uses PyBoy RS as its only production emulator. Both
+applications import Core. Only Core imports the native Python package.
+The working checkouts must be siblings named `pyboy-rs`, `pokesim-core`,
+`pokesim`, and `pokeagent-bench`. Until releases are published, `uv` resolves
+these local source overrides:
+
+```bash
+uv sync --extra dev --extra emulator
+uv run pytest
+uv run ruff check .
+```
+
+A source install needs Rust and Maturin. Released application installations
+will use prebuilt wheels after the separate release step. The older release
+commands below still install the previous PyBoy-backed version.
+
+`Emulator` owns isolated machine operations, memory and register wrappers,
+RGBA output, signed 8-bit stereo audio, hooks, and explicit cartridge export.
+It has no application thread, automatic file writes, or agent policy.
+`GameBoy` adds verified Red/Blue ROM selection for the benchmark. Core memory
+writes and hooks are trusted host APIs. Applications decide which observations
+and actions their agents can access.
+
+Batched `tick` advances exactly the requested positive number of frames and
+renders and samples its last frame. Tick one frame at a time for continuous
+media. Output views are read-only and change on the next tick or state load.
+Use bytes to retain a snapshot. Image encoding lazily imports Pillow. NumPy
+views require the caller to install NumPy.
+
+Raw `save` and `load` preserve format-15 compatibility. They exclude pending
+controller operations and keep the caller's current pending queue. Core's
+`checkpoint` and `restore_checkpoint` additionally preserve pending inputs and
+frame counts and validate the ROM, settings, and exact native build. Failed
+state loads leave the machine unchanged. Hooks are owned by the caller and
+must be registered on a fresh machine before resuming instrumented execution.
+
+`emulator_state` owns runtime fingerprints and known legacy import rules.
+`checkpoint_audio` owns the format-specific conversion for silent legacy
+checkpoints. Ordinary imports can accept PyBoy 2.7.0 format-15 saves. Exact
+benchmark resumes require the recorded Rust build. New manifests identify
+PyBoy RS explicitly, including the native extension and binding hashes.
+Trade outputs retain an explicit source-to-output runtime migration record.
+
+`gen1_cable.CableEndpoint` owns the verified ROM-hook transport, queues,
+register parking, and hook cleanup. Applications own participants, navigation,
+time budgets, persistence, and transaction adoption. This mechanism is an
+explicit Gen1 virtual cable implemented with verified ROM hooks.
+
+The optional native tests use the redistributable demo. Private gameplay and
+trade checks use temporary copies and never enter package artifacts. Upstream
+PyBoy is used only as a development oracle in emulator tests and the timing
+harness in `tools/benchmark_emulator.py`.
+
+## Previous published release
 
 Python 3.11 or newer is required.
 
@@ -90,9 +145,9 @@ APIs. Do not expose them directly to an agent. This library is not a sandbox.
 | Explicit controller and frame operations | Agent tools, permissions, and budgets |
 | Screenshot and state primitives | State manifests, recovery policy, and replay logs |
 
-PokeSim retains its own emulator lifecycle because it manages existing adventures,
-trading, saves, and recovery. It shares the decoder and ROM identity primitives.
-The agent benchmark also uses the isolated `GameBoy` adapter. Both can adopt
+PokeSim retains application scheduling, adventures, trading transactions, saves,
+and recovery. All machine operations use Core. The agent benchmark uses the
+isolated `GameBoy` adapter through the same runtime. Both can adopt
 future core releases deliberately, without changing existing experiments silently.
 
 The library imports neither application and does not bundle a database, MCP
@@ -145,3 +200,20 @@ stationary encounter or clear a supplied event group. These are explicit memory
 mutations with context checks and change receipts. They are never called by
 controller helpers and must not be exposed to benchmark agents. See the
 [API contracts](docs/api.md) for adapter requirements and supported operations.
+
+## Local integration validation
+
+The 2026-10-05 integration passed 711 Rust-package Python compatibility tests,
+74 Core tests, and the benchmark suite. Real Red-to-Red cable trades passed in
+both clock roles, including cartridge restart, checkpoint reload, movement,
+and return-to-center checks. A cartridge export and benchmark pause/resume
+checks also passed using private temporary fixtures. Blue pairings require a
+separately supplied Blue ROM and fixture and are not established by this run.
+
+The five-repeat, 4,800-frame gameplay comparison is recorded in
+[the Core report](benchmarks/2026-10-05-core.json). All 90 runs matched final
+hardware states and gameplay traces. Rendered runs also matched final pixels
+and audio. Core throughput was within about 2% of direct Rust bindings across
+these samples. With rendering and audio it delivered 39% to 64% more throughput
+than compiled PyBoy. These are single-core emulator measurements, not full
+agent throughput. The benchmark records hashes, not private ROM or state data.
