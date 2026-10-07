@@ -2,7 +2,7 @@
 
 ## 0.2.0
 
-Release candidate. Not yet tagged or published.
+Distributed as the GitHub release wheel `pokesim_core-0.2.0-py3-none-any.whl`, built and attached by the `Release` workflow on a `v*` tag. Not on PyPI.
 
 ### Added
 
