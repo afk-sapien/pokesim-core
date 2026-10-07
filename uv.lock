@@ -129,50 +129,25 @@ wheels = [
 
 [[package]]
 name = "pokesim-core"
-version = "0.2.0.dev0"
+version = "0.2.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
-acceleration = [
-    { name = "pokesim-core-native" },
-]
 dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
 emulator = [
     { name = "pillow" },
-    { name = "pyboy-rs" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "pillow", marker = "extra == 'emulator'", specifier = ">=10,<13" },
-    { name = "pokesim-core-native", marker = "extra == 'acceleration'", directory = "native" },
-    { name = "pyboy-rs", marker = "extra == 'emulator'", directory = "../pyboy-rs" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8,<10" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11,<1" },
 ]
-provides-extras = ["emulator", "acceleration", "dev"]
-
-[[package]]
-name = "pokesim-core-native"
-version = "0.1.0.dev0"
-source = { directory = "native" }
-
-[[package]]
-name = "pyboy-rs"
-version = "0.1.0"
-source = { directory = "../pyboy-rs" }
-
-[package.metadata]
-requires-dist = [
-    { name = "numpy", marker = "extra == 'images'" },
-    { name = "pillow", marker = "extra == 'images'", specifier = ">=10" },
-    { name = "pyboy", marker = "extra == 'test'", specifier = "==2.7.0" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
-]
-provides-extras = ["test", "images"]
+provides-extras = ["emulator", "dev"]
 
 [[package]]
 name = "pygments"

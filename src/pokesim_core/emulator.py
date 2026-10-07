@@ -10,10 +10,52 @@ from copy import deepcopy
 import hashlib
 from pathlib import Path
 
+from .errors import CoreCapabilityError
 from .rom import require_rom
 
 BUTTONS = ("up", "down", "left", "right", "a", "b", "start", "select")
 FPS = 4_194_304 / 70_224
+
+
+CLOCK_UNAVAILABLE = ('This operation requires a PyBoy RS build with real-time clock control '
+                     '(pyboy-rs 0.1.1 or newer). The installed build cannot control the cartridge clock.')
+_CLOCK_METHODS = ('rtc_export', 'rtc_import', 'rtc_registers', 'set_rtc_registers', 'rtc_state',
+                  'set_rtc_timezero', 'clock_now', 'lock_clock', 'unlock_clock', 'advance_clock',
+                  'clock_lock_state', 'set_clock_lock_state')
+
+
+_CLOCK_FEATURES = ("rtc_file", "clock_lock", "clock_lock_state", "advance_clock", "export_rtc")
+
+
+def clock_control_supported(backend=None):
+    """Whether the PyBoy RS build can import, export and lock cartridge clocks.
+
+    Uses the build's own capability flags when it publishes them: ``HAS_CLOCK_CONTROL`` and
+    ``has_feature(name)`` on the package (pyboy-rs 0.1.1), or a ``has_rtc`` flag that is False
+    on the package or the PyBoy class. It then requires every clock method, so older builds
+    without any flag are still detected. Never raises, and says nothing about the cartridge.
+    """
+    import sys
+    module = sys.modules.get("pyboy_rs")
+    if backend is None:
+        backend = getattr(module, "PyBoy", None)
+    if backend is None:
+        return False
+    if getattr(module, "HAS_CLOCK_CONTROL", True) is False:
+        return False
+    has_feature = getattr(module, "has_feature", None)
+    if callable(has_feature) and not all(has_feature(name) for name in _CLOCK_FEATURES):
+        return False
+    for holder in (module, backend if isinstance(backend, type) else type(backend)):
+        flag = getattr(holder, "has_rtc", None)
+        if callable(flag):
+            try:
+                flag = flag()
+            except Exception:
+                flag = None
+        if flag is False:
+            return False
+    return all(hasattr(backend, name) for name in _CLOCK_METHODS)
 
 
 class ReplayDivergence(RuntimeError):
@@ -145,6 +187,8 @@ class Emulator:
         self._ram = ram_file if ram_file is not None else io.BytesIO()
         options = {}
         if rtc_file is not None:
+            if not clock_control_supported(PyBoy):
+                raise CoreCapabilityError(CLOCK_UNAVAILABLE)
             # The backend keeps this stream and may write it on stop, so give it a private copy.
             data = rtc_file if isinstance(rtc_file, (bytes, bytearray, memoryview)) else rtc_file.read()
             options["rtc_file"] = io.BytesIO(bytes(data))
@@ -163,6 +207,11 @@ class Emulator:
     def _ensure_open(self):
         if self._closed:
             raise RuntimeError("The emulator is closed")
+
+    @property
+    def _pb(self):
+        """Legacy 0.1.x attribute name for the backend. Core 0.1.x applications read it."""
+        return self._backend
 
     @property
     def cartridge_title(self):
@@ -222,25 +271,35 @@ class Emulator:
         self._ensure_open()
         method = getattr(self._backend, name, None)
         if method is None:
-            raise RuntimeError('This operation requires the experimental execution-enabled PyBoy RS build')
+            raise CoreCapabilityError('This operation requires the experimental execution-enabled PyBoy RS build')
         return method
+
+    @property
+    def clock_control_available(self):
+        """Whether the backend build can control cartridge clocks. Never raises while open."""
+        self._ensure_open()
+        return clock_control_supported(self._backend)
+
+    def _require_clock_control(self):
+        self._ensure_open()
+        if not clock_control_supported(self._backend):
+            raise CoreCapabilityError(CLOCK_UNAVAILABLE)
 
     def _rtc_method(self, name):
-        self._ensure_open()
-        method = getattr(self._backend, name, None)
-        if method is None:
-            raise RuntimeError('This operation requires a PyBoy RS build with real-time clock control')
-        return method
+        self._require_clock_control()
+        return getattr(self._backend, name)
 
     def _rtc_property(self, name):
-        self._ensure_open()
-        if not hasattr(self._backend, name):
-            raise RuntimeError('This operation requires a PyBoy RS build with real-time clock control')
+        self._require_clock_control()
         return bool(getattr(self._backend, name))
 
     @property
     def has_rtc(self):
-        """Whether the cartridge has a real-time clock. False on cartridges without one."""
+        """Whether the cartridge has a real-time clock. False on cartridges without one.
+
+        Raises CoreCapabilityError on a backend that cannot control clocks, because that
+        build cannot say whether the clock exists. Use clock_control_available to test first.
+        """
         return self._rtc_property('rtc_present')
 
     def export_rtc(self):
@@ -298,6 +357,13 @@ class Emulator:
     def advance_clock(self, seconds):
         """Advance a locked clock by a finite, non-negative number of seconds."""
         self._rtc_method('advance_clock')(seconds)
+
+    def clock_lock_state(self):
+        """The lock as a plain dict (base, offset, frames, follow_frames), or None when unlocked.
+
+        Raw hardware states do not carry it. Checkpoints store it as ``rtc_clock``.
+        """
+        return self._rtc_method('clock_lock_state')()
 
     def start_sequence(self, steps):
         if self._pending:
@@ -422,16 +488,19 @@ class Emulator:
             checkpoint['execution'] = self._backend.execution_checkpoint()
         if self._has_rtc_cartridge():
             # The base timestamp is in the state, but the lock's virtual time is not.
+            # Always written for clock cartridges, None meaning the clock follows the host.
             checkpoint['rtc_clock'] = self._backend.clock_lock_state()
         return checkpoint
 
     def _has_rtc_cartridge(self):
-        return hasattr(self._backend, 'clock_lock_state') and bool(getattr(self._backend, 'rtc_present', False))
+        return clock_control_supported(self._backend) and bool(getattr(self._backend, 'rtc_present', False))
 
-    def _validate_checkpoint(self, checkpoint):
+    def _validate_checkpoint(self, checkpoint, match="version"):
         self._ensure_open()
         from .emulator_state import validate_runtime
-        validate_runtime(checkpoint, exact=True)
+        if "emulator" not in checkpoint:
+            raise ValueError("Checkpoint requires explicit emulator provenance")
+        validate_runtime(checkpoint, exact=match == "exact", version=match != "state_format")
         if checkpoint.get("format") not in (1, 2):
             raise ValueError("Unsupported Core checkpoint")
         if checkpoint.get("rom_sha256") != self.rom_sha256 or checkpoint.get("settings") != self._settings:
@@ -447,20 +516,45 @@ class Emulator:
             lock = checkpoint['rtc_clock']
             if lock is not None and (type(lock) is not dict or set(lock) != {'base', 'offset', 'frames', 'follow_frames'}):
                 raise ValueError('Invalid checkpoint clock lock')
+            if lock is not None:
+                self._validate_locked_checkpoint(checkpoint, lock)
         if checkpoint['format'] == 2:
             if checkpoint['state'] != checkpoint['execution']['state']:
                 raise ValueError('Core and backend checkpoint state mismatch')
 
-    def restore_checkpoint(self, checkpoint):
+    def _validate_locked_checkpoint(self, checkpoint, lock):
+        """A checkpoint saved with a locked clock needs a backend that can apply that lock."""
+        self._require_clock_control()
+        from .emulator_state import runtime_provenance
+        source, current = checkpoint["emulator"], runtime_provenance()
+        if (source.get("backend"), source.get("version")) != (current["backend"], current["version"]):
+            # Another backend or version: the raw state cannot be trusted to carry the lock
+            # semantics, so only proceed when this machine already has the same lock applied.
+            if self._backend.clock_lock_state() != lock:
+                raise ValueError(
+                    "Checkpoint was saved with a locked clock by a different emulator build. "
+                    "Apply the identical lock with lock_clock() and advance_clock() first, or restore on the original build")
+
+    def restore_checkpoint(self, checkpoint, *, match="version"):
+        """Restore a checkpoint written by checkpoint().
+
+        match selects how strictly the emulator build must agree: "version" (default)
+        requires the same backend, backend version and state format, "state_format"
+        accepts any build of the same backend and state format, and "exact" also requires
+        the identical compiled binary and binding. A rebuilt or repackaged wheel of the same
+        version restores under the default.
+        """
+        if match not in ("version", "state_format", "exact"):
+            raise ValueError("match must be 'version', 'state_format' or 'exact'")
         checkpoint = deepcopy(checkpoint)
-        self._validate_checkpoint(checkpoint)
+        self._validate_checkpoint(checkpoint, match)
         if self._recording_initial is not None:
             raise RuntimeError('Stop recording before restoring')
         if checkpoint['format'] == 2:
             self._execution_method('restore_execution')(checkpoint['execution'])
         else:
             self.load(checkpoint['state'])
-        if 'rtc_clock' in checkpoint:
+        if 'rtc_clock' in checkpoint and self._has_rtc_cartridge():
             self._rtc_method('set_clock_lock_state')(checkpoint['rtc_clock'])
         self._pending = list(checkpoint.get('pending_inputs', ()))
         self._frame_offset = checkpoint['frames'] - self._backend.frame_count
@@ -480,6 +574,8 @@ class Emulator:
         """
         if not self._closed:
             # Persistence is explicit. Closing without a stream never writes a file.
+            if rtc_file is not None:
+                self._require_clock_control()
             extra = {} if rtc_file is None else {"rtc_file": rtc_file}
             self._backend.stop(save=save or ram_file is not None or rtc_file is not None, ram_file=ram_file, **extra)
             self._closed = True

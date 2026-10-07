@@ -104,7 +104,7 @@ def test_migrated_outputs_record_actual_runtime_and_source_lineage():
     from pokesim_core.emulator_state import retag_checkpoint, same_runtime_or_recorded_migration
     source = {"pyboy_version": "2.7.0", "frame": 100}
     output = retag_checkpoint(source)
-    assert "pyboy_version" not in output
+    assert output["pyboy_version"] == "2.7.0"
     assert output["emulator"]["backend"] == "pyboy-rs"
     assert output["frame"] == source["frame"]
     assert source == {"pyboy_version": "2.7.0", "frame": 100}

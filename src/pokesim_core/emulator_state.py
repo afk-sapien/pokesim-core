@@ -30,8 +30,13 @@ def runtime_provenance():
     return dict(_runtime_provenance())
 
 
-def validate_runtime(metadata, *, exact=False):
-    """Allow known legacy imports, require the original build for exact resume."""
+def validate_runtime(metadata, *, exact=False, version=False):
+    """Allow known legacy imports, require the original build for exact resume.
+
+    exact compares the full provenance, including the compiled binary hashes, which change
+    with every rebuild and platform. version requires the same backend version without the
+    hashes. The default checks only the backend and state format.
+    """
     source = metadata.get("emulator")
     if source is None:
         if not exact and metadata.get("pyboy_version") == LEGACY_PYBOY_VERSION:
@@ -43,12 +48,31 @@ def validate_runtime(metadata, *, exact=False):
         raise ValueError("Invalid emulator provenance")
     if source.get("backend") != "pyboy-rs" or source.get("state_format") != STATE_FORMAT:
         raise ValueError("Unsupported checkpoint emulator or state format")
-    if exact and source != runtime_provenance():
+    current = runtime_provenance() if exact or version else None
+    if version and source.get("version") != current["version"]:
+        raise ValueError(f"Checkpoint was saved by {source.get('backend')} {source.get('version')}, "
+                         f"but this build is {current['version']}")
+    if exact and source != current:
         raise ValueError("Resume requires the original emulator build")
 
 
-def checkpoint_metadata():
-    return {"emulator": dict(runtime_provenance())}
+def _legacy_fields(metadata):
+    """The PyBoy 2.7.0 version tag, only when a PyBoy 2.7.0 build could load these states.
+
+    PyBoy RS writes and reads PyBoy 2.7.0 format-15 states. A clock lock is the exception:
+    PyBoy 2.7.0 has no lock, so a checkpoint saved while locked is not tagged.
+    """
+    if runtime_provenance()["state_format"] != STATE_FORMAT:
+        return {}
+    if metadata.get("rtc_clock") is not None:
+        return {}
+    return {"pyboy_version": LEGACY_PYBOY_VERSION}
+
+
+def checkpoint_metadata(*, rtc_clock=None):
+    """Provenance for a checkpoint about to be written, with the PyBoy 2.7.0 tag that lets an
+    older application still load it. Pass the checkpoint's rtc_clock so a locked save is not tagged."""
+    return {"emulator": dict(runtime_provenance()), **_legacy_fields({"rtc_clock": rtc_clock})}
 
 
 def runtime_identity(metadata):
@@ -64,6 +88,12 @@ def retag_checkpoint(metadata):
     result = dict(metadata)
     result.pop("pyboy_version", None)
     result["emulator"] = current
+    # Keep the PyBoy 2.7.0 tag when the source lineage and the new output are both format 15,
+    # so a downgrade to an application that still requires it can load the checkpoint.
+    legacy_source = (previous.get("backend") == "pyboy" and previous.get("version") == LEGACY_PYBOY_VERSION) \
+        or (previous.get("backend") == "pyboy-rs" and previous.get("state_format") == STATE_FORMAT)
+    if legacy_source:
+        result.update(_legacy_fields(metadata))
     if previous != current:
         result["emulator_migration"] = {"from": previous, "to": dict(current)}
     return result

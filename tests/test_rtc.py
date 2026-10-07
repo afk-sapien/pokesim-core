@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from pokesim_core.emulator import Emulator
+from pokesim_core.errors import CoreCapabilityError
 
 WRAM = 0xC000
 
@@ -186,19 +187,39 @@ def test_old_backend_gets_a_clear_error_and_no_new_arguments(monkeypatch):
     monkeypatch.setitem(sys.modules, "pyboy_rs", SimpleNamespace(PyBoy=NoRtcBackend))
     emulator = Emulator(io.BytesIO(bytes(32768)))
     assert "rtc_file" not in NoRtcBackend.instances[0].options
-    for call in (lambda: emulator.has_rtc, lambda: emulator.lock_clock(), lambda: emulator.export_rtc()):
-        with pytest.raises(RuntimeError, match="real-time clock"):
+    assert not emulator.clock_control_available
+    for call in (lambda: emulator.has_rtc, lambda: emulator.lock_clock(), lambda: emulator.export_rtc(),
+                 lambda: emulator.clock_lock_state(), lambda: emulator.stop(rtc_file=io.BytesIO())):
+        with pytest.raises(CoreCapabilityError, match="real-time clock"):
             call()
     emulator.stop()
     assert NoRtcBackend.instances[0].stops == [(False, {})]
 
 
+class ClockBackend(NoRtcBackend):
+    instances = []
+    pass
+
+
+for _name in ("rtc_export", "rtc_import", "rtc_registers", "set_rtc_registers", "rtc_state", "set_rtc_timezero",
+              "clock_now", "lock_clock", "unlock_clock", "advance_clock", "clock_lock_state", "set_clock_lock_state"):
+    setattr(ClockBackend, _name, lambda self, *args, **kwargs: None)
+
+
 def test_rtc_file_is_forwarded_as_a_private_copy(monkeypatch):
-    NoRtcBackend.instances = []
-    monkeypatch.setitem(sys.modules, "pyboy_rs", SimpleNamespace(PyBoy=NoRtcBackend))
+    ClockBackend.instances = []
+    monkeypatch.setitem(sys.modules, "pyboy_rs", SimpleNamespace(PyBoy=ClockBackend))
     source = io.BytesIO(b"0123456789")
     Emulator(io.BytesIO(bytes(32768)), rtc_file=source)
-    forwarded = NoRtcBackend.instances[0].options["rtc_file"]
+    forwarded = ClockBackend.instances[0].options["rtc_file"]
     assert forwarded is not source and forwarded.getvalue() == b"0123456789"
     Emulator(io.BytesIO(bytes(32768)), rtc_file=b"abc")
-    assert NoRtcBackend.instances[1].options["rtc_file"].getvalue() == b"abc"
+    assert ClockBackend.instances[1].options["rtc_file"].getvalue() == b"abc"
+
+
+def test_rtc_file_on_a_backend_without_clock_control_is_refused_before_construction(monkeypatch):
+    NoRtcBackend.instances = []
+    monkeypatch.setitem(sys.modules, "pyboy_rs", SimpleNamespace(PyBoy=NoRtcBackend))
+    with pytest.raises(CoreCapabilityError, match="real-time clock"):
+        Emulator(io.BytesIO(bytes(32768)), rtc_file=b"0123456789")
+    assert NoRtcBackend.instances == []
