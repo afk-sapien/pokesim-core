@@ -105,6 +105,15 @@ fn party<'py>(
     Ok(out)
 }
 
+/// Mirrors `wild_shiny` in snapshot.py: original DVs survive Transform; captures are exempt.
+fn wild_shiny(raw: &[u8]) -> bool {
+    if raw[0x1057] != 1 || raw[0x111c] != 0 || raw[0xf0b] == 2 {
+        return false;
+    }
+    let at = if raw[0x1069] & 8 != 0 { 0xceb } else { 0xff1 };
+    raw[at] & 0x2f == 0x2a && raw[at + 1] == 0xaa
+}
+
 #[pyfunction]
 fn decode_snapshot<'py>(
     py: Python<'py>,
@@ -133,7 +142,7 @@ fn decode_snapshot<'py>(
     row.set_item("enemy_level", if battle != 0 { raw[0xff3] } else { 0 })?;
     row.set_item(
         "enemy_shiny",
-        battle == 1 && raw[0x1069] & 8 == 0 && raw[0xff1] & 0x2f == 0x2a && raw[0xff2] == 0xaa,
+        wild_shiny(raw),
     )?;
     row.set_item("saffron_open", raw[0x1728] & 64 != 0)?;
     row.set_item("textbox", raw[0x3a0 + 12 * 20] == 0x79)?;

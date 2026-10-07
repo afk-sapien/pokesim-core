@@ -82,6 +82,18 @@ def read_fields(memory, move_data=None):
     return native.decode_snapshot(raw, maximum)
 
 
+def wild_shiny(mem):
+    """Shiny DVs of the wild individual, keeping its original DVs through Transform."""
+    # wCapturedMonSpecies is set before the capture dialogue and storage update, and
+    # wBattleResult becomes 2 when the capture flag is cleared for battle exit; neither
+    # needs shiny protection any more.
+    if mem[0xd057] != 1 or mem[0xd11c] or mem[0xcf0b] == 2:
+        return False
+    # wEnemyBattleStatus3.TRANSFORMED selects wTransformedEnemyMonOriginalDVs.
+    address = 0xcceb if mem[0xd069] & 8 else 0xcff1
+    return mem[address] & 0x2f == 0x2a and mem[address + 1] == 0xaa
+
+
 def _read_fields_python(mem, move_data=None):
     """mem: anything supporting mem[addr] and mem[a:b] over the GB address space (pyboy.memory)."""
     party = core_gen1.read_party(mem, move_data=move_data)
@@ -94,7 +106,7 @@ def _read_fields_python(mem, move_data=None):
     seen_dex = flag_bits(bytes(mem[W_DEX_SEEN:W_DEX_SEEN + 19]))
     owned_dex = flag_bits(bytes(mem[W_DEX_OWNED:W_DEX_OWNED + 19])) & seen_dex
     return dict(
-        enemy_shiny=bool(in_battle == 1 and not mem[0xd069] & 8 and mem[0xcff1] & 0x2f == 0x2a and mem[0xcff2] == 0xaa),
+        enemy_shiny=wild_shiny(mem),
         map=mem[W_CUR_MAP], x=mem[W_X], y=mem[W_Y],
         badges=mem[W_BADGES],
         saffron_open=bool(mem[W_STATUS_FLAGS1] & 64),
