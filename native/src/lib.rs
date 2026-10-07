@@ -140,10 +140,7 @@ fn decode_snapshot<'py>(
     let battle = raw[0x1057];
     row.set_item("enemy_species", if battle != 0 { raw[0xfe5] } else { 0 })?;
     row.set_item("enemy_level", if battle != 0 { raw[0xff3] } else { 0 })?;
-    row.set_item(
-        "enemy_shiny",
-        wild_shiny(raw),
-    )?;
+    row.set_item("enemy_shiny", wild_shiny(raw))?;
     row.set_item("saffron_open", raw[0x1728] & 64 != 0)?;
     row.set_item("textbox", raw[0x3a0 + 12 * 20] == 0x79)?;
     row.set_item("start_menu", raw[0x3aa] == 0x79 && battle == 0)?;
