@@ -18,6 +18,10 @@ Release candidate. Not yet tagged or published.
 - The README test count and `API_VERSION` documentation are corrected. `press()` is documented as waiting for the tick.
 - Backend change for 0.1.x users of `GameBoy` and the `emulator` extra: the backend is now `pyboy_rs`, not `PyBoy`. Code that monkeypatches a fake `pyboy` module must patch `pyboy_rs` instead. Eight tests in the 0.1.4 `test_emulator.py` do exactly this and fail by design against 0.2.0 without `pyboy-rs`.
 
+### Fixed
+
+- `Emulator.checkpoint()` now includes `pyboy_version: "2.7.0"` like `checkpoint_metadata()` and `retag_checkpoint()` do, so PokeSim 0.4.x accepts a Core checkpoint on rollback. The tag is still omitted for locked-clock checkpoints and any state PyBoy 2.7.0 cannot load.
+
 ### Removed
 
 - The unpublished `acceleration` extra is gone from the published metadata. The native crate stays in the repository and builds from source, see the README.
