@@ -1,9 +1,9 @@
 name: Release
 
-# A pushed tag v* builds the wheel, runs the tests and attaches the wheel to the
-# GitHub release for that tag (created from the CHANGELOG if missing). Nothing is
+# A pushed tag v* builds the wheel, runs the tests and attaches the wheel and a
+# SHA256SUMS file to the GitHub release for that tag (created from the CHANGELOG if missing). Nothing is
 # published to PyPI. A manual run is a dry run: it builds and tests, and uploads the
-# wheel as a workflow artifact only; it never touches a release.
+# wheel as a workflow artifact only; it never touches a release. A published release is never modified, even on a tag push.
 on:
   push:
     tags: ['v*']
@@ -19,10 +19,10 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       - id: meta
         name: Read the version and check the tag
         run: |
@@ -44,12 +44,16 @@ jobs:
           python3 -m venv clean
           clean/bin/python -m pip install dist/pokesim_core-*.whl
           clean/bin/python -c "import pokesim_core"
-          (cd dist && sha256sum *) | tee SHA256.txt
-          { echo '### SHA-256'; echo '```'; cat SHA256.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+          # SHA256SUMS (sha256sum format) is attached to the release next to the wheel.
+          (cd dist && sha256sum *.whl) | tee SHA256SUMS.tmp
+          mv SHA256SUMS.tmp dist/SHA256SUMS
+          { echo '### SHA-256'; echo '```'; cat dist/SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: pokesim-core-wheel
-          path: dist/*.whl
+          path: |
+            dist/*.whl
+            dist/SHA256SUMS
           if-no-files-found: error
 
   release:
@@ -63,10 +67,10 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: pokesim-core-wheel
           path: dist
@@ -76,9 +80,19 @@ jobs:
           version="${{ needs.build.outputs.version }}"
           awk -v v="$version" '$0 == "## " v {f=1; next} /^## / {f=0} f' CHANGELOG.md > notes.md
           test -s notes.md || { echo "no CHANGELOG section for $version"; exit 1; }
-          if ! gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+          # Only a draft may be modified. A published release is never touched.
+          if gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft > state.txt 2>/dev/null; then
+            if [ "$(cat state.txt)" != true ]; then
+              echo "release $GITHUB_REF_NAME is already published; refusing to modify it"; exit 1
+            fi
+          else
             # Drafted first and published after the upload, so it is never public without its wheel.
             gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes-file notes.md
           fi
-          gh release upload "$GITHUB_REF_NAME" dist/*.whl --clobber
+          # Replaces the assets of a draft.
+          gh release upload "$GITHUB_REF_NAME" dist/*.whl dist/SHA256SUMS --clobber
+          gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' | sort > uploaded.txt
+          ls dist | sort > wanted.txt
+          diff wanted.txt uploaded.txt || { echo "release asset set is wrong"; exit 1; }
+          (cd dist && sha256sum -c SHA256SUMS)
           gh release edit "$GITHUB_REF_NAME" --draft=false

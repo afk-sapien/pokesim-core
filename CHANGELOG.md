@@ -22,6 +22,11 @@ Distributed as the GitHub release wheel `pokesim_core-0.2.0-py3-none-any.whl`, b
 
 - `Emulator.checkpoint()` now includes `pyboy_version: "2.7.0"` like `checkpoint_metadata()` and `retag_checkpoint()` do, so PokeSim 0.4.x accepts a Core checkpoint on rollback. The tag is still omitted for locked-clock checkpoints and any state PyBoy 2.7.0 cannot load.
 
+- `export_rtc()` and `stop(rtc_file=)` while the clock is locked write the host-following equivalent instead of the fake locked base (which read as about +1057 days elsewhere). Requires `pyboy-rs` with `rtc_export_follows_host`.
+- `restore_checkpoint` on a cartridge with a clock always applies the checkpoint's lock, and a checkpoint with no clock data releases any lock instead of keeping it.
+- A checkpoint restores on a rebuilt or other-OS `pyboy-rs` wheel of the same version, as the README says. The backend rejected it before; it now checks state format and cartridge.
+- Release workflow: refuses to modify a published release, actions are pinned by commit, and the wheel is attached with a `SHA256SUMS` asset whose hashes are also in the job summary.
+
 ### Removed
 
 - The unpublished `acceleration` extra is gone from the published metadata. The native crate stays in the repository and builds from source, see the README.
