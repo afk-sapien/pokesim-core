@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add PyBoy 2.7.0 compatible RTC file import and export, explicit clock register access and a deterministic lockable clock to `Emulator`. Checkpoints of clock cartridges carry the lock.
+
 ## 0.1.4
 
 - Consolidate bounded restorative item use and party switching through caller-owned controllers.

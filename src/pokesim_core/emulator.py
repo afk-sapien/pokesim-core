@@ -130,7 +130,7 @@ class Emulator:
 
     def __init__(self, rom, *, sound_emulated=True, sound_sample_rate=48000,
                  color_palette=(0xffffff, 0x999999, 0x555555, 0), ram_file=None,
-                 window="null", log_level="ERROR", symbols=None):
+                 rtc_file=None, window="null", log_level="ERROR", symbols=None):
         if window != "null":
             raise ValueError("Core emulators are headless")
         try:
@@ -143,9 +143,14 @@ class Emulator:
         self._settings = {"sample_rate": sound_sample_rate, "sound_emulated": sound_emulated,
                           "color_palette": list(color_palette)}
         self._ram = ram_file if ram_file is not None else io.BytesIO()
+        options = {}
+        if rtc_file is not None:
+            # The backend keeps this stream and may write it on stop, so give it a private copy.
+            data = rtc_file if isinstance(rtc_file, (bytes, bytearray, memoryview)) else rtc_file.read()
+            options["rtc_file"] = io.BytesIO(bytes(data))
         self._backend = PyBoy(io.BytesIO(raw), window="null", sound_emulated=sound_emulated,
                               sound_sample_rate=sound_sample_rate, color_palette=color_palette,
-                              ram_file=self._ram, log_level=log_level, symbols=symbols)
+                              ram_file=self._ram, log_level=log_level, symbols=symbols, **options)
         self._backend.set_emulation_speed(0)
         self._frame_offset = -self._backend.frame_count
         self.memory = Memory(self)
@@ -219,6 +224,80 @@ class Emulator:
         if method is None:
             raise RuntimeError('This operation requires the experimental execution-enabled PyBoy RS build')
         return method
+
+    def _rtc_method(self, name):
+        self._ensure_open()
+        method = getattr(self._backend, name, None)
+        if method is None:
+            raise RuntimeError('This operation requires a PyBoy RS build with real-time clock control')
+        return method
+
+    def _rtc_property(self, name):
+        self._ensure_open()
+        if not hasattr(self._backend, name):
+            raise RuntimeError('This operation requires a PyBoy RS build with real-time clock control')
+        return bool(getattr(self._backend, name))
+
+    @property
+    def has_rtc(self):
+        """Whether the cartridge has a real-time clock. False on cartridges without one."""
+        return self._rtc_property('rtc_present')
+
+    def export_rtc(self):
+        """Return the ten-byte PyBoy 2.7.0 ``.rtc`` file: little-endian f64 base timestamp, halt, day carry.
+
+        The latched registers are not part of the file. Raises ValueError without an RTC.
+        """
+        return bytes(self._rtc_method('rtc_export')())
+
+    def import_rtc(self, data):
+        """Load a PyBoy 2.7.0 ``.rtc`` file from bytes or a binary stream.
+
+        Only the first ten bytes are read. Short input, NaN and flags above 1 raise ValueError.
+        """
+        self._rtc_method('rtc_import')(data if isinstance(data, (bytes, bytearray, memoryview)) else data.read())
+
+    def rtc_registers(self):
+        """Seconds, minutes, hours, days (0 to 511), halt and day_carry at the clock's current reading."""
+        return self._rtc_method('rtc_registers')()
+
+    def set_rtc_registers(self, **registers):
+        """Set any of seconds, minutes, hours, days, halt and day_carry by moving the base timestamp."""
+        self._rtc_method('set_rtc_registers')(**registers)
+
+    def rtc_state(self):
+        """Base timestamp (timezero), halt, day carry, latch contents and lock status."""
+        return self._rtc_method('rtc_state')()
+
+    def set_rtc_timezero(self, timezero):
+        """Set the Unix time at which the clock reads zero."""
+        self._rtc_method('set_rtc_timezero')(timezero)
+
+    @property
+    def clock_locked(self):
+        return self._rtc_property('clock_locked')
+
+    def clock_now(self):
+        """The Unix time the cartridge uses: the locked time, or host time when unlocked."""
+        return self._rtc_method('clock_now')()
+
+    def lock_clock(self, at=None, follow_frames=False):
+        """Stop the cartridge reading the host clock.
+
+        Time is ``at`` (default: the current host time) plus advance_clock() calls, plus
+        completed frames at 4389/262144 s each when follow_frames is true. Lock before the
+        first tick for reproducible runs. Raw hardware states do not carry the lock,
+        checkpoints do.
+        """
+        self._rtc_method('lock_clock')(at=at, follow_frames=follow_frames)
+
+    def unlock_clock(self):
+        """Return to host time, continuing from the frozen reading without a jump."""
+        self._rtc_method('unlock_clock')()
+
+    def advance_clock(self, seconds):
+        """Advance a locked clock by a finite, non-negative number of seconds."""
+        self._rtc_method('advance_clock')(seconds)
 
     def start_sequence(self, steps):
         if self._pending:
@@ -341,7 +420,13 @@ class Emulator:
         if hasattr(self._backend, 'execution_checkpoint'):
             checkpoint['format'] = 2
             checkpoint['execution'] = self._backend.execution_checkpoint()
+        if self._has_rtc_cartridge():
+            # The base timestamp is in the state, but the lock's virtual time is not.
+            checkpoint['rtc_clock'] = self._backend.clock_lock_state()
         return checkpoint
+
+    def _has_rtc_cartridge(self):
+        return hasattr(self._backend, 'clock_lock_state') and bool(getattr(self._backend, 'rtc_present', False))
 
     def _validate_checkpoint(self, checkpoint):
         self._ensure_open()
@@ -358,6 +443,10 @@ class Emulator:
         for button, pressed in pending:
             if button not in BUTTONS or type(pressed) is not bool:
                 raise ValueError("Invalid pending input")
+        if 'rtc_clock' in checkpoint:
+            lock = checkpoint['rtc_clock']
+            if lock is not None and (type(lock) is not dict or set(lock) != {'base', 'offset', 'frames', 'follow_frames'}):
+                raise ValueError('Invalid checkpoint clock lock')
         if checkpoint['format'] == 2:
             if checkpoint['state'] != checkpoint['execution']['state']:
                 raise ValueError('Core and backend checkpoint state mismatch')
@@ -371,6 +460,8 @@ class Emulator:
             self._execution_method('restore_execution')(checkpoint['execution'])
         else:
             self.load(checkpoint['state'])
+        if 'rtc_clock' in checkpoint:
+            self._rtc_method('set_clock_lock_state')(checkpoint['rtc_clock'])
         self._pending = list(checkpoint.get('pending_inputs', ()))
         self._frame_offset = checkpoint['frames'] - self._backend.frame_count
 
@@ -382,10 +473,15 @@ class Emulator:
     def audio_samples(self):
         return bytes(self.sound.raw_buffer[:self.sound.raw_buffer_head])
 
-    def stop(self, save=False, ram_file=None):
+    def stop(self, save=False, ram_file=None, rtc_file=None):
+        """Close the emulator. Streams passed here are written, nothing else is.
+
+        rtc_file receives the ten-byte clock file and is ignored on cartridges without a clock.
+        """
         if not self._closed:
             # Persistence is explicit. Closing without a stream never writes a file.
-            self._backend.stop(save=save or ram_file is not None, ram_file=ram_file)
+            extra = {} if rtc_file is None else {"rtc_file": rtc_file}
+            self._backend.stop(save=save or ram_file is not None or rtc_file is not None, ram_file=ram_file, **extra)
             self._closed = True
 
     def close(self):

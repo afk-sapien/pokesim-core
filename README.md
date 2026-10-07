@@ -61,6 +61,36 @@ trade checks use temporary copies and never enter package artifacts. Upstream
 PyBoy is used only as a development oracle in emulator tests and the timing
 harness in `tools/benchmark_emulator.py`.
 
+## Real-time clock
+
+MBC3 cartridges with a clock (Gold, Silver, Crystal) need clock control, which requires a PyBoy RS build with RTC support. Older builds raise `RuntimeError` from
+these methods and everything else keeps working.
+
+- `Emulator(rom, rtc_file=bytes_or_stream)` loads a PyBoy 2.7.0 `.rtc` file: ten
+  bytes holding a little-endian float64 base timestamp (`timezero`), a halt byte and
+  a day carry byte. Core copies the input, so the stream is never written later.
+  Trailing bytes are ignored. Short input, NaN and flags above 1 raise `ValueError`.
+  The argument is ignored on cartridges without a clock, like PyBoy.
+- `stop(save=False, ram_file=None, rtc_file=None)` writes the ten bytes to
+  `rtc_file` (replacing its contents) and the SRAM to `ram_file`. Nothing is written
+  otherwise. `export_rtc()` and `import_rtc(data)` do the same on a running machine.
+  Latched registers are not part of the file.
+- `has_rtc`, `rtc_registers()`, `set_rtc_registers(seconds=, minutes=, hours=,
+  days=, halt=, day_carry=)`, `rtc_state()` and `set_rtc_timezero(t)` give explicit
+  access. Register setters move the base timestamp so the clock reads the requested
+  values now. Writes made by the game keep PyBoy's upstream arithmetic.
+- `lock_clock(at=None, follow_frames=False)` stops the cartridge reading the host
+  clock. Time is `at` plus `advance_clock(seconds)` calls plus, when `follow_frames`
+  is true, 4389/262144 seconds per completed frame. Lock before the first tick for
+  reproducible runs. `unlock_clock()` continues from the frozen reading without a
+  jump. `clock_locked` and `clock_now()` report the state.
+
+Raw `save` states hold the base timestamp but not the lock. `checkpoint` on a
+cartridge with a clock adds `rtc_clock`, the exact lock fields or `None`, and
+`restore_checkpoint` applies it, which is what an exact resume needs. A checkpoint
+without that key leaves the lock alone, and checkpoints of other cartridges are
+unchanged. Execution recording and replay still reject cartridges with a live clock.
+
 ## Experimental Core acceleration
 
 The separate `pokesim-core-native` distribution in `native/` uses PyO3 and
