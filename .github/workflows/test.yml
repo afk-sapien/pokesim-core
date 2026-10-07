@@ -2,8 +2,14 @@ name: Tests
 on: [push, pull_request]
 permissions:
   contents: read
+env:
+  # PyBoy RS is not on PyPI yet, so CI builds it from this exact commit of afk-sapien/pyboy-rs
+  # (the 0.1.1 release candidate with RTC and clock lock support). Replace with the
+  # published release once pyboy-rs>=0.1.1 is on PyPI.
+  PYBOY_RS_SHA: 1f378907c17458a6108ceac94ea4be5889e638cc
 jobs:
   test:
+    name: pure Python (py${{ matrix.python }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -15,3 +21,77 @@ jobs:
       - run: uv run --no-sync --python ${{ matrix.python }} ruff check .
       - run: uv run --no-sync --python ${{ matrix.python }} pytest
       - run: uv build
+
+  emulator:
+    name: emulator and RTC (PyBoy RS wheel)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: afk-sapien/pyboy-rs
+          ref: ${{ env.PYBOY_RS_SHA }}
+          path: pyboy-rs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build the PyBoy RS wheel
+        run: |
+          python -m pip install maturin
+          (cd pyboy-rs && maturin build --release --locked --out "$GITHUB_WORKSPACE/dist")
+      - name: Install Core with the emulator
+        run: |
+          python -m pip install dist/pyboy_rs-*.whl
+          python -m pip install -e ".[dev]" pillow numpy
+      - name: Require clock control in the built wheel
+        run: python -c "import pyboy_rs; assert pyboy_rs.HAS_CLOCK_CONTROL, pyboy_rs.FEATURES"
+      - name: Run the emulator, RTC and checkpoint suites without silent skips
+        run: |
+          python -m pytest -rs -q --ignore=tests/test_snapshot_native.py | tee pytest.log
+          if grep -Eq '[0-9]+ skipped' pytest.log; then echo "Unexpected skips"; exit 1; fi
+      - run: ruff check src tests tools
+
+  native:
+    name: native decoder crate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path native/Cargo.toml --check
+      - run: cargo clippy --manifest-path native/Cargo.toml -- -D warnings
+      - name: Build and install the decoder wheel
+        run: |
+          python -m pip install maturin
+          maturin build --release --manifest-path native/Cargo.toml --out dist
+          python -m pip install dist/pokesim_core_native-*.whl
+          python -m pip install -e ".[dev]"
+      - name: Run the decoder tests against the Rust decoder
+        run: |
+          POKESIM_CORE_DECODER=rust python -m pytest -rs -q tests/test_snapshot_native.py | tee pytest.log
+          if grep -Eq '[0-9]+ skipped' pytest.log; then echo "Unexpected skips"; exit 1; fi
+
+  compatibility:
+    name: 0.1.x surface without an emulator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install only the built wheel
+        run: |
+          python -m pip install build
+          python -m build --wheel --outdir dist
+          python -m venv clean
+          clean/bin/python -m pip install dist/pokesim_core-*.whl pytest
+          clean/bin/python -c "import importlib.util as u; assert u.find_spec('pyboy_rs') is None and u.find_spec('pyboy') is None"
+      - name: Import the surface PokeBench uses and run the tests that need no emulator
+        run: |
+          clean/bin/python tools/check_legacy_surface.py
+          clean/bin/python -m pytest -q -p no:cacheprovider

@@ -2,7 +2,8 @@
 
 The Python import is `pokesim_core`. The distribution and repository are
 `pokesim-core`. `__version__` identifies the package release and `API_VERSION`
-identifies the major data contract, initially 1.
+identifies the major data contract. It is 1 in every 0.1.x release and in 0.2.0,
+and changes only for an incompatible change to documented field shapes.
 
 ## ROM module
 
@@ -62,6 +63,12 @@ use opaque PyBoy state bytes. `close` is idempotent and never writes SRAM to dis
 The wrapper has no threads, wall clock, notebook, budget, or automatic actions.
 Methods are not internally synchronized. The application must serialize access.
 PyBoy construction reads the supplied ROM path and uses independent in-memory SRAM.
+
+Real-time clock control on `Emulator` is additive: the `rtc_file` argument,
+`stop(..., rtc_file=)`, `has_rtc`, `export_rtc`, `import_rtc`, `rtc_registers`,
+`set_rtc_registers`, `rtc_state`, `set_rtc_timezero`, `lock_clock`, `unlock_clock`,
+`advance_clock`, `clock_locked`, `clock_now` and the optional `rtc_clock` checkpoint
+key. Semantics are in the README section "Real-time clock".
 
 ## Versioning and upgrades
 
