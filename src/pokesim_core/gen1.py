@@ -1,8 +1,14 @@
-"""Read-only Generation I memory primitives for English Red and Blue.
+"""Read-only Generation I memory primitives for English Red, Blue and Yellow.
 
 Derived from PokeSim. Addresses correspond to pret/pokered revision
 a1a22aaf84d1675bcdbaeb194592379d586d838e. No game tables are bundled.
+
+Every address here is a Red address. Readers take ``version``: for 'yellow'
+they read raw Yellow memory through ``yellow.red_layout``. Passing a view that
+is already Red-layout, such as a ``YellowEmulator``'s memory, also works with
+the default version.
 """
+from .yellow import red_layout
 
 W_TILEMAP = 0xC3A0
 
@@ -41,6 +47,14 @@ W_BAG_ITEMS = 0xD31E
 W_MONEY = 0xD347
 
 W_RIVAL_NAME = 0xD34A
+
+W_PLAYER_ID = 0xD359
+
+W_PARTY_OT = 0xD273
+
+W_RIVAL_STARTER = 0xD715
+
+W_PLAYER_STARTER = 0xD717
 
 W_BADGES = 0xD356
 
@@ -131,7 +145,7 @@ STORY_FLAGS = {"starter": 34, "pokedex": 37, "silph_co": 1935, "surf": 2176}
 CHAMPION_FLAG = 2305
 
 
-def read_party(memory, move_data=None) -> list[dict]:
+def read_party(memory, move_data=None, *, version=None) -> list[dict]:
     """Decode all counted party slots, including pending zero-species slots.
 
     Returns numerical fields without species or move name tables. move_data may
@@ -139,6 +153,7 @@ def read_party(memory, move_data=None) -> list[dict]:
     No field is dropped because of invalid or half-written game data. Consumers
     choose their own validation and observation filtering.
     """
+    memory = red_layout(memory, version)
     move_data = move_data or {}
     party = []
     for index in range(min(memory[W_PARTY_COUNT], 6)):
@@ -160,8 +175,9 @@ def read_party(memory, move_data=None) -> list[dict]:
     return party
 
 
-def read_bag(memory) -> tuple[tuple[int, int], ...]:
+def read_bag(memory, *, version=None) -> tuple[tuple[int, int], ...]:
     """Decode bag entries, limiting reads to the cartridge's twenty slots."""
+    memory = red_layout(memory, version)
     count = min(memory[W_NUM_BAG_ITEMS], 20)
     raw = bytes(memory[W_BAG_ITEMS:W_BAG_ITEMS + count * 2]) if count else b""
     return tuple((raw[index], raw[index + 1]) for index in range(0, len(raw), 2)
@@ -175,12 +191,14 @@ def event_set(flags, index: int) -> bool:
     return bool(flags[index // 8] & (1 << (index % 8)))
 
 
-def read_progress(memory) -> dict:
+def read_progress(memory, *, version=None) -> dict:
     """Read progress facts without scoring or deciding game completion.
 
     The valid field is a lightweight party sanity check, not a proof that the
     entire machine state is valid. Callers must confirm transitions over time.
+    Yellow uses the same event indices as Red and Blue.
     """
+    memory = red_layout(memory, version)
     flags = bytes(memory[W_EVENT_FLAGS:W_EVENT_FLAGS + 0x140])
     count = memory[W_PARTY_COUNT]
     valid = 1 <= count <= 6 and all(
@@ -198,3 +216,30 @@ def read_progress(memory) -> dict:
         "map_id": memory[W_CUR_MAP],
         "story": {name: event_set(flags, index) for name, index in STORY_FLAGS.items()},
     }
+
+
+# Yellow stores which way the rival's Eevee evolves, not a species.
+YELLOW_RIVAL_EVOLUTIONS = {1: "jolteon", 2: "flareon", 3: "vaporeon"}
+
+
+def read_starters(memory, *, version=None) -> dict:
+    """Read the starter bytes the cartridge keeps for later rival battles.
+
+    ``player`` and, in Red and Blue, ``rival`` are internal species IDs. Yellow's
+    ``rival`` byte is 1, 2 or 3 and ``rival_evolution`` names the Eevee evolution
+    it selects. Bytes are raw and are zero before Oak's lab.
+    """
+    yellow = getattr(version, "version", version) == "yellow"
+    memory = red_layout(memory, version)
+    rival = memory[W_RIVAL_STARTER]
+    return {"player": memory[W_PLAYER_STARTER], "rival": rival,
+            "rival_evolution": YELLOW_RIVAL_EVOLUTIONS.get(rival) if yellow else None,
+            "player_id": int.from_bytes(bytes(memory[W_PLAYER_ID:W_PLAYER_ID + 2]), "big")}
+
+
+def read_trainers(memory, *, version=None) -> dict:
+    """Player name, rival name and player trainer ID."""
+    memory = red_layout(memory, version)
+    return {"player": decode_text(bytes(memory[W_PLAYER_NAME:W_PLAYER_NAME + 11])),
+            "rival": decode_text(bytes(memory[W_RIVAL_NAME:W_RIVAL_NAME + 11])),
+            "trainer_id": int.from_bytes(bytes(memory[W_PLAYER_ID:W_PLAYER_ID + 2]), "big")}

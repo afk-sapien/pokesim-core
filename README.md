@@ -223,6 +223,24 @@ labels, user interfaces, validation, and derived state. `read_party` preserves
 pending and incomplete party slots for callers to interpret. It never drops them
 silently. `read_progress` does not award points or decide that the game is complete.
 
+## Cartridges, Yellow, battle power and trades
+
+```python
+from pokesim_core import cartridges, gen1, yellow
+from pokesim_core.gen1_battle_power import BattlePower
+from pokesim_core import timecapsule
+
+cartridge = cartridges.identify(rom_bytes)          # any of the six games, or None
+party = gen1.read_party(memory, version=cartridge.version)
+pikachu = yellow.read_pikachu(memory)               # raw Yellow memory
+power = BattlePower(species, moves, matchups).battle_power(mon)
+allowed = timecapsule.compatible(dex, moves, held_item)
+```
+
+Core ships no game tables. Battle power and the Time Capsule conversion take the
+caller's species, move and type tables and return what PokeSim returns. See
+`docs/api.md` for every name.
+
 ## Run an isolated emulator
 
 ```python
