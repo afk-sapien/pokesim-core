@@ -12,10 +12,73 @@ and changes only for an incompatible change to documented field shapes.
 `require_rom(path, allowed_games=...)` rejects unknown or excluded games.
 SHA-1 values identify known cartridges for compatibility. SHA-256 identifies
 artifacts in reproducibility manifests. No ROM file is modified.
+`inspect_rom` and `KNOWN_ROM_SHA1` still describe only Red and Blue.
+`require_rom` accepts any registered version named in `allowed_games`.
+
+## Cartridge registry
+
+`cartridges` lists the six clean English cartridges PokeSim plays. Its names and
+error wording match PokeSim's `pokesim/cartridges.py`.
+
+- `CARTRIDGES` holds frozen `Cartridge` records. The first five fields are
+  `version`, `generation`, `sha1`, `title` and `starters`. Header facts follow:
+  `header_title`, `cgb`, `sgb`, `rtc`, `cartridge_type`, `rom_size`, `ram_size`,
+  `revision` and `layout`.
+- `identify(raw)`, `identify_sha1(digest)` and `identify_file(path)` return a
+  `Cartridge` or None. `by_version(version)` and `generation(version)` look one up.
+- `unpack(raw, app='PokeSim')` accepts a cartridge or a ZIP holding exactly one.
+  `unsupported_message(app)` is the refusal text.
+- `read_header(raw)` decodes the header and checks both checksums.
+  `header_matches`, `resembles` and `refusal_reason` explain why a file was refused.
+  `REFUSED` names Crystal Rev 0 and the Australian Crystal.
+- `SLOTS`, `SLOT_TITLES`, `SLOT_GENERATIONS` and `validate_starter` describe the shelf.
+
+## Yellow
+
+Yellow runs the Red engine with WRAM from 0xCF1B to 0xDEE1 one byte lower and a
+few HRAM bytes moved. `yellow.red_layout(memory, version)` returns a Red-layout
+view of raw Yellow memory, so every `gen1` and `gen1_ui` address works.
+
+- `gen1.read_party`, `read_bag`, `read_progress`, `read_starters`, `read_trainers`,
+  `gen1_ui.read_battler` and `read_storage` take `version=`. Leaving it out keeps
+  the Red and Blue behaviour. A view that is already Red-layout needs no version.
+- `read_starters` returns the player and rival starter bytes. In Yellow the rival
+  byte is 1, 2 or 3 and `rival_evolution` names Jolteon, Flareon or Vaporeon.
+- `yellow.read_pikachu(memory)` returns happiness, mood, the follow, surf and
+  starter flags, and `starter_slot`. `starter_pikachu_slot` follows the
+  cartridge rule: species, trainer ID and the first five name bytes must match.
+- `yellow.YellowEmulator` is a Core `Emulator` whose `memory` uses Red addresses.
+  `raw_memory` keeps Yellow addresses. `open_emulator(rom)` picks it for Yellow.
+- `gen1_link_metadata.BUILDS` gains the Yellow build. Its RAM symbols are the Red
+  ones, so read them through a Red-layout view.
+
+## Battle power and DVs
+
+`gen1_battle_power` reproduces PokeSim's estimates exactly, given the caller's
+game tables, because Core ships none. `BattlePower(species, moves, matchups)`
+provides `damage`, `moveset_score`, `battler`, `battle_power`, `stored_strength`
+and `best_replacement`. The module also has `calculated_stat`, `calculated_stats`,
+`stored_strength(mon, species)`, `stat_exp_bonus` and `dv_rating`.
+`dvs` adds `is_perfect`, `is_shiny` and `shiny_bytes`.
+
+## Trades and the Time Capsule
+
+All trade helpers are pure and read-only.
+
+- `gen1_link_metadata` covers Red, Blue and Yellow. `gen2_link_metadata` covers
+  Gold, Silver and Crystal. Both have `BUILDS`, `build(sha1)` and
+  `verify_signatures(rom, sha1)`.
+- `timecapsule` has `compatible`, `compatible_struct`, `MAIL_ITEMS`,
+  `CATCH_RATE_ITEMS`, `held_item_from_catch_rate`, `to_gen1`, `to_gen2`, `convert`,
+  `communication_ok`, `ADAPTER_ID` and `COMMUNICATION`.
+- `trade` has `gen1_party`, `boxed_inventory`, `walking_party_preserved`,
+  `gen1_individual_key`, `gen2_individual_key`, `verify_gen1_received`,
+  `gen2_evolved_species`, `gen2_untraded_party` and `verify_gen2_received`.
+  Failed checks raise `gen1_cable.CableError` with PokeSim's messages.
 
 ## Generation I module
 
-`gen1` supports the verified USA/Europe English Red and Blue layouts. It accepts
+`gen1` supports the verified USA/Europe English Red and Blue layouts, and Yellow through `version='yellow'`. It accepts
 any memory object supporting integer and slice reads. It does not depend on
 PyBoy, a live process, application globals, a filesystem data directory, or labels.
 
