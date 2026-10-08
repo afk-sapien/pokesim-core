@@ -6,7 +6,16 @@ from .gen1 import decode_text, individual_data
 
 
 def memory_bytes(memory, bank, start, size):
-    """Read a block without changing banks, with a scalar-adapter fallback."""
+    """Read a block without changing banks, with a scalar-adapter fallback.
+
+    A snapshot memory (see memory_snapshot) serves banked blocks from its per-step copy.
+    """
+    if bank is not None:
+        window = getattr(memory, 'snapshot_window', None)
+        if window is not None:
+            block = window(bank, start, size)
+            if block is not None:
+                return bytes(block)
     try:
         key = slice(start, start + size)
         values = memory[key] if bank is None else memory[bank, key]

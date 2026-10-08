@@ -250,6 +250,80 @@ verified English Red and Blue ROMs. Applications can narrow accepted games with
 compatibility checks. The memory view and load method are trusted application
 APIs. Do not expose them directly to an agent. This library is not a sandbox.
 
+## Gold, Silver and Crystal
+
+`pokesim_core.gen2` decodes Gen II memory read-only. It ships the per-version
+memory map (`gen2.memory_map.symbols(version)`, from the pinned pret symbol
+files, with Crystal's moved WRAM and the Crystal-only symbols in `CRYSTAL_ONLY`)
+and the English character maps (`gen2.charmap.charmap(version)`). It ships no
+species, move, item or map tables.
+
+Table-free readers need only a version name and any memory that supports banked
+reads `memory[bank, start:stop]`:
+
+```python
+from pokesim_core.gen2 import state
+
+party = state.read_party_structs(memory, "crystal")  # DVs, shiny, held item, friendship, Pokerus, caught data
+boxes = state.read_box_structs(memory, "crystal", box=0)  # one PC box, eggs included
+counts, active = state.read_box_counts(memory, "crystal")
+items = state.read_items(memory, "crystal")  # items, balls, key, pc and the TM/HM quantities
+player = state.read_player(memory, "crystal")  # name, ID, map, position, Johto and Kanto badges, money
+dex = state.read_pokedex(memory, "crystal")  # seen, caught and Unown forms
+clock = state.read_clock(memory, "crystal")  # day, weekday, time of day, RTC start and DST
+daycare = state.read_daycare(memory, "crystal")  # parents, egg flags, steps to egg and the egg
+roamers = state.read_roamers(memory, "crystal")
+```
+
+`gen2.read_snapshot(memory, data, frame=0, *, cache=True)` returns the full
+`Snapshot` PokeSim observes, with `Mon` objects, pockets, objects and screen
+text. `data` is the consumer's game tables: `gen2.GameTables(raw)` builds them
+from a JSON mapping, and any object with the same attributes works. Symbols and
+the charmap default to Core's own. With `cache=True`, decoded regions (party,
+each box, Pokedex, Day Care, screen) are reused while their bytes and `data`
+are unchanged. `gen2.clear_region_cache()` drops them.
+
+Also in `pokesim_core.gen2`:
+
+- `battle_power(mon, data)` and `hidden_power(data, dvs)` rate a decoded Pokemon from the game tables.
+- `offspring`, `retrieval_cost`, `branch_parents`, `ancestors` and `level_credit` apply the Day Care and evolution-line rules.
+- `live_status(game, collection, *, data=None)` builds the shared adventure status payload.
+- `ScreenText`, `has_word`, `mask_hud`, `mask_roster` and `is_roster` match whole words in screen text.
+- `decode_mon`, `individual`, `calculated_stats`, `experience_at`, `experience_progress`, `dex_flags` and `decode_text` are the building blocks.
+
+Output is identical, field for field and in `repr`, to PokeSim's `pokesim.gen2`
+modules these were moved from.
+
+## Per-step memory snapshot
+
+```python
+from pokesim_core.emulator import Emulator
+from pokesim_core.memory_snapshot import snapshot_emulator
+
+game = snapshot_emulator(Emulator)("/path/to/crystal.gbc", sound_emulated=False)
+```
+
+The returned class has the same constructor and API. Between two steps its
+`memory` serves reads from a lazy copy:
+
+- Banked WRAM and cartridge RAM reads come from one `read_bank_bytes` call per
+  bank. PyBoy RS 0.1.1 serves it natively. Older bindings fall back to per-byte
+  bank reads with identical values. `memory.snapshot_window(bank, address, size)`
+  returns the cached bytes or None, and the Gen II readers and
+  `storage.memory_bytes` use it automatically.
+- Unbanked reads inside `0xC000-0xDFFF` (`memory[address]`, `memory[start:stop]`
+  and `memory.read_bytes`) come from one copy of that range. The Gen I readers and
+  `snapshot.read_fields` therefore use it unchanged.
+
+Every tick, memory write, state load, checkpoint restore, input and every other
+method outside `memory_snapshot.READ_ONLY` invalidates the copy. Reads made
+during a call, for example from a hook, always go to the live machine. On a
+Crystal save a full `gen2.read_snapshot` falls from about 0.67 ms on live memory
+to about 0.13 ms with the snapshot and region cache.
+
+`Emulator.memory.read_bank_bytes(bank, start, stop)` is also available on the
+plain emulator.
+
 ## Shared boundary
 
 | Core owns | Applications own |

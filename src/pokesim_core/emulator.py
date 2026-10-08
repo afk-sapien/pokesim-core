@@ -89,6 +89,23 @@ class Memory:
             raise ValueError('Invalid memory range')
         return bytes(backend[start:stop]) if start != stop else b''
 
+    def read_bank_bytes(self, bank, start, stop):
+        """Return detached bytes of ``memory[bank, start:stop]``.
+
+        PyBoy RS 0.1.1 and later serve a range inside one bank window with a single native
+        call. Older bindings fall back to their per-address bank reads with identical values.
+        """
+        self._owner._ensure_open()
+        backend = self._owner._backend.memory
+        read = getattr(backend, 'read_bank_bytes', None)
+        if read is not None:
+            return bytes(read(bank, start, stop))
+        import operator
+        bank, start, stop = operator.index(bank), operator.index(start), operator.index(stop)
+        if not 0 <= start <= stop <= 65536:
+            raise ValueError('Invalid memory range')
+        return bytes(bytearray(backend[bank, start:stop])) if start != stop else b''
+
     def __setitem__(self, key, value):
         self._owner._ensure_open()
         self._owner._backend.memory[key] = value

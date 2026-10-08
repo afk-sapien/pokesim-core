@@ -4,9 +4,9 @@ permissions:
   contents: read
 env:
   # PyBoy RS is not on PyPI yet, so CI builds it from this exact commit of afk-sapien/pyboy-rs
-  # (the 0.1.1 release candidate: RTC, clock lock, host-following export, cross-build checkpoints). Replace with the
-  # published release once pyboy-rs>=0.1.1 is on PyPI.
-  PYBOY_RS_SHA: cf6875184c4bb8c7010306c258f4eb42352781b4
+  # (the 0.1.1 release candidate: RTC, clock lock, host-following export, cross-build checkpoints and whole-bank
+  # reads through read_bank_bytes). Replace with the published release once pyboy-rs>=0.1.1 is released.
+  PYBOY_RS_SHA: 27a24057c2ea288c1366c67490870fb950e37dab
 jobs:
   test:
     name: pure Python (py${{ matrix.python }})
@@ -48,6 +48,8 @@ jobs:
           python -m pip install -e ".[dev]" pillow numpy
       - name: Require clock control in the built wheel
         run: python -c "import pyboy_rs; assert pyboy_rs.HAS_CLOCK_CONTROL, pyboy_rs.FEATURES"
+      - name: Require whole-bank reads in the built wheel
+        run: python -c "import pyboy_rs; assert 'bank_bytes' in pyboy_rs.FEATURES, pyboy_rs.FEATURES"
       - name: Run the emulator, RTC and checkpoint suites without silent skips
         run: |
           python -m pytest -rs -q --ignore=tests/test_snapshot_native.py | tee pytest.log
