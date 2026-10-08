@@ -1,23 +1,38 @@
 # PokeSim Core
 
-Shared Pokemon Red and Blue primitives for simulation and agent research.
+Shared Pokemon Red, Blue, Yellow, Gold, Silver and Crystal primitives for
+simulation and agent research.
 
 The package extracts low-level functionality used by PokeSim and a separate
 agent benchmark. The base install uses only Python's standard library. The
 optional emulator extra supplies the Rust-backed Core emulator interface.
 
-## Rust emulator interface (0.2.0)
+## Install (0.3.0)
 
-Version `0.2.0` uses PyBoy RS as its only emulator backend. Both applications
+Python 3.11 or newer is required. Core and PyBoy RS are distributed as GitHub
+release files, not on PyPI. Install the PyBoy RS wheel for your platform from the
+[v0.1.1 release](https://github.com/afk-sapien/pyboy-rs/releases/tag/v0.1.1), then Core:
+
+```bash
+pip install https://github.com/afk-sapien/pyboy-rs/releases/download/v0.1.1/pyboy_rs-0.1.1-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+pip install "pokesim-core[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.3.0/pokesim_core-0.3.0-py3-none-any.whl"
+```
+
+Each release has a `SHA256SUMS.txt` asset. Applications should pin the files by
+SHA-256 (`url#sha256=...`) instead of following a moving branch.
+
+## Rust emulator interface
+
+Since `0.2.0`, Core uses PyBoy RS as its only emulator backend. Both applications
 import Core and only Core imports the native Python package. The `emulator`
 extra requires `pyboy-rs>=0.1.1,<0.2` and Pillow. Core 0.1.x keeps its PyBoy 2.7.0
 backend and its published wheels are unchanged. The pure Python surface that 0.1.x
 exposed imports and behaves the same without any emulator installed.
 
-For development, the PyBoy RS wheel must be built from the `afk-sapien/pyboy-rs`
-repository until it is on PyPI. Build it with `maturin build --release` and
-install the wheel. Do not use `maturin develop`, which installs an editable
-build into the active environment. Then run the tests:
+For development, install the released PyBoy RS wheel as above, or build it from
+the `afk-sapien/pyboy-rs` repository with `maturin build --release` and install
+the wheel. Do not use `maturin develop`, which installs an editable build into
+the active environment. Then run the tests:
 
 ```bash
 pip install -e ".[dev]" pillow numpy
@@ -25,10 +40,6 @@ pip install /path/to/pyboy_rs-0.1.1-*.whl
 pytest
 ruff check .
 ```
-
-A source install needs Rust and Maturin. Released application installations
-will use prebuilt wheels after the separate release step. The older release
-commands below still install the previous PyBoy-backed version.
 
 `Emulator` owns isolated machine operations, memory and register wrappers,
 RGBA output, signed 8-bit stereo audio, hooks, and explicit cartridge export.
@@ -176,31 +187,13 @@ inputs. Applications retain their own matching and observation rules.
 The native package needs a separate wheel when packaging a release. No native
 package release has been published.
 
-## Previous published release
+## Previous published release (0.1.4)
 
-Python 3.11 or newer is required.
-
-Install the published wheel directly from GitHub, without requiring Git:
-
-```bash
-pip install https://github.com/afk-sapien/pokesim-core/releases/download/v0.1.4/pokesim_core-0.1.4-py3-none-any.whl
-```
-
-For emulator support, select the optional extra:
+The 0.1.x line uses PyBoy 2.7.0. Its last release is still installable:
 
 ```bash
 pip install "pokesim-core[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.1.4/pokesim_core-0.1.4-py3-none-any.whl"
 ```
-
-A Git source install is also supported:
-
-```bash
-pip install "pokesim-core @ git+https://github.com/afk-sapien/pokesim-core.git@v0.1.4"
-```
-
-Applications should pin the release wheel's SHA-256 from `SHA256SUMS` or pin a
-full Git commit instead of following a moving branch. Releases are not published
-to PyPI in v0.1.4. `pip install pokesim-core` is not the documented installation path.
 
 ## Decode without an emulator dependency
 
