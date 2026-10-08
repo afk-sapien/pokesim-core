@@ -1,8 +1,12 @@
-"""Read-only English Red/Blue UI, sprite, battler and owned storage primitives.
+"""Read-only English Red/Blue/Yellow UI, sprite, battler and owned storage primitives.
 
 Addresses follow pret/pokered a1a22aaf84d1675bcdbaeb194592379d586d838e.
 These are raw facts, not an agent observation policy. Consumers must filter them.
+The tilemap, menu, and sprite addresses sit below 0xCF1B and are the same in
+Yellow, where sprite slot 15 is the following Pikachu. Readers of shifted
+fields take ``version`` like the ``gen1`` readers.
 """
+from .yellow import red_layout
 from .storage import decode_box, memory_bytes
 from .gen1 import W_TILEMAP, decode_text, W_CURRENT_BOX, W_BOX_COUNT, BOX_DATA_SIZE
 
@@ -44,7 +48,8 @@ def read_sprites(memory):
     return sprites
 
 
-def read_battler(memory, base=0xD014):
+def read_battler(memory, base=0xD014, *, version=None):
+    memory = red_layout(memory, version)
     block = bytes(memory[base:base + 29])
     word = lambda offset: int.from_bytes(block[offset:offset + 2], "big")
     return {"species": block[0], "hp": word(1), "max_hp": word(15),
@@ -52,11 +57,13 @@ def read_battler(memory, base=0xD014):
             "level": block[14], "pp": [value & 63 for value in block[25:29]]}
 
 
-def read_storage(memory):
+def read_storage(memory, *, version=None):
     """Read all initialized boxes. Inactive boxes require banked memory support.
 
     Unavailable bank reads are explicitly marked. Never switch banks or write RAM.
+    Yellow keeps cartridge RAM boxes at the same addresses.
     """
+    memory = red_layout(memory, version)
     current = memory[W_CURRENT_BOX]
     active = current & 0x7F
     if active >= 12:
