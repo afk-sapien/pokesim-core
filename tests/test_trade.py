@@ -1,10 +1,7 @@
-import os
-from pathlib import Path
 
 import pytest
 
 from pokesim_core import gen1_link_metadata, gen2_link_metadata, timecapsule as tc, trade
-from pokesim_core.cartridges import identify
 from pokesim_core.gen1_cable import CableError
 
 # Synthetic tables in the documented shapes. They are not cartridge data.
@@ -128,19 +125,3 @@ def test_link_builds_are_complete():
     assert {build['version'] for build in gen2_link_metadata.BUILDS.values()} == {'gold', 'silver', 'crystal'}
     assert gen1_link_metadata.rom_offset(10, 0x4055) == 10 * 0x4000 + 0x55
     assert not tc.communication_ok(bytes(1 << 21), 'gold')
-
-
-ROMS = os.environ.get('POKESIM_CORE_ROMS')
-
-
-@pytest.mark.skipif(not ROMS, reason='set POKESIM_CORE_ROMS to a folder of cartridges to run')
-def test_real_cartridges_carry_link_code():
-    for path in sorted(Path(ROMS).iterdir()):
-        raw = path.read_bytes()
-        cartridge = identify(raw)
-        if cartridge is None:
-            continue
-        builds = gen1_link_metadata if cartridge.generation == 1 else gen2_link_metadata
-        assert builds.verify_signatures(raw, cartridge.sha1) == [], path.name
-        if cartridge.generation == 2:
-            assert tc.communication_ok(raw, cartridge.version)

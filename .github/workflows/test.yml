@@ -50,7 +50,7 @@ jobs:
         run: python -c "import pyboy_rs; assert pyboy_rs.HAS_CLOCK_CONTROL, pyboy_rs.FEATURES"
       - name: Run the emulator, RTC and checkpoint suites without silent skips
         run: |
-          python -m pytest -rs -q --ignore=tests/test_snapshot_native.py | tee pytest.log
+          python -m pytest -rs -q --ignore=tests/test_snapshot_native.py --ignore=tests/test_real_roms.py | tee pytest.log
           if grep -Eq '[0-9]+ skipped' pytest.log; then echo "Unexpected skips"; exit 1; fi
       - run: ruff check src tests tools
 

@@ -1,6 +1,4 @@
 import io
-import os
-from pathlib import Path
 import zipfile
 
 import pytest
@@ -93,24 +91,3 @@ def test_rom_module_keeps_its_red_blue_contract(tmp_path):
     with pytest.raises(ValueError, match='Pokemon Yellow ROM is required'):
         require_rom(path, allowed_games=('yellow',))
     assert cartridges.identify_file(path) is None
-
-
-ROMS = os.environ.get('POKESIM_CORE_ROMS')
-
-
-@pytest.mark.skipif(not ROMS, reason='set POKESIM_CORE_ROMS to a folder of cartridges to run')
-def test_real_cartridges_identify_and_match_their_headers():
-    seen = set()
-    for path in sorted(Path(ROMS).iterdir()):
-        raw = path.read_bytes()
-        cartridge = identify(raw)
-        if cartridge is None:
-            continue
-        seen.add(cartridge.version)
-        assert cartridges.header_matches(raw, cartridge), path.name
-        assert cartridges.refusal_reason(raw) is None and unpack(raw) == raw
-        assert cartridges.identify_file(path) == cartridge
-        info = require_rom(path, allowed_games=cartridges.SLOTS)
-        assert info.game == cartridge.version and info.verified
-        assert inspect_rom(path).verified == (cartridge.version in ('red', 'blue'))
-    assert seen
