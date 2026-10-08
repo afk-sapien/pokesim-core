@@ -28,6 +28,7 @@ def machines(version):
         pytest.skip(f'{rom.name} is not in POKESIM_CORE_GEN2_ROMS')
     save = rom.with_name(rom.name + '.ram')
     raw, ram = rom.read_bytes(), save.read_bytes() if save.exists() else bytes(32768)
+    assert gen2.version_of(raw) == version
     return [cls(io.BytesIO(raw), ram_file=io.BytesIO(ram), sound_emulated=False)
             for cls in (snapshot_emulator(Emulator), Emulator)], save.exists()
 

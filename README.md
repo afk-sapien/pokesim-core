@@ -273,7 +273,8 @@ APIs. Do not expose them directly to an agent. This library is not a sandbox.
 `pokesim_core.gen2` decodes Gen II memory read-only. It ships the per-version
 memory map (`gen2.memory_map.symbols(version)`, from the pinned pret symbol
 files, with Crystal's moved WRAM and the Crystal-only symbols in `CRYSTAL_ONLY`)
-and the English character maps (`gen2.charmap.charmap(version)`). It ships no
+and the English character maps (`gen2.charmap.charmap(version)`).
+`gen2.version_of(rom_bytes)` names the version through `cartridges.identify`. It ships no
 species, move, item or map tables.
 
 Table-free readers need only a version name and any memory that supports banked

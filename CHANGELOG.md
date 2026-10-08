@@ -8,6 +8,7 @@
 - Gen II `battle_power` and `hidden_power`, Day Care rules (`offspring`, `retrieval_cost`, `branch_parents`) and evolution-line credit (`ancestors`, `level_credit`).
 - `pokesim_core.memory_snapshot.snapshot_emulator`: a per-step memory snapshot for any Core emulator class. It reads whole banks with `read_bank_bytes` (with a per-byte fallback for older `pyboy-rs`), serves unbanked Gen I reads from one WRAM copy and is invalidated by ticks, writes, loads and restores.
 - `Memory.read_bank_bytes(bank, start, stop)` on the Core emulator.
+- `gen2.version_of(rom_bytes)` identifies a Gen II ROM through `cartridges.identify`.
 - Decoded Gen II regions are cached by their raw bytes and game tables.
 - Optional cartridge tests run when `POKESIM_CORE_GEN2_ROMS` names a local ROM directory.
 

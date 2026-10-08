@@ -384,3 +384,16 @@ def symbols(version):
     if version == 'crystal':
         return CRYSTAL
     raise ValueError(f'Unknown Gen II version {version!r}')
+
+
+def version_of(rom):
+    """The Gen II version of a ROM (bytes), identified by :func:`pokesim_core.cartridges.identify`.
+
+    Raises ValueError for an unknown ROM or one from another generation.
+    """
+    from ..cartridges import identify
+
+    cartridge = identify(bytes(rom))
+    if cartridge is None or cartridge.generation != 2 or cartridge.version not in VERSIONS:
+        raise ValueError('Not a verified Gold, Silver or Crystal ROM')
+    return cartridge.version

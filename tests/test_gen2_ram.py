@@ -165,3 +165,12 @@ def test_mon_shiny_and_gender():
     mon = gen2.decode_mon(bytes(raw), b'', data)
     assert mon.shiny and mon.dvs == (0, 10, 10, 10, 10) and mon.gender == 'Male'
     assert gen2.decode_mon(bytes(32), b'', data) is None
+
+
+def test_version_of_rejects_unknown_roms():
+    try:
+        gen2.version_of(bytes(32 * 16384))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('unknown ROMs are rejected')
