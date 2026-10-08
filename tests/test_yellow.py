@@ -120,3 +120,32 @@ def test_yellow_link_build_is_additive():
         offset = address if bank == 0 else bank * 0x4000 + address - 0x4000
         rom[offset:offset + 8] = bytes.fromhex(signature)
     assert link.verify_signatures(rom, yellow.YELLOW_SHA1) == []
+
+
+def test_yellow_emulator_reads_red_addresses(monkeypatch):
+    import io
+    import sys
+    from types import SimpleNamespace
+
+    class Backend:
+        def __init__(self, rom, **options):
+            self.memory = bytearray(65536)
+            self.frame_count = 0
+
+        def tick(self, frames=1, render=True, sound=False):
+            self.frame_count += frames
+            self.memory[0xD157] = self.frame_count
+            return True
+
+        def set_emulation_speed(self, speed):
+            pass
+
+        def stop(self, save=True):
+            pass
+
+    monkeypatch.setitem(sys.modules, 'pyboy_rs', SimpleNamespace(PyBoy=Backend))
+    emulator = yellow.YellowEmulator(io.BytesIO(bytes(32768)), sound_emulated=False)
+    emulator.raw_memory[0xD162] = 3
+    assert emulator.memory[gen1.W_PARTY_COUNT] == 3
+    assert emulator.tick_read(5, gen1.W_PLAYER_NAME, gen1.W_PLAYER_NAME + 1) == bytes([5])
+    assert gen1.read_party(emulator.memory) == gen1.read_party(emulator.raw_memory, version='yellow')
