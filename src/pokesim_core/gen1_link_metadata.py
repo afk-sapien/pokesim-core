@@ -140,14 +140,18 @@ def build(sha1):
     return BUILDS.get(sha1)
 
 
+def rom_offset(bank, address):
+    """File offset of a banked ROM address."""
+    return address if bank == 0 else bank * 0x4000 + address % 0x4000
+
+
 def verify_signatures(rom, sha1):
     """Names of code sites whose first bytes in ``rom`` differ from the recorded signature."""
     metadata = BUILDS[sha1]
     rom = bytes(rom)
     failed = []
     for name, signature in metadata["signatures"].items():
-        bank, address = metadata["symbols"][name]
-        offset = address if bank == 0 else bank * 0x4000 + address - 0x4000
+        offset = rom_offset(*metadata["symbols"][name])
         expected = bytes.fromhex(signature)
         if rom[offset:offset + len(expected)] != expected:
             failed.append(name)
