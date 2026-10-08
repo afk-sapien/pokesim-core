@@ -2,7 +2,7 @@
 
 The Python import is `pokesim_core`. The distribution and repository are
 `pokesim-core`. `__version__` identifies the package release and `API_VERSION`
-identifies the major data contract. It is 1 in every 0.1.x release and in 0.2.0,
+identifies the major data contract. It is 1 in every 0.1.x release, in 0.2.0 and in 0.3.0,
 and changes only for an incompatible change to documented field shapes.
 
 ## ROM module

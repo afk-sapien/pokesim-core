@@ -1,9 +1,34 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
+
+Distributed as GitHub release files: the wheel `pokesim_core-0.3.0-py3-none-any.whl`,
+the sdist `pokesim_core-0.3.0.tar.gz` and `SHA256SUMS.txt`. Not on PyPI.
+
+0.2.0 was never tagged or released. 0.3.0 is the first release with the PyBoy RS
+backend, so everything listed under 0.2.0 below ships for the first time here. The
+`emulator` extra requires `pyboy-rs>=0.1.1,<0.2`; install the
+[pyboy-rs v0.1.1](https://github.com/afk-sapien/pyboy-rs/releases/tag/v0.1.1) release wheel.
 
 ### Added
 
+- `pokesim_core.cartridges`: a registry of the six clean English cartridges PokeSim plays
+  (Red, Blue, Yellow, Gold, Silver, Crystal) with `identify`, `identify_sha1`, `identify_file`,
+  `by_version`, `generation`, ZIP `unpack`, header decoding with both checksums (`read_header`),
+  refusal reasons (Crystal Rev 0 and the Australian Crystal are refused) and the slot shelf.
+- Yellow: `pokesim_core.yellow` with `red_layout` (a Red-layout view of raw Yellow memory),
+  `read_pikachu` (happiness, mood, follow, surf and starter flags, `starter_slot`) and
+  `YellowEmulator`, a Core `Emulator` whose `memory` uses Red addresses. `open_emulator(rom)`
+  picks it for Yellow. `gen1.read_party`, `read_bag`, `read_progress`, `read_starters`,
+  `read_trainers`, `gen1_ui.read_battler` and `read_storage` take `version=`.
+  `read_starters` reports Yellow's rival evolution.
+- `pokesim_core.gen1_battle_power`: PokeSim's Gen I battle power estimates (`BattlePower`,
+  `calculated_stat(s)`, `stored_strength`, `stat_exp_bonus`, `dv_rating`) from the caller's
+  game tables. `dvs` adds `is_perfect`, `is_shiny` and `shiny_bytes`.
+- Trades and the Time Capsule: `gen1_link_metadata` gains the Yellow build,
+  `gen2_link_metadata` covers Gold, Silver and Crystal, `timecapsule` converts between
+  generations and checks compatibility, and `trade` verifies Gen I and Gen II trades with
+  PokeSim's error messages. All pure and read-only.
 - `pokesim_core.gen2`: read-only Gold, Silver and Crystal decoding moved from PokeSim with identical output. It has per-version memory maps and charmaps, party and PC boxes (DVs, shiny, held item, friendship, Pokerus, Crystal caught data), bag, pockets and PC items, Pokedex seen, caught and Unown forms, money and Johto and Kanto badges, player and map state, the game clock and RTC base, the Day Care and eggs, and roamers. The full `read_snapshot` takes consumer game tables. Core ships no game tables.
 - Gen II `battle_power` and `hidden_power`, Day Care rules (`offspring`, `retrieval_cost`, `branch_parents`) and evolution-line credit (`ancestors`, `level_credit`).
 - `pokesim_core.memory_snapshot.snapshot_emulator`: a per-step memory snapshot for any Core emulator class. It reads whole banks with `read_bank_bytes` (with a per-byte fallback for older `pyboy-rs`), serves unbanked Gen I reads from one WRAM copy and is invalidated by ticks, writes, loads and restores.
@@ -11,15 +36,24 @@
 - `gen2.version_of(rom_bytes)` identifies a Gen II ROM through `cartridges.identify`.
 - Decoded Gen II regions are cached by their raw bytes and game tables.
 - Optional cartridge tests run when `POKESIM_CORE_GEN2_ROMS` names a local ROM directory.
+- `rom.require_rom` accepts any registered version named in `allowed_games`.
+- The release also attaches the sdist and a `SHA256SUMS.txt`, and the notes come from this file.
 
 ### Changed
 
 - `storage.memory_bytes` uses a snapshot window when the memory offers one. Results are unchanged.
-- CI builds `pyboy-rs` from a commit with `read_bank_bytes` and requires the `bank_bytes` feature.
+- CI installs the released `pyboy-rs` v0.1.1 wheel (pinned by SHA-256) instead of building a commit, and requires the `bank_bytes` feature.
+- The package description now covers all six games. `inspect_rom` and `KNOWN_ROM_SHA1`
+  still describe only Red and Blue, as in 0.1.x.
+
+### Compatibility
+
+- All additions are new modules or keyword arguments with Red and Blue defaults. The
+  0.1.x pure-Python surface is unchanged. `API_VERSION` stays 1.
 
 ## 0.2.0
 
-Distributed as the GitHub release wheel `pokesim_core-0.2.0-py3-none-any.whl`, built and attached by the `Release` workflow on a `v*` tag. Not on PyPI.
+Never tagged or released on its own. These changes first ship in 0.3.0.
 
 ### Added
 
