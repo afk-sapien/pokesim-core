@@ -1,0 +1,176 @@
+"""Gen II decoding on synthetic banked memory. No cartridge data is used."""
+import random
+from collections import defaultdict
+from types import SimpleNamespace
+
+from pokesim_core import gen2
+from pokesim_core.gen2 import charmap, memory_map, ram
+from pokesim_core.gen2.ram import read_snapshot
+
+# A synthetic Gen II layout: every symbol read_snapshot reads, placed in fake banked memory.
+SYMBOLS = {'wPartyCount': 1, 'wPartySpecies': 7, 'wPartyMons': 288, 'wPartyMonNicknames': 66, 'wCurBox': 1,
+           'wNumItems': 41, 'wNumBalls': 25, 'wNumKeyItems': 27, 'wTMsHMs': 57, 'wObjectStructs': 520,
+           'wMapGroup': 1, 'wMapNumber': 1, 'wEventFlags': 256, 'wMapObjects': 256, 'wPokedexSeen': 32,
+           'wPokedexCaught': 32, 'wDayCareMan': 1, 'wDayCareLady': 1, 'wBreedMon1': 32, 'wBreedMon1Nickname': 11,
+           'wBreedMon2': 32, 'wBreedMon2Nickname': 11, 'wRoamMon1': 7, 'wRoamMon2': 7, 'wRoamMon3': 7,
+           'wBattleMode': 1, 'wTilemap': 360, 'wXCoord': 1, 'wYCoord': 1, 'wPlayerName': 11, 'wRivalName': 11,
+           'wJohtoBadges': 1, 'wKantoBadges': 1, 'wMoney': 3, 'wCoins': 2, 'wEnemyMonSpecies': 1,
+           'wEnemyMonLevel': 1, 'wEnemyMonHP': 2, 'wEnemyMonMaxHP': 2, 'wTrainerClass': 1, 'wBattleType': 1,
+           'wGameTimeHours': 2, 'wGameTimeMinutes': 1, 'wGameTimeSeconds': 1, 'wHallOfFameCount': 1,
+           'wStepCount': 1, 'wHappinessStepCount': 1}
+
+
+def synthetic_data():
+    symbols, address = {}, 0xD000
+    for name, size in SYMBOLS.items():
+        symbols[name] = (1, address)
+        address += size
+    assert address <= 0xE000
+    symbols['sBox'] = (1, 0xA000)
+    for box in range(14):
+        symbols[f'sBox{box + 1}'] = (2 + box // 7, 0xA000 + box % 7 * 1102)
+    species = {str(i): {'name': f'Species {i}', 'stats': [40 + i % 60] * 6, 'types': [i % 17],
+                        'gender_ratio': i % 256, 'growth': 'MEDIUM_FAST'} for i in range(1, 252)}
+    moves = {str(i): {'name': f'Move {i}', 'pp': 5 + i % 35, 'type': i % 17} for i in range(1, 252)}
+    table = {str(i): chr(0x41 + i % 26) for i in range(0x80, 0xFA)}
+    return gen2.GameTables({'game': 'gold', 'species': species, 'moves': moves, 'maps': {}, 'charmap': table,
+                            'item_attributes': {}, 'items': {}, 'types': {f'T{i}': i for i in range(17)},
+                            'events': {}, 'map_ids': {}, 'symbols': symbols, 'collisions': {}, 'permissions': {}})
+
+
+class BankedMemory:
+    def __init__(self):
+        self.banks = defaultdict(lambda: bytearray(65536))
+
+    def __getitem__(self, key):
+        bank, address = key if isinstance(key, tuple) else (0, key)
+        return self.banks[bank][address]
+
+    def __setitem__(self, key, value):
+        bank, address = key if isinstance(key, tuple) else (0, key)
+        self.banks[bank][address] = value
+
+
+def fill(memory, data, rng):
+    for name, (bank, address) in data.symbols.items():
+        size = 1102 if name.startswith('sBox') else SYMBOLS[name]
+        memory.banks[bank][address:address + size] = rng.randbytes(size)
+    memory.banks[1][data.symbols['wPartyCount'][1]] = rng.randrange(7)
+    memory.banks[1][data.symbols['wCurBox'][1]] = rng.randrange(14)
+    for name, (bank, address) in data.symbols.items():
+        if name.startswith('sBox'):
+            memory.banks[bank][address] = rng.randrange(21)
+    bank, address = data.symbols['wPartyMons']
+    for slot in range(6):
+        memory.banks[bank][address + slot * 48] = rng.randrange(1, 252)
+        memory.banks[bank][address + slot * 48 + 31] = rng.randrange(1, 101)
+
+
+def test_cached_regions_equal_a_fresh_decode():
+    data, rng, memory = synthetic_data(), random.Random(21), BankedMemory()
+    ram.clear_region_cache()
+    fill(memory, data, rng)
+    for step in range(40):
+        cached = read_snapshot(memory, data, step)
+        assert cached == read_snapshot(memory, data, step, cache=False)
+        assert cached.to_dict() == read_snapshot(memory, data, step, cache=False).to_dict()
+        assert repr(cached) == repr(read_snapshot(memory, data, step, cache=False))
+        bank, address = data.symbols[rng.choice(list(data.symbols))]
+        for _ in range(rng.randrange(1, 4)):
+            memory.banks[bank][address + rng.randrange(64)] = rng.randrange(256)
+        if step % 10 == 9:
+            fill(memory, data, rng)
+
+
+def test_unchanged_regions_reuse_their_decoded_objects():
+    data, memory = synthetic_data(), BankedMemory()
+    ram.clear_region_cache()
+    fill(memory, data, random.Random(4))
+    first, second = read_snapshot(memory, data), read_snapshot(memory, data)
+    assert first.party and first.stored
+    assert all(a is b for a, b in zip(first.party + first.stored, second.party + second.stored))
+    assert first.tiles is second.tiles and first.seen is second.seen
+    bank, address = data.symbols['sBox5']
+    memory.banks[bank][address + 22 + 31] ^= 1
+    third = read_snapshot(memory, data)
+    assert third == read_snapshot(memory, data, cache=False)
+    assert [mon for mon in third.stored if mon.box != 4] == [mon for mon in first.stored if mon.box != 4]
+    assert all(a is b for a, b in zip(first.party, third.party))
+
+
+def test_region_cache_is_keyed_on_the_game_data():
+    data, other, memory = synthetic_data(), synthetic_data(), BankedMemory()
+    ram.clear_region_cache()
+    fill(memory, data, random.Random(8))
+    first = read_snapshot(memory, data)
+    second = read_snapshot(memory, other)
+    assert all(mon.data is other for mon in second.party + second.stored)
+    assert second == read_snapshot(memory, other, cache=False)
+    assert first.party and first.party[0] is not second.party[0]
+
+
+def test_memory_maps_place_known_symbols():
+    gold, crystal = memory_map.symbols('gold'), memory_map.symbols('crystal')
+    assert memory_map.symbols('silver') is gold
+    assert gold['wPlayerName'] == (1, 0xD1A3) and gold['wPartyCount'] == (1, 0xDA22)
+    assert crystal['wPlayerName'] == (1, 0xD47D) and crystal['wPartyCount'] == (1, 0xDCD7)
+    assert 'wPlayerGender' in memory_map.CRYSTAL_ONLY and 'wPlayerGender' not in gold
+    assert gold['sBox1'] == crystal['sBox1'] == (2, 0xA000)
+    for table in (gold, crystal):
+        assert all(name in table for name in SYMBOLS)
+        assert all(0 <= bank < 8 and 0x8000 <= address <= 0xFFFF for bank, address in table.values())
+    try:
+        memory_map.symbols('red')
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('unknown versions are rejected')
+
+
+def test_charmaps_and_text():
+    assert charmap.charmap('gold')[0x80] == 'A' and charmap.charmap('crystal')[0x80] == 'A'
+    assert set(charmap.CRYSTAL_DIFFERENCES) == {0x14, 0x15}
+    name = bytes((0x87, 0x88, 0x50, 0x80))
+    assert gen2.decode_text(name, 'gold') == 'HI' == gen2.GameTables({'game': 'crystal'}).text(name)
+
+
+def test_game_tables_default_to_core_maps():
+    tables = gen2.GameTables({'game': 'crystal', 'items': {'POTION': 18, 'TM_FOCUS_PUNCH': 191},
+                              'types': {'PSYCHIC_TYPE': 24}})
+    assert tables.symbols['wPartyCount'] == (1, 0xDCD7)
+    assert tables.item_names == {18: 'Potion'} and tables.type_names == {24: 'Psychic'}
+    assert gen2.pretty('POKECENTER_2F') == 'Pokémon Center 2F'
+
+
+def test_live_status_without_data():
+    status = gen2.live_status({'party': [{'species': 1}], 'player_name': 'GOLD'}, {'version': 'gold'})
+    assert status['started'] and status['version'] == 'gold' and status['generation'] == 2
+    assert status['party'] == [{'species': 1, 'battle_power': None, 'slot': 1}]
+    assert gen2.live_status(None)['started'] is False and gen2.live_status(None)['version'] == 'crystal'
+
+
+def test_screens():
+    assert gen2.has_word('Wild PIDGEY appeared', 'PIDGEY')
+    assert not gen2.has_word('PIDGEYOTTO', 'PIDGEY')
+    assert 'CANCEL' not in gen2.ScreenText('CANCELLA') and 'CANCEL' in gen2.ScreenText('▶CANCEL')
+    rows = tuple(' ' * 20 for _ in range(18))
+    assert gen2.mask_hud(rows) == rows
+
+
+def test_mon_shiny_and_gender():
+    data = SimpleNamespace(species={1: {'stats': [45] * 6, 'gender_ratio': 31}}, moves={}, text=lambda raw: '')
+    raw = bytearray(32)
+    raw[0], raw[31] = 1, 5
+    raw[21], raw[22] = 0xAA, 0xAA
+    mon = gen2.decode_mon(bytes(raw), b'', data)
+    assert mon.shiny and mon.dvs == (0, 10, 10, 10, 10) and mon.gender == 'Male'
+    assert gen2.decode_mon(bytes(32), b'', data) is None
+
+
+def test_version_of_rejects_unknown_roms():
+    try:
+        gen2.version_of(bytes(32 * 16384))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('unknown ROMs are rejected')

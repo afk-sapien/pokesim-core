@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `pokesim_core.gen2`: read-only Gold, Silver and Crystal decoding moved from PokeSim with identical output. It has per-version memory maps and charmaps, party and PC boxes (DVs, shiny, held item, friendship, Pokerus, Crystal caught data), bag, pockets and PC items, Pokedex seen, caught and Unown forms, money and Johto and Kanto badges, player and map state, the game clock and RTC base, the Day Care and eggs, and roamers. The full `read_snapshot` takes consumer game tables. Core ships no game tables.
+- Gen II `battle_power` and `hidden_power`, Day Care rules (`offspring`, `retrieval_cost`, `branch_parents`) and evolution-line credit (`ancestors`, `level_credit`).
+- `pokesim_core.memory_snapshot.snapshot_emulator`: a per-step memory snapshot for any Core emulator class. It reads whole banks with `read_bank_bytes` (with a per-byte fallback for older `pyboy-rs`), serves unbanked Gen I reads from one WRAM copy and is invalidated by ticks, writes, loads and restores.
+- `Memory.read_bank_bytes(bank, start, stop)` on the Core emulator.
+- `gen2.version_of(rom_bytes)` identifies a Gen II ROM through `cartridges.identify`.
+- Decoded Gen II regions are cached by their raw bytes and game tables.
+- Optional cartridge tests run when `POKESIM_CORE_GEN2_ROMS` names a local ROM directory.
+
+### Changed
+
+- `storage.memory_bytes` uses a snapshot window when the memory offers one. Results are unchanged.
+- CI builds `pyboy-rs` from a commit with `read_bank_bytes` and requires the `bank_bytes` feature.
+
 ## 0.2.0
 
 Distributed as the GitHub release wheel `pokesim_core-0.2.0-py3-none-any.whl`, built and attached by the `Release` workflow on a `v*` tag. Not on PyPI.
