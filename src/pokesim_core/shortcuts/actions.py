@@ -1,4 +1,4 @@
-"""Action shortcuts for Red, Blue and Yellow. Gen 2 refuses before any input.
+"""Action shortcuts for Red, Blue, Yellow, Gold, Silver and Crystal.
 
 Each class is a :class:`Shortcut`: build it with the request, then call
 ``step(memory, ui)`` once per input, or pass it to ``run`` with a ControllerPort.
@@ -7,13 +7,18 @@ Party slots, move slots and box positions are zero based.
 from __future__ import annotations
 
 from ..gen1_ui import read_battler, read_screen
-from .items import (GEN1_FIELD_MOVES, GEN1_HM_MOVES, GEN1_KEY_ITEMS, generation, item_kind, item_names,
-                    tm_number)
+from . import gen2ui
+from .items import (GEN1_FIELD_MOVES, GEN1_HM_MOVES, GEN2_FIELD_MOVES, GEN2_HM_MOVES, gen2_pocket, generation,
+                    item_kind, item_names, key_item, tm_number)
 from .machine import Abort, Choose, Done, Shortcut
 from .screens import fly_destination, menu_rows, normalize
 
-GEN2_REFUSAL = 'Not supported in Gen 2 yet. No input sent.'
 BICYCLE, POKE_FLUTE, ITEMFINDER, COIN_CASE = 0x06, 0x49, 0x47, 0x45
+# Gen 2 item IDs with effects the shortcuts watch for.
+GEN2_BICYCLE, GEN2_ITEMFINDER = 0x07, 0x37
+GEN2_POCKET_NUMBER = {'items': 0, 'balls': 1, 'key': 2, 'tms_hms': 3}
+# wPlayerState values while surfing (Gen 2).
+GEN2_SURFING = (4, 8)
 W_WALK_BIKE_SURF = 0xD700
 W_STATUS_FLAGS1 = 0xD728
 W_MAP_PAL_OFFSET = 0xD35D
@@ -46,15 +51,69 @@ def _count(value, name='quantity', high=99):
 
 BAG_SLOTS = 20
 PC_ITEM_SLOTS = 50
+# Gen 2 pocket capacities (items, balls, key items) and the item PC.
+GEN2_POCKET_SLOTS = {'items': 20, 'balls': 12, 'key': 25, 'tms_hms': 57}
+GEN2_PC_ITEM_SLOTS = 50
 
 
 class GameShortcut(Shortcut):
-    """Shared validation: Gen 2 refuses, and party reads come from the port's readers."""
+    """Shared validation and the generation-neutral memory reads the actions use."""
 
     def validate(self, obs):
-        if generation(self.version) != 1:
-            raise Abort(GEN2_REFUSAL, cleanup=False, unsupported=True)
         self.check(obs)
+
+    # Memory, by generation ----------------------------------------------------
+    def battle_mode(self, obs=None):
+        """0 outside battle, 1 in a wild battle, 2 in a trainer battle."""
+        obs = obs or self.obs
+        return obs.memory.byte('wBattleMode') if self.gen == 2 else obs.memory[W_IS_IN_BATTLE]
+
+    def active_slot(self, obs=None):
+        obs = obs or self.obs
+        return obs.memory.byte('wCurBattleMon') if self.gen == 2 else obs.memory[W_PLAYER_MON_NUMBER]
+
+    def quantity_counter(self, obs=None):
+        obs = obs or self.obs
+        return obs.memory.byte('wItemQuantityChange') if self.gen == 2 else obs.memory[W_ITEM_QUANTITY]
+
+    def current_box_count(self, obs=None):
+        obs = obs or self.obs
+        if self.gen == 2:
+            return min(gen2ui.box_count(obs.raw, self.version), 20)
+        return min(obs.memory[W_BOX_COUNT], 20)
+
+    def party_count(self, obs=None):
+        obs = obs or self.obs
+        if self.gen == 2:
+            return min(obs.memory.byte('wPartyCount'), 6)
+        return min(obs.memory[W_PARTY_COUNT], 6)
+
+    def map_id(self, obs=None):
+        obs = obs or self.obs
+        if self.gen == 2:
+            return obs.memory.byte('wMapGroup'), obs.memory.byte('wMapNumber')
+        return obs.memory[W_CUR_MAP]
+
+    def pockets(self, obs=None):
+        return gen2ui.read_pockets((obs or self.obs).raw, self.version)
+
+    def is_key_item(self, item):
+        return key_item(item, self.version)
+
+    def check_room(self):
+        """Refuse when the bag cannot take ``self.amount`` more of ``self.item_id``."""
+        if self.before + self.amount > 99:
+            raise Abort('That would hold more than 99. No input sent.', cleanup=False)
+        if self.before:
+            return
+        if self.gen == 2:
+            pocket = gen2_pocket(self.item_id, self.version)
+            if pocket == 'tms_hms':
+                return
+            if len(self.pockets()[pocket]) >= GEN2_POCKET_SLOTS[pocket]:
+                raise Abort(f'The {pocket} pocket is full. No input sent.', cleanup=False)
+        elif len(self.bag()) >= BAG_SLOTS:
+            raise Abort('The bag is full. No input sent.', cleanup=False)
 
     def check(self, obs):
         """Subclass refusals before any input."""
@@ -97,8 +156,7 @@ class GameShortcut(Shortcut):
                     raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False)
                 yield Choose(answer)
             elif screen == 'move_list' and isinstance(self.learn_choice(), int):
-                yield from self.move_index(self.learn_choice(), lambda o: o.memory[0xCC26])
-                yield 'a'
+                yield from self.pick_move(self.learn_choice(), learn=True)
             elif screen in stay:
                 idle += 1
                 if self.refusal or idle > patience:
@@ -108,15 +166,32 @@ class GameShortcut(Shortcut):
                 self.no_effect()
         raise Abort('Menu did not respond. Stopped without repeating the requested effect.')
 
-    def open_bag(self):
+    def open_bag(self, item=None):
+        """Open the bag. In Gen 2, also turn to the pocket that holds ``item``."""
         if self.obs.battle:
             yield from self.to_battle_menu()
             yield from self.choose('ITEM', then=('bag',))
-            return
-        if self.obs.screen == 'bag':
-            return
-        yield from self.open_pause()
-        yield from self.choose('ITEM', then=('bag',))
+        elif self.obs.screen != 'bag':
+            yield from self.open_pause()
+            yield from self.choose('ITEM', then=('bag',))
+        if self.gen == 2 and item is not None:
+            yield from self.turn_pocket(item)
+
+    def turn_pocket(self, item):
+        """Gen 2: press left or right until the pack shows the pocket that holds ``item``."""
+        target = GEN2_POCKET_NUMBER[gen2_pocket(item, self.version)]
+        for _ in range(8):
+            if not (yield from self.until_screen('bag', limit=20, press_text=False)):
+                raise Abort('The pack did not open. Stopped.')
+            here = self.obs.memory.byte('wCurPocket')
+            if here == target:
+                # Let the pocket finish drawing before moving the cursor.
+                yield None
+                return
+            yield 'right' if (target - here) % 4 <= 2 else 'left'
+            yield from self.until(lambda obs: obs.screen == 'bag' and obs.memory.byte('wCurPocket') != here,
+                                  limit=10, press_text=False)
+        raise Abort('The pack did not turn to the item pocket. Stopped.')
 
     def open_party(self):
         if self.obs.battle:
@@ -134,6 +209,12 @@ class GameShortcut(Shortcut):
         yield from self.choose('POKéMON', then=('party',))
 
     def bag_index(self, item):
+        if self.gen == 2:
+            entries = self.pockets()[gen2_pocket(item, self.version)]
+            for index, (entry, _) in enumerate(entries):
+                if entry == item:
+                    return index
+            raise Abort('Requested item disappeared. Stopped.')
         for index, (entry, _) in enumerate(self.bag()):
             if entry == item:
                 return index
@@ -153,7 +234,7 @@ class GameShortcut(Shortcut):
                 if stuck > 10:
                     raise Abort('Quantity box did not open. Stopped.')
                 continue
-            here = self.obs.memory[W_ITEM_QUANTITY]
+            here = self.quantity_counter()
             if here == quantity:
                 yield 'a'
                 return
@@ -199,7 +280,7 @@ class UseItem(GameShortcut):
             _slot(move, 'Move slot', 4)
         if forget_move is not None and forget_move != 'keep':
             _slot(forget_move, 'forget_move', 4)
-        if isinstance(item, int) and generation(options.get('version')) == 1:
+        if isinstance(item, int):
             needs = item_kind(item, options.get('version')).target
             if needs in ('party', 'move') and target is None:
                 raise ValueError('This item needs a party slot target')
@@ -220,7 +301,7 @@ class UseItem(GameShortcut):
 
     def result_fields(self):
         consumed = False
-        if self.before is not None and self.obs is not None and generation(self.version) == 1:
+        if self.before is not None and self.obs is not None:
             consumed = self.quantity(self.item_id) < self.before
         return {'party_slot': None if self.target is None else self.target + 1,
                 'item_id': self.item_id if isinstance(getattr(self, 'item_id', None), int) else self.item,
@@ -241,17 +322,19 @@ class UseItem(GameShortcut):
         if not obs.battle and not kind.field:
             reason = kind.note or ('battle only' if kind.battle else 'not usable')
             raise Abort(f'This item ({kind.kind}) cannot be used here: {reason}. No input sent.', cleanup=False)
-        if kind.wild_only and obs.memory[W_IS_IN_BATTLE] != 1:
+        if kind.wild_only and self.battle_mode(obs) != 1:
             raise Abort('This item works only in wild battles. No input sent.', cleanup=False)
-        if kind.kind == 'ball' and obs.memory[W_BOX_COUNT] >= 20:
-            raise Abort('The current PC box is full, so the game refuses balls. No input sent.', cleanup=False)
         party = self.party()
+        if kind.kind == 'ball' and self.current_box_count(obs) >= 20 and (self.gen == 1 or len(party) >= 6):
+            raise Abort('The current PC box is full, so the game refuses balls. No input sent.', cleanup=False)
         if self.target is not None:
             if self.target >= len(party):
                 raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
             self.target_id = identity(party[self.target])
             self.target_before = dict(party[self.target])
             mon = party[self.target]
+            if mon.get('egg'):
+                raise Abort('Items cannot be used on an Egg. No input sent.', cleanup=False)
             if kind.target == 'move' and (self.move >= 4 or not mon['moves'][self.move]):
                 raise Abort('Move slot is empty. No input sent.', cleanup=False)
             if kind.kind in ('tm', 'hm'):
@@ -259,9 +342,10 @@ class UseItem(GameShortcut):
                 if len(moves) == 4 and self.forget_move is None:
                     raise Abort('Target knows four moves. Pass forget_move (a move slot, or "keep"). '
                                 'No input sent.', cleanup=False)
-                if isinstance(self.forget_move, int) and mon['moves'][self.forget_move] in GEN1_HM_MOVES:
+                hm_moves = GEN2_HM_MOVES if self.gen == 2 else GEN1_HM_MOVES
+                if isinstance(self.forget_move, int) and mon['moves'][self.forget_move] in hm_moves:
                     raise Abort('HM moves cannot be forgotten. No input sent.', cleanup=False)
-        self.state_before = {'bike': obs.memory[W_WALK_BIKE_SURF], 'map': obs.memory[W_CUR_MAP]}
+        self.state_before = {'bike': self.walk_state(obs), 'map': self.map_id(obs)}
         self.details['item_kind'] = kind.kind
 
     def effect(self, obs):
@@ -279,10 +363,16 @@ class UseItem(GameShortcut):
                     return True
                 if kind in ('tm', 'hm') and tuple(mon['moves']) != tuple(self.target_before['moves']):
                     return True
-        if self.item_id == BICYCLE:
-            return obs.memory[W_WALK_BIKE_SURF] != self.state_before['bike']
+        if self.item_id == (GEN2_BICYCLE if self.gen == 2 else BICYCLE):
+            return self.walk_state(obs) != self.state_before['bike']
         if kind == 'fishing':
-            return 'NIBBLE' in words or 'BITE' in words or (obs.battle and obs.screen != 'bag')
+            return ('NIBBLE' in words or 'BITE' in words or 'NOTHINGHERE' in words
+                    or (obs.battle and obs.screen != 'bag'))
+        if self.gen == 2:
+            if self.item_id == GEN2_ITEMFINDER:
+                return 'ITEMFINDER' in words
+            return (self.item_info.note == 'prints a message' and obs.screen == 'dialogue' and bool(words)
+                    and not self.refusal)
         if self.item_id == POKE_FLUTE:
             return 'PLAYEDTHE' in words or 'WOKEUP' in words
         if self.item_id == ITEMFINDER:
@@ -304,7 +394,15 @@ class UseItem(GameShortcut):
             raise Abort('Kept the old moves as requested. The machine was not used.')
         super().no_effect()
 
+    def walk_state(self, obs):
+        if self.gen == 2:
+            return obs.memory.byte('wPlayerState')
+        return obs.memory[W_WALK_BIKE_SURF]
+
     def flow(self):
+        if self.gen == 2:
+            yield from self.flow2()
+            return
         kind = self.item_info
         yield from self.open_bag()
         # Battle items and the Bicycle act on the bag's A press, with no USE/TOSS menu.
@@ -332,15 +430,45 @@ class UseItem(GameShortcut):
                     self.no_effect()
         elif not (yield from self.until_screen('item_target', 'party', limit=30)):
             self.no_effect()
+        yield from self.pick_target()
+
+    def pick_target(self):
         self.guard_party(self.target, self.target_id)
         self.committed = True
         yield from self.pick_party(self.target)
-        if kind.target == 'move':
+        if self.item_info.target == 'move':
             if not (yield from self.until_screen('move_list', limit=20, press_text=False)):
                 self.no_effect()
-            yield from self.move_index(self.move + 1, lambda o: o.memory[0xCC26])
-            yield 'a'
+            yield from self.pick_move(self.move)
         yield from self.commit_wait(stay=('item_target', 'party', 'move_list'))
+
+    def flow2(self):
+        """Gen 2: every pack item opens a USE menu, in battle too. TMs ask to teach first."""
+        kind = self.item_info
+        yield from self.open_bag(self.item_id)
+        yield from self.pick_list(self.bag_index(self.item_id))
+        if not (yield from self.until_screen('item_action', limit=10, press_text=False)):
+            self.no_effect()
+        self.committed = kind.target == 'none'
+        yield from self.choose('USE')
+        if kind.target == 'none':
+            yield from self.commit_wait(stay=('bag', 'item_action'))
+            return
+        for _ in range(40):
+            screen = self.obs.screen
+            if screen in ('item_target', 'party'):
+                break
+            if screen == 'yes_no' and kind.kind in ('tm', 'hm'):
+                yield from self.choose('YES')
+            elif screen in ('dialogue', 'transition', 'unknown', 'item_action', 'bag'):
+                if self.refusal:
+                    self.no_effect()
+                yield from self.text_or_wait()
+            else:
+                self.no_effect()
+        else:
+            self.no_effect()
+        yield from self.pick_target()
 
 
 class SwitchPokemon(GameShortcut):
@@ -362,7 +490,9 @@ class SwitchPokemon(GameShortcut):
         if self.slot >= len(party):
             raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
         self.target_id = identity(party[self.slot])
-        if obs.battle and (not party[self.slot]['hp'] or obs.memory[W_PLAYER_MON_NUMBER] == self.slot):
+        if party[self.slot].get('egg') and obs.battle:
+            raise Abort('An Egg cannot battle. No input sent.', cleanup=False)
+        if obs.battle and (not party[self.slot]['hp'] or self.active_slot(obs) == self.slot):
             raise Abort('Requested Pokemon is fainted or already active. No input sent.', cleanup=False)
         if not obs.battle and self.slot == 0:
             raise Abort('Requested Pokemon is already the lead. No input sent.', cleanup=False)
@@ -370,7 +500,7 @@ class SwitchPokemon(GameShortcut):
 
     def effect(self, obs):
         if obs.battle:
-            return obs.memory[W_PLAYER_MON_NUMBER] == self.slot
+            return self.active_slot(obs) == self.slot
         party = self.party(obs)
         return bool(party) and identity(party[0]) == self.target_id
 
@@ -459,7 +589,7 @@ class ChooseMove(GameShortcut):
             raise Abort('Not in battle. No input sent.', cleanup=False)
         if obs.screen not in ('battle_menu', 'move_menu'):
             raise Abort('choose_move starts at the battle menu or the move menu. No input sent.', cleanup=False)
-        battler = read_battler(obs.memory)
+        battler = self.battler(obs)
         self.move_id = battler['moves'][self.slot]
         if not self.move_id:
             raise Abort('Move slot is empty. No input sent.', cleanup=False)
@@ -467,9 +597,20 @@ class ChooseMove(GameShortcut):
             raise Abort('That move has no PP left. No input sent.', cleanup=False)
         self.details['move_id'] = self.move_id
 
+    def battler(self, obs):
+        if self.gen == 2:
+            return {'moves': list(obs.memory.read('wBattleMonMoves', 4)),
+                    'pp': [value & 63 for value in obs.memory.read('wBattleMonPP', 4)]}
+        return read_battler(obs.memory)
+
+    def selected(self, obs):
+        if self.gen == 2:
+            return (obs.memory.byte('wCurPlayerMove') == self.move_id
+                    and obs.memory.byte('wCurMoveNum') == self.slot)
+        return obs.memory[W_PLAYER_SELECTED_MOVE] == self.move_id
+
     def effect(self, obs):
-        return (self.committed and obs.screen not in ('move_menu', 'battle_menu')
-                and obs.memory[W_PLAYER_SELECTED_MOVE] == self.move_id)
+        return self.committed and obs.screen not in ('move_menu', 'battle_menu') and self.selected(obs)
 
     def success_outcome(self):
         return 'Chose the requested move.'
@@ -480,13 +621,13 @@ class ChooseMove(GameShortcut):
             for _ in range(10):
                 if self.obs.screen == 'move_menu':
                     break
-                if self.obs.screen != 'battle_menu' and self.obs.memory[W_PLAYER_SELECTED_MOVE] == self.move_id:
+                if self.obs.screen != 'battle_menu' and self.selected(self.obs):
                     self.committed = True
                     return
                 yield None
         if self.obs.screen != 'move_menu':
             raise Abort('FIGHT did not open the move menu. Stopped.')
-        yield from self.move_index(self.slot + 1, lambda o: o.memory[0xCC26])
+        yield from self.move_index(self.slot + 1, self.menu_y)
         self.committed = True
         yield 'a'
         yield from self.commit_wait(stay=('move_menu',), limit=20)
@@ -504,7 +645,7 @@ class RunAway(GameShortcut):
     def check(self, obs):
         if not obs.battle:
             raise Abort('Not in battle. No input sent.', cleanup=False)
-        if obs.memory[W_IS_IN_BATTLE] == 2:
+        if self.battle_mode(obs) == 2:
             raise Abort('There is no running from a trainer battle. No input sent.', cleanup=False)
         self.committed = False
 
@@ -523,15 +664,25 @@ class RunAway(GameShortcut):
         yield from self.commit_wait(stay=('battle_menu',), limit=40)
 
 
+# Text that shows a Gen 2 field move took effect.
+GEN2_FIELD_MARKERS = {'CUT': 'USEDCUT', 'FLASH': 'BLINDINGFLASH', 'WHIRLPOOL': 'USEDWHIRLPOOL',
+                      'WATERFALL': 'USEDWATERFALL', 'ROCKSMASH': 'USEDROCKSMASH', 'HEADBUTT': 'DIDAHEADBUTT'}
+
+
 class FieldMove(GameShortcut):
-    """Use CUT, SURF, STRENGTH, FLASH or FLY from the party menu outside battle."""
+    """Use a field move from the party menu outside battle.
+
+    Gen 1: CUT, SURF, STRENGTH, FLASH and FLY. Gen 2 adds WHIRLPOOL, WATERFALL,
+    ROCK SMASH and HEADBUTT.
+    """
 
     kind = 'use_field_move'
     label = 'use_field_move'
 
     def __init__(self, move, slot, destination=None, **options):
-        if not isinstance(move, str) or normalize(move) not in GEN1_FIELD_MOVES:
-            raise ValueError('move must be CUT, FLY, SURF, STRENGTH or FLASH')
+        moves = GEN2_FIELD_MOVES if generation(options.get('version')) == 2 else GEN1_FIELD_MOVES
+        if not isinstance(move, str) or normalize(move) not in moves:
+            raise ValueError('move must be one of ' + ', '.join(moves))
         _slot(slot, 'Party slot', 6)
         self.move = normalize(move)
         if self.move == 'FLY' and (not isinstance(destination, str) or not normalize(destination)):
@@ -550,12 +701,17 @@ class FieldMove(GameShortcut):
         party = self.party()
         if self.slot >= len(party):
             raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
-        move_id, badge = GEN1_FIELD_MOVES[self.move]
-        if move_id not in party[self.slot]['moves']:
+        move_id, badge = (GEN2_FIELD_MOVES if self.gen == 2 else GEN1_FIELD_MOVES)[self.move]
+        if party[self.slot].get('egg') or move_id not in party[self.slot]['moves']:
             raise Abort('That Pokemon does not know the move. No input sent.', cleanup=False)
-        if not obs.memory[W_BADGES] >> badge & 1:
+        badges = obs.memory.byte('wJohtoBadges') if self.gen == 2 else obs.memory[W_BADGES]
+        if badge is not None and not badges >> badge & 1:
             raise Abort('The badge for this move is missing. No input sent.', cleanup=False)
         self.target_id = identity(party[self.slot])
+        if self.gen == 2:
+            self.before = {'state': obs.memory.byte('wPlayerState'), 'bike': obs.memory.byte('wBikeFlags'),
+                           'map': self.map_id(obs)}
+            return
         self.before = {'surf': obs.memory[W_WALK_BIKE_SURF], 'strength': obs.memory[W_STATUS_FLAGS1] & 1,
                        'map': obs.memory[W_CUR_MAP], 'pal': obs.memory[W_MAP_PAL_OFFSET]}
 
@@ -564,6 +720,14 @@ class FieldMove(GameShortcut):
             return False
         words = normalize(obs.text)
         memory = obs.memory
+        if self.gen == 2:
+            if self.move == 'SURF':
+                return memory.byte('wPlayerState') in GEN2_SURFING and self.before['state'] not in GEN2_SURFING
+            if self.move == 'STRENGTH':
+                return bool(memory.byte('wBikeFlags') & 1) and not self.before['bike'] & 1
+            if self.move == 'FLY':
+                return self.map_id(obs) != self.before['map'] and obs.screen == 'overworld'
+            return GEN2_FIELD_MARKERS[self.move] in words
         if self.move == 'CUT':
             return 'HACKEDAWAY' in words
         if self.move == 'SURF':
@@ -593,7 +757,10 @@ class FieldMove(GameShortcut):
             self.no_effect()
         seen = []
         for _ in range(16):
-            name = fly_destination(read_screen(self.obs.memory))
+            if self.gen == 2:
+                name = gen2ui.fly_destination(self.obs.memory)
+            else:
+                name = fly_destination(read_screen(self.obs.memory))
             if normalize(name) == normalize(self.destination):
                 self.committed = True
                 yield 'a'
@@ -604,7 +771,8 @@ class FieldMove(GameShortcut):
             seen.append(name)
             yield 'up'
             yield from self.until(lambda obs: obs.screen == 'fly_map', limit=4, press_text=False)
-        raise Abort('Destination is not a visited town. Choices: ' + ', '.join(seen) + '.')
+        where = 'a visited town in this region' if self.gen == 2 else 'a visited town'
+        raise Abort(f'Destination is not {where}. Choices: ' + ', '.join(seen) + '.')
 
 
 class TossItem(GameShortcut):
@@ -630,7 +798,7 @@ class TossItem(GameShortcut):
         self.before = self.quantity(self.item_id)
         if not self.before:
             raise Abort('Requested item is not in the bag. No input sent.', cleanup=False)
-        if self.item_id in GEN1_KEY_ITEMS:
+        if self.is_key_item(self.item_id):
             raise Abort('That item is too important to toss. No input sent.', cleanup=False)
         if self.amount > self.before:
             raise Abort(f'Only {self.before} in the bag. No input sent.', cleanup=False)
@@ -642,7 +810,7 @@ class TossItem(GameShortcut):
         return f'Tossed {self.amount}.'
 
     def flow(self):
-        yield from self.open_bag()
+        yield from self.open_bag(self.item_id)
         yield from self.pick_list(self.bag_index(self.item_id))
         yield from self.until_screen('item_action', limit=8, press_text=False)
         yield from self.choose('TOSS')
@@ -680,10 +848,7 @@ class BuyItem(MartTrade):
 
     def check(self, obs):
         super().check(obs)
-        if self.before + self.amount > 99:
-            raise Abort('That would hold more than 99. No input sent.', cleanup=False)
-        if not self.before and len(self.bag()) >= BAG_SLOTS:
-            raise Abort('The bag is full. No input sent.', cleanup=False)
+        self.check_room()
 
     def effect(self, obs):
         return self.quantity(self.item_id, obs) >= self.before + self.amount
@@ -691,17 +856,24 @@ class BuyItem(MartTrade):
     def success_outcome(self):
         return f'Bought {self.amount}.'
 
-    def flow(self):
-        yield from self.choose('BUY')
-        if not (yield from self.until_screen('mart_list', limit=40)):
-            raise Abort('BUY did not open the shop list. Stopped.')
+    def stock(self):
         memory = self.obs.memory
+        if self.gen == 2:
+            count = min(memory.byte('wCurMartCount'), 20)
+            return [item for item in memory.read('wCurMartItems', count) if item != 0xFF]
         stock = []
         for index in range(1, 20):
             entry = memory[W_ITEM_LIST + index]
             if entry == 0xFF:
                 break
             stock.append(entry)
+        return stock
+
+    def flow(self):
+        yield from self.choose('BUY')
+        if not (yield from self.until_screen('mart_list', limit=40)):
+            raise Abort('BUY did not open the shop list. Stopped.')
+        stock = self.stock()
         if self.item_id not in stock:
             raise Abort('This mart does not sell that item.')
         yield from self.pick_list(stock.index(self.item_id))
@@ -722,7 +894,7 @@ class SellItem(MartTrade):
             raise Abort('Requested item is not in the bag. No input sent.', cleanup=False)
         if self.amount > self.before:
             raise Abort(f'Only {self.before} in the bag. No input sent.', cleanup=False)
-        if self.item_id in GEN1_KEY_ITEMS:
+        if self.is_key_item(self.item_id):
             raise Abort('Key items and HMs cannot be sold. No input sent.', cleanup=False)
 
     def effect(self, obs):
@@ -735,6 +907,8 @@ class SellItem(MartTrade):
         yield from self.choose('SELL')
         if not (yield from self.until_screen('bag', limit=40)):
             raise Abort('SELL did not open the bag. Stopped.')
+        if self.gen == 2:
+            yield from self.turn_pocket(self.item_id)
         yield from self.pick_list(self.bag_index(self.item_id))
         yield from self.set_quantity(self.amount, top=self.before)
         if not (yield from self.until_screen('yes_no', limit=20)):
@@ -752,10 +926,13 @@ class PCShortcut(GameShortcut):
     def open_submenu(self):
         if self.obs.screen == self.submenu:
             return
-        rows = [row for row in menu_rows(self.obs.memory, read_screen(self.obs.memory)) if row['text']]
-        if len(rows) <= self.submenu_row:
+        if self.gen == 2:
+            labels = [label for label, _ in self.obs.extra.get('choices', [])]
+        else:
+            labels = [row['text'] for row in menu_rows(self.obs.memory, read_screen(self.obs.memory)) if row['text']]
+        if len(labels) <= self.submenu_row:
             raise Abort('PC menu is not readable. No input sent.', cleanup=False)
-        yield Choose(rows[self.submenu_row]['text'])
+        yield Choose(labels[self.submenu_row])
         if not (yield from self.until_screen(self.submenu, limit=40)):
             raise Abort('The PC did not open. Stopped.')
 
@@ -768,10 +945,7 @@ class PCShortcut(GameShortcut):
         pass
 
     def box_count(self, obs=None):
-        return min((obs or self.obs).memory[W_BOX_COUNT], 20)
-
-    def party_count(self, obs=None):
-        return min((obs or self.obs).memory[W_PARTY_COUNT], 6)
+        return self.current_box_count(obs)
 
 
 class DepositPokemon(PCShortcut):
@@ -792,6 +966,11 @@ class DepositPokemon(PCShortcut):
             raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
         if len(party) == 1:
             raise Abort("You can't deposit the last Pokemon. No input sent.", cleanup=False)
+        if self.gen == 2 and not any(mon['hp'] and not mon['egg'] for i, mon in enumerate(party) if i != self.slot):
+            raise Abort('No other Pokemon could battle after this deposit, so the game refuses. No input sent.',
+                        cleanup=False)
+        if self.gen == 2 and gen2ui.holds_mail(party[self.slot]):
+            raise Abort('The Pokemon holds mail. Remove it first. No input sent.', cleanup=False)
         if self.box_count() >= 20:
             raise Abort('The current box is full. No input sent.', cleanup=False)
         self.target_id = identity(party[self.slot])
@@ -880,8 +1059,33 @@ class ReleasePokemon(BoxShortcut):
             return 'YES'
         return super().prompt_answer(obs)
 
+    def check_pc(self, obs):
+        super().check_pc(obs)
+        if self.gen == 2:
+            mons = gen2ui.box_mons(obs.raw, self.version)
+            if self.position < len(mons) and mons[self.position]['egg']:
+                raise Abort('Eggs cannot be released. No input sent.', cleanup=False)
+            if self.position < len(mons) and gen2ui.holds_mail(mons[self.position]):
+                raise Abort('The Pokemon holds mail. Remove it first. No input sent.', cleanup=False)
+
     def flow(self):
         yield from self.open_submenu()
+        if self.gen == 2:
+            yield from self.choose('WITHDRAW PKMN')
+            if not (yield from self.until_screen('pc_box', limit=40)):
+                self.no_effect()
+            yield from self.pick_list(self.position)
+            if not (yield from self.until_screen('pc_mon_action', limit=10, press_text=False)):
+                self.no_effect()
+            yield from self.choose('RELEASE')
+            if not (yield from self.until_screen('yes_no', limit=10, press_text=False)):
+                self.no_effect()
+            if 'RELEASE' not in normalize(self.obs.text):
+                raise Abort('Unexpected prompt before release. Stopped.')
+            self.committed = True
+            yield from self.choose('YES')
+            yield from self.commit_wait(stay=('pc_box',))
+            return
         yield from self.choose('RELEASE PKMN')
         if not (yield from self.until_screen('pc_box', limit=40)):
             self.no_effect()
@@ -904,6 +1108,8 @@ class ItemPCShortcut(PCShortcut):
         return {'item_id': getattr(self, 'item_id', self.item), 'quantity': self.amount}
 
     def pc_items(self, obs=None):
+        if self.gen == 2:
+            return self.pockets(obs)['pc']
         memory = (obs or self.obs).memory
         count = min(memory[0xD53A], 50)
         raw = [memory[0xD53B + i] for i in range(count * 2)]
@@ -913,7 +1119,7 @@ class ItemPCShortcut(PCShortcut):
         return sum(qty for entry, qty in self.pc_items(obs) if entry == item)
 
     def pick_quantity(self):
-        if self.item_id in GEN1_KEY_ITEMS:
+        if self.is_key_item(self.item_id):
             return
         yield from self.set_quantity(self.amount, top=self.top)
 
@@ -928,12 +1134,14 @@ class DepositItem(ItemPCShortcut):
         self.top = self.before
         if not self.before:
             raise Abort('Requested item is not in the bag. No input sent.', cleanup=False)
-        if self.amount > self.before or (self.item_id in GEN1_KEY_ITEMS and self.amount != 1):
+        if self.amount > self.before or (self.is_key_item(self.item_id) and self.amount != 1):
             raise Abort(f'Only {self.before} in the bag. No input sent.', cleanup=False)
+        if self.gen == 2 and tm_number(self.item_id, self.version):
+            raise Abort('TMs and HMs stay in the pack. No input sent.', cleanup=False)
         stored = self.pc_quantity(self.item_id)
         if stored + self.amount > 99:
             raise Abort('The PC would hold more than 99. No input sent.', cleanup=False)
-        if not stored and len(self.pc_items()) >= PC_ITEM_SLOTS:
+        if not stored and len(self.pc_items()) >= (GEN2_PC_ITEM_SLOTS if self.gen == 2 else PC_ITEM_SLOTS):
             raise Abort('The item PC is full. No input sent.', cleanup=False)
 
     def effect(self, obs):
@@ -947,6 +1155,8 @@ class DepositItem(ItemPCShortcut):
         yield from self.choose('DEPOSIT ITEM')
         if not (yield from self.until_screen('bag', limit=40)):
             self.no_effect()
+        if self.gen == 2:
+            yield from self.turn_pocket(self.item_id)
         yield from self.pick_list(self.bag_index(self.item_id))
         yield from self.pick_quantity()
         yield from self.commit_wait(stay=('bag',))
@@ -962,12 +1172,9 @@ class WithdrawItem(ItemPCShortcut):
         self.before = self.quantity(self.item_id)
         if not stored:
             raise Abort('That item is not stored in the PC. No input sent.', cleanup=False)
-        if self.amount > stored or (self.item_id in GEN1_KEY_ITEMS and self.amount != 1):
+        if self.amount > stored or (self.is_key_item(self.item_id) and self.amount != 1):
             raise Abort(f'Only {stored} stored in the PC. No input sent.', cleanup=False)
-        if self.before + self.amount > 99:
-            raise Abort('That would hold more than 99. No input sent.', cleanup=False)
-        if not self.before and len(self.bag()) >= BAG_SLOTS:
-            raise Abort('The bag is full. No input sent.', cleanup=False)
+        self.check_room()
 
     def effect(self, obs):
         return self.quantity(self.item_id, obs) >= self.before + self.amount
@@ -988,6 +1195,150 @@ class WithdrawItem(ItemPCShortcut):
         yield from self.commit_wait(stay=('pc_items',))
 
 
+class HeldItemShortcut(GameShortcut):
+    """Gen 2 held items, outside battle."""
+
+    def __init__(self, slot, **options):
+        _slot(slot, 'Party slot', 6)
+        super().__init__(**options)
+        self.slot = slot
+        self.committed = False
+
+    def check_mon(self, obs):
+        if self.gen != 2:
+            raise Abort('Held items exist only in Gold, Silver and Crystal. No input sent.', cleanup=False)
+        if obs.battle:
+            raise Abort('Held items change only outside battle. No input sent.', cleanup=False)
+        party = self.party()
+        if self.slot >= len(party):
+            raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
+        mon = party[self.slot]
+        if mon.get('egg'):
+            raise Abort('An Egg cannot hold an item. No input sent.', cleanup=False)
+        if gen2ui.holds_mail(mon):
+            raise Abort('The Pokemon holds mail, which the shortcuts do not handle. No input sent.', cleanup=False)
+        self.target_id = identity(mon)
+        self.held_before = mon.get('held_item') or 0
+        return mon
+
+    def held(self, obs):
+        party = self.party(obs)
+        if self.slot < len(party) and identity(party[self.slot]) == self.target_id:
+            return party[self.slot].get('held_item') or 0
+        return None
+
+
+class GiveItem(HeldItemShortcut):
+    """Gen 2: give a bag item to a party member to hold, from the pack's GIVE.
+
+    When the Pokemon already holds an item, pass ``swap=True`` to trade it back
+    into the bag. Otherwise the shortcut refuses before any input.
+    """
+
+    kind = 'give_item'
+    label = 'give_item'
+
+    def __init__(self, item, slot, *, swap=False, **options):
+        if isinstance(item, bool) or not isinstance(item, (int, str)):
+            raise ValueError('item must be an item ID or name')
+        super().__init__(slot, **options)
+        self.item, self.swap = item, swap is True
+
+    def result_fields(self):
+        return {'item_id': getattr(self, 'item_id', self.item), 'party_slot': self.slot + 1,
+                'returned_item': getattr(self, 'held_before', 0) or None}
+
+    def check(self, obs):
+        self.check_mon(obs)
+        self.item_id = self.resolve_item(self.item)
+        self.before = self.quantity(self.item_id)
+        if not self.before:
+            raise Abort('Requested item is not in the bag. No input sent.', cleanup=False)
+        kind = item_kind(self.item_id, self.version).kind
+        if self.is_key_item(self.item_id) or kind in ('tm', 'hm'):
+            raise Abort('This item cannot be held. No input sent.', cleanup=False)
+        if kind == 'mail':
+            raise Abort('Mail needs a message, which the shortcuts do not write. No input sent.', cleanup=False)
+        if self.held_before:
+            if not self.swap:
+                raise Abort('The Pokemon already holds an item. Pass swap=True to trade it back to the bag. '
+                            'No input sent.', cleanup=False)
+            if self.held_before == self.item_id:
+                raise Abort('The Pokemon already holds that item. No input sent.', cleanup=False)
+            saved = self.item_id, self.before, getattr(self, 'amount', None)
+            self.item_id, self.before, self.amount = self.held_before, self.quantity(self.held_before), 1
+            try:
+                self.check_room()
+            finally:
+                self.item_id, self.before, self.amount = saved
+
+    def effect(self, obs):
+        return self.committed and self.held(obs) == self.item_id
+
+    def success_outcome(self):
+        if self.held_before:
+            return 'Gave the item and put the old one in the bag.'
+        return 'Gave the item to hold.'
+
+    def prompt_answer(self, obs):
+        words = normalize(' '.join(self.recent[-2:] + [obs.text]))
+        if 'ALREADYHOLDING' in words or 'SWITCHITEMS' in words:
+            return 'YES' if self.swap else 'NO'
+        return super().prompt_answer(obs)
+
+    def flow(self):
+        yield from self.open_bag(self.item_id)
+        yield from self.pick_list(self.bag_index(self.item_id))
+        if not (yield from self.until_screen('item_action', limit=10, press_text=False)):
+            self.no_effect()
+        yield from self.choose('GIVE')
+        if not (yield from self.until_screen('item_target', 'party', limit=40, press_text=False)):
+            self.no_effect()
+        self.guard_party(self.slot, self.target_id)
+        self.committed = True
+        yield from self.pick_party(self.slot)
+        yield from self.commit_wait(stay=('item_target', 'party'))
+
+
+class TakeItem(HeldItemShortcut):
+    """Gen 2: take a party member's held item back into the bag, from the party menu's ITEM."""
+
+    kind = 'take_item'
+    label = 'take_item'
+
+    def result_fields(self):
+        return {'party_slot': self.slot + 1, 'item_id': getattr(self, 'held_before', None) or None}
+
+    def check(self, obs):
+        self.check_mon(obs)
+        if not self.held_before:
+            raise Abort('The Pokemon is not holding anything. No input sent.', cleanup=False)
+        self.item_id, self.amount = self.held_before, 1
+        self.before = self.quantity(self.item_id)
+        self.check_room()
+
+    def effect(self, obs):
+        return self.committed and self.held(obs) == 0 and self.quantity(self.item_id, obs) > self.before
+
+    def success_outcome(self):
+        return 'Took the held item into the bag.'
+
+    def flow(self):
+        yield from self.open_party()
+        self.guard_party(self.slot, self.target_id)
+        yield from self.pick_party(self.slot)
+        if not (yield from self.until_screen('party_action', limit=10, press_text=False)):
+            self.no_effect()
+        yield from self.choose('ITEM')
+        if not (yield from self.until(lambda obs: 'TAKE' in {normalize(label) for label, _ in
+                                                              obs.extra.get('choices', [])},
+                                      limit=20, press_text=False)):
+            self.no_effect()
+        self.committed = True
+        yield from self.choose('TAKE')
+        yield from self.commit_wait(stay=('party', 'party_action', 'menu'))
+
+
 __all__ = ['UseItem', 'SwitchPokemon', 'ReorderParty', 'ChooseMove', 'RunAway', 'FieldMove', 'TossItem',
            'BuyItem', 'SellItem', 'DepositPokemon', 'WithdrawPokemon', 'ReleasePokemon', 'DepositItem',
-           'WithdrawItem', 'Done', 'tm_number']
+           'WithdrawItem', 'GiveItem', 'TakeItem', 'Done', 'tm_number']

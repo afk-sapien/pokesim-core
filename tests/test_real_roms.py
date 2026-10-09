@@ -50,7 +50,8 @@ def test_real_cartridges_carry_link_code():
 # shortcuts.json manifest, a list of entries like
 #   {"rom": "red", "state": "wild-battle.state", "machine": "RunAway", "args": [], "kwargs": {},
 #    "expect": "completed"}
-# ``machine`` is a class from ``pokesim_core.shortcuts``. ``expect`` is "completed" (effect seen and the screen settled) or "refused" (the
+# ``machine`` is a class from ``pokesim_core.shortcuts`` and ``rom`` is any version, Gen 1 or Gen 2.
+# ``expect`` is "completed" (effect seen and the screen settled) or "refused" (the
 # game or the shortcut refused, and the screen still settled). No states ship here.
 STATES = os.environ.get('POKESIM_CORE_SHORTCUT_STATES')
 
@@ -78,9 +79,13 @@ def test_shortcuts_finish_at_a_resting_screen_on_real_cartridges(case):
     from pokesim_core.emulator import Emulator
     emulator = Emulator(str(_rom_for(case['rom'])), sound_emulated=False)
     emulator.load((Path(STATES) / case['state']).read_bytes())
+    from pokesim_core.emulator import BUTTONS
+    for button in BUTTONS:
+        emulator.release(button)
     machine = getattr(shortcuts, case['machine'])(*case.get('args', []), version=case['rom'], **case.get('kwargs', {}))
     done = shortcuts.drive(machine, emulator)
     assert done.settled, done.outcome
     assert done.completed == (case.get('expect', 'completed') == 'completed'), done.outcome
     screen = shortcuts.current_screen(emulator.memory, case['rom'])
-    assert screen in ('overworld', 'battle_menu', 'move_menu', 'party', 'mart', 'pc', 'transition'), screen
+    assert screen in ('overworld', 'battle_menu', 'move_menu', 'party', 'mart', 'pc', 'transition',
+                      'switch_prompt'), screen

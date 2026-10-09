@@ -3,7 +3,7 @@
 Every query takes ``memory`` and ``version`` (``None`` means Red or Blue). Gen 1
 names come from the cartridge in memory (``item_names``, ``move_names``) unless
 the caller passes ``labels`` ({item ID or str(ID): name}). Gen 2 reads use the
-``gen2.state`` readers and leave names to the caller.
+``gen2.state`` readers and the cartridge's name tables.
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from .. import gen1
 from ..gen1_ui import read_storage
 from ..yellow import red_layout
 from .items import gen2_tm_item, generation, item_kind, item_names, move_names
+from . import gen2ui
 from .screens import current_screen as _current_screen
 
 
@@ -55,7 +56,7 @@ def list_items(memory, version=None, *, labels=None):
     else:
         state = _gen2()
         pockets = state.read_items(memory, version)
-        battle = False
+        battle = gen2ui.View(memory, version).byte('wBattleMode') != 0
         entries = [(item, qty, pocket) for pocket in ('items', 'balls', 'key') for item, qty in pockets[pocket]]
         entries += [(gen2_tm_item(index), qty, 'tms_hms') for index, qty in enumerate(pockets['tms_hms']) if qty]
         names = item_names(memory, version)
@@ -63,8 +64,6 @@ def list_items(memory, version=None, *, labels=None):
     for item, qty, pocket in entries:
         kind = item_kind(item, version)
         usable, reason = _usability(kind, battle)
-        if gen == 2:
-            usable, reason = False, 'Gen 2 item shortcuts are not supported yet'
         out.append({'id': item, 'name': _label(labels, item) or names.get(item), 'qty': qty, 'pocket': pocket,
                     'kind': kind.kind, 'target': kind.target, 'field': kind.field, 'battle': kind.battle,
                     'usable': usable, 'reason': reason})
@@ -96,7 +95,7 @@ def list_moves(memory, slot, version=None):
         view = red_layout(memory, version)
     else:
         party = _gen2().read_party_structs(memory, version)
-        names = {}
+        names = move_names(memory, version)
     if slot >= len(party):
         return []
     mon = party[slot]
@@ -139,5 +138,5 @@ def list_box(memory, box=None, version=None):
 
 
 def current_screen(memory, version=None):
-    """The visible screen name, see ``screens.SCREENS``. Gen 2 returns ``unsupported``."""
+    """The visible screen name, see ``screens.SCREENS``."""
     return _current_screen(memory, version=version)

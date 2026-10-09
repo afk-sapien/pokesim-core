@@ -9,7 +9,7 @@ import pytest
 
 from pokesim_core.controls import ControllerPort
 from pokesim_core.gen1 import W_TILEMAP
-from pokesim_core.shortcuts import (RunAway, buy_item, choose_move, current_screen, deposit_item,
+from pokesim_core.shortcuts import (RunAway, buy_item, choose_move, deposit_item,
                                     deposit_pokemon, item_kind, list_items, list_moves, list_party,
                                     release_pokemon, reorder_party, run_away, sell_item, switch_pokemon,
                                     tm_number, toss_item, use_field_move, use_item, withdraw_item,
@@ -660,21 +660,6 @@ def test_item_pc_deposit_and_withdraw():
 
 # Gen 2 and queries ---------------------------------------------------------------------
 
-@pytest.mark.parametrize('call', [
-    lambda port: use_item(port, 0x12, 0), lambda port: switch_pokemon(port, 1),
-    lambda port: choose_move(port, 0), lambda port: run_away(port), lambda port: reorder_party(port, 0, 1),
-    lambda port: use_field_move(port, 'CUT', 0), lambda port: toss_item(port, 0x12),
-    lambda port: buy_item(port, 0x12), lambda port: sell_item(port, 0x12),
-    lambda port: deposit_pokemon(port, 0), lambda port: withdraw_pokemon(port, 0),
-    lambda port: release_pokemon(port, 0, allow_release=True), lambda port: deposit_item(port, 0x12),
-    lambda port: withdraw_item(port, 0x12)])
-def test_gen2_refuses_every_action_before_input(call):
-    game = Game(version='crystal', bag=[(0x12, 1)])
-    result = call(game.port())
-    assert result['outcome'] == 'Not supported in Gen 2 yet. No input sent.'
-    assert not result['shortcut']['completed'] and game.inputs == []
-
-
 def test_queries_read_the_bag_party_and_moves():
     memory = bytearray(0x10000)
     memory[0xD31D:0xD322] = bytes([2, 0x14, 3, 0x04, 1])
@@ -693,7 +678,6 @@ def test_queries_read_the_bag_party_and_moves():
     assert list_moves(memory, 3) == []
     with pytest.raises(ValueError):
         list_moves(memory, 6)
-    assert current_screen(memory, 'gold') == 'unsupported'
     assert item_kind(0x14).kind == 'heal' and item_kind(0x14, 'crystal').kind != 'heal'
     assert tm_number(0xC9) == ('TM', 1) and tm_number(0xC4) == ('HM', 1)
     assert tm_number(0xBF, 'gold') == ('TM', 1) and tm_number(0xF3, 'gold') == ('HM', 1)

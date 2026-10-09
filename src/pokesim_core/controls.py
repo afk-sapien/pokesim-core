@@ -89,7 +89,12 @@ class ControllerPort:
 
 def machine_options(port, **options):
     """Keyword arguments that build a shortcut machine reading through ``port``."""
-    return {'version': port.version, 'read_party': port.read_party, 'read_bag': port.read_bag,
+    read_party_, read_bag_ = port.read_party, port.read_bag
+    if port.version in ('gold', 'silver', 'crystal'):
+        # The Gen 1 defaults cannot read Gen 2 memory, so the machine's own Gen 2 readers take over.
+        read_party_ = None if read_party_ is read_party else read_party_
+        read_bag_ = None if read_bag_ is read_bag else read_bag_
+    return {'version': port.version, 'read_party': read_party_, 'read_bag': read_bag_,
             'labels': port.item_labels, **options}
 
 
