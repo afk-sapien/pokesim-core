@@ -22,6 +22,7 @@ from pokesim_core.shortcuts import gen2ui
 from pokesim_core.shortcuts.items import GEN2_FIELD_MOVES, gen2_pocket, gen2_tm_item, item_kind, key_item
 
 POTION, SUPER_POTION, ESCAPE_ROPE, BERRY, ETHER = 0x12, 0x11, 0x13, 0xAD, 0x3F
+SUPER_ROD = 0x3D
 POKE_BALL, BICYCLE, LEFTOVERS, MAIL = 0x05, 0x07, 0x92, 0x9E
 TM01, HM01 = gen2_tm_item(0), gen2_tm_item(50)
 TM_INDEX = {gen2_tm_item(index): index for index in range(57)}
@@ -119,6 +120,7 @@ class Game2:
         self.towns = list(towns)
         self.cuttable, self.water = cuttable, water
         self.incompatible = set(incompatible)
+        self.casting = 0
         self.inputs = []
         self.frame = 0
         self.pocket = 0
@@ -149,6 +151,12 @@ class Game2:
 
     def send(self, button, held=0, released=0):
         self.frame += held + released
+        if button is None and self.casting:
+            # The rod is out on the overworld. Its message prints after the cast.
+            self.casting -= 1
+            if not self.casting:
+                self.say('Not even a nibble!', then=self.go_overworld)
+                self.sync()
         if button is not None:
             self.inputs.append(button)
             getattr(self, 'press_' + self.screen)(button)
@@ -299,6 +307,9 @@ class Game2:
             self.remove(item)
             self.map = (10, 2)
             self.say('KRIS used the ESCAPE ROPE.', then=self.go_overworld)
+        elif kind.kind == 'fishing':
+            self.go_overworld()
+            self.casting = 40 if self.water else 0
         elif item == BICYCLE:
             self.player_state = 0 if self.player_state == 1 else 1
             self.say('KRIS got on the BICYCLE.', then=self.go_overworld)
@@ -951,6 +962,20 @@ def test_escape_rope_has_no_target():
     game = Game2(items=[(ESCAPE_ROPE, 1)])
     result = use_item(game.port(), ESCAPE_ROPE)
     assert done(result) and game.map == (10, 2) and game.screen == 'overworld'
+
+
+def test_a_rod_waits_on_the_overworld_for_the_cast():
+    game = Game2(key=[SUPER_ROD])
+    result = use_item(game.port(), SUPER_ROD)
+    assert done(result) and result['outcome'] == 'Used the rod. Nothing bit.', result
+    assert game.screen == 'overworld' and game.inputs.count('a') == 4
+
+
+def test_a_rod_with_no_message_stops_without_a_second_cast():
+    game = Game2(key=[SUPER_ROD], water=False)
+    result = use_item(game.port(), SUPER_ROD)
+    assert not result['shortcut']['completed'] and 'without a confirmed effect' in result['outcome'], result
+    assert game.screen == 'overworld'
 
 
 def test_tm_into_an_empty_slot_and_over_a_full_moveset():
