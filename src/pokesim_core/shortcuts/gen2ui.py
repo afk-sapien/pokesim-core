@@ -245,7 +245,8 @@ def classify(view, rows=None):
             return 'mart', extra
         if 'QUIT' in words and words & {'USE', 'GIVE', 'TOSS', 'SEL'}:
             return 'item_action', extra
-        if {'STATS', 'SWITCH', 'CANCEL'} <= words:
+        if {'STATS', 'SWITCH'} <= words:
+            # With four field moves the party submenu scrolls and CANCEL is off screen.
             return 'party_action', extra
         if {'STATS', 'RELEASE', 'CANCEL'} <= words and words & {'DEPOSIT', 'WITHDRAW'}:
             return 'pc_mon_action', extra

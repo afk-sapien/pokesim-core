@@ -187,9 +187,9 @@ class Game2:
         if not self.pages:
             self.after()
 
-    def open_menu(self, labels, actions, back, *, x0=0, y0=0, text='', index=0):
+    def open_menu(self, labels, actions, back, *, x0=0, y0=0, text='', index=0, visible=None):
         self.menu = {'labels': list(labels), 'actions': actions, 'back': back, 'x0': x0, 'y0': y0, 'text': text,
-                     'index': index}
+                     'index': index, 'visible': visible}
         self.screen = 'menu'
 
     def yes_no(self, text, yes, no):
@@ -331,11 +331,11 @@ class Game2:
     def party_field(self, slot):
         member = self.party[slot]
         moves = [name for name, move_id in MOVE_IDS.items() if move_id in member['moves']]
-        labels = [FIELD_LABELS.get(name, name) for name in moves] + ['STATS', 'SWITCH', 'ITEM', 'CANCEL']
+        labels = [FIELD_LABELS.get(name, name) for name in moves] + ['STATS', 'SWITCH', 'MOVE', 'ITEM', 'CANCEL']
         actions = {FIELD_LABELS.get(name, name): (lambda name=name: self.field_move(slot, name)) for name in moves}
         actions.update({'SWITCH': lambda: self.go_party('switch', slot), 'ITEM': lambda: self.held_menu(slot),
                         'CANCEL': lambda: self.go_party('field', slot)})
-        self.open_menu(labels, actions, lambda: self.go_party('field', slot), x0=0, y0=0)
+        self.open_menu(labels, actions, lambda: self.go_party('field', slot), x0=0, y0=0, visible=8)
 
     def party_switch(self, slot):
         source = self.source
@@ -760,16 +760,19 @@ class Game2:
     def draw_menu(self):
         menu = self.menu
         x0, y0, labels = menu['x0'], menu['y0'], menu['labels']
+        # A menu longer than its window scrolls to keep the cursor in view.
+        top = max(0, menu['index'] - menu['visible'] + 1) if menu['visible'] else 0
+        labels = labels[top:top + menu['visible']] if menu['visible'] else labels
         limit = 11 if menu['text'] else 17
         step = 2 if y0 + 2 * len(labels) + 2 <= limit else 1
         y0 = min(y0, limit - step * len(labels) - step)
         self.box_at(x0, y0, 19, y0 + step * len(labels) + step)
         for row, label in enumerate(labels):
             self.text_at(x0 + 2, y0 + step + step * row, label)
-        self.tile(x0 + 1, y0 + step + step * menu['index'], CURSOR)
+        self.tile(x0 + 1, y0 + step + step * (menu['index'] - top), CURSOR)
         if menu['text']:
             self.text_box(menu['text'])
-        self.put('wMenuCursorY', [menu['index'] + 1])
+        self.put('wMenuCursorY', [menu['index'] - top + 1])
 
     def draw_party(self):
         for index, member in enumerate(self.party):
@@ -993,6 +996,13 @@ def test_switch_and_reorder_in_the_field():
     refused(switch_pokemon(game.port(), 0), game, 'already the lead')
     game = Game2(battle=1, screen='battle_menu')
     refused(reorder_party(game.port(), 0, 1), game, 'outside battle')
+
+
+def test_reorder_a_member_whose_party_submenu_scrolls():
+    # Four field moves push CANCEL below the submenu window, as on the cartridge.
+    game = Game2(party=[mon('ONE'), mon('SURFER', moves=(57, 250, 15, 70))])
+    assert done(reorder_party(game.port(), 1, 0))
+    assert [member['nick'] for member in game.party] == ['SURFER', 'ONE'] and game.screen == 'overworld'
 
 
 def test_choose_move_from_the_battle_menu():
