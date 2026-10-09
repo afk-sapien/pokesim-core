@@ -623,6 +623,9 @@ class ChooseMove(GameShortcut):
         self.no_pp = not any(battler['pp'][i] for i, move in enumerate(battler['moves']) if move)
         if not battler['pp'][self.slot] and not self.no_pp:
             raise Abort('That move has no PP left. No input sent.', cleanup=False)
+        if (self.gen == 2 and obs.memory.byte('wPlayerDisableCount')
+                and obs.memory.byte('wDisabledMove') == self.move_id):
+            raise Abort('That move is disabled. No input sent.', cleanup=False)
         self.details['move_id'] = self.move_id
 
     def battler(self, obs):

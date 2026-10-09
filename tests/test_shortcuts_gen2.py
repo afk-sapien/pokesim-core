@@ -111,6 +111,7 @@ class Game2:
         self.battle = battle
         self.active = 0
         self.player_move = self.move_num = 0
+        self.disabled = 0
         self.player_state = self.bike = 0
         self.map = (10, 1)
         self.badges = badges
@@ -755,6 +756,8 @@ class Game2:
         put('wBattleMonPP', active['pp'])
         put('wBattleMonHP', active['hp'].to_bytes(2, 'big'))
         put('wCurPlayerMove', [self.player_move])
+        put('wDisabledMove', [self.disabled])
+        put('wPlayerDisableCount', [0x13 if self.disabled else 0])
         put('wCurMoveNum', [self.move_num])
         put('wPlayerState', [self.player_state])
         put('wBikeFlags', [self.bike])
@@ -874,7 +877,8 @@ class Game2:
     def draw_move_menu(self):
         member = self.party[self.active]
         self.box_at(0, 7, 9, 11)
-        self.text_at(1, 8, 'TYPE/')
+        moves = [move for move in member['moves'] if move]
+        self.text_at(1, 9, 'Disabled!') if moves[self.index] == self.disabled else self.text_at(1, 8, 'TYPE/')
         self.box_at(4, 12, 19, 17)
         for row, move in enumerate(move for move in member['moves'] if move):
             self.text_at(6, 13 + row, f'MOVE {move}')
@@ -1107,6 +1111,16 @@ def test_choose_move_from_the_battle_menu():
     refused(choose_move(game.port(), 3), game, 'empty')
     game = Game2()
     refused(choose_move(game.port(), 0), game, 'Not in battle')
+
+
+def test_choose_move_past_a_disabled_move_and_refuse_it():
+    game = Game2(battle=1, screen='battle_menu', party=[mon('ONE', moves=(33, 45, 10, 0))])
+    game.disabled = 33
+    game.sync()
+    result = choose_move(game.port(), 1)
+    assert done(result) and (game.player_move, game.move_num) == (45, 1)
+    game.inputs.clear()
+    refused(choose_move(game.port(), 0), game, 'disabled')
 
 
 def test_choose_move_steps_without_a_port():

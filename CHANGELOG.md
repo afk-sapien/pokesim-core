@@ -25,6 +25,8 @@
   longer presses B there and stops with "Menu did not respond".
 - On Gen 2, an A press meant for text is dropped when a menu replaces the text before
   the press goes out, so it no longer opens FIGHT after a switch.
+- The Gen 2 move menu is recognized while the cursor is on a disabled move, and
+  `choose_move` refuses a disabled move before sending input.
 
 ## 0.5.0
 
