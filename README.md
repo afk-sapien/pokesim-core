@@ -7,7 +7,7 @@ The package extracts low-level functionality used by PokeSim and a separate
 agent benchmark. The base install uses only Python's standard library. The
 optional emulator extra supplies the Rust-backed Core emulator interface.
 
-## Install (0.3.0)
+## Install (0.4.0)
 
 Python 3.11 or newer is required. Core and PyBoy RS are distributed as GitHub
 release files, not on PyPI. Install the PyBoy RS wheel for your platform from the
@@ -15,7 +15,7 @@ release files, not on PyPI. Install the PyBoy RS wheel for your platform from th
 
 ```bash
 pip install https://github.com/afk-sapien/pyboy-rs/releases/download/v0.1.1/pyboy_rs-0.1.1-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-pip install "pokesim-core[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.3.0/pokesim_core-0.3.0-py3-none-any.whl"
+pip install "pokesim-core[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.4.0/pokesim_core-0.4.0-py3-none-any.whl"
 ```
 
 Each release has a `SHA256SUMS.txt` asset. Applications should pin the files by
@@ -391,7 +391,7 @@ from pokesim_core.controls import use_item, switch_pokemon
 from pokesim_core.naming import enter_name
 
 # port routes every input through your existing frame budget and action log.
-use_item(port, item_id=16, party_slot=0)
+use_item(port, 16, 0)
 switch_pokemon(port, party_slot=2)
 enter_name(port, "SPARK")
 ```
@@ -401,6 +401,56 @@ stationary encounter or clear a supplied event group. These are explicit memory
 mutations with context checks and change receipts. They are never called by
 controller helpers and must not be exposed to benchmark agents. See the
 [API contracts](docs/api.md) for adapter requirements and supported operations.
+
+## Menu shortcuts (0.4.0)
+
+`pokesim_core.shortcuts` drives the game's own menus for Red, Blue and Yellow. Each
+action is a resumable machine: `machine.step(memory, ui)` returns one button, `None`
+(wait) or a final `Done`. It never writes memory. `run(port, machine)` loops it over
+a `ControllerPort`, so every input still goes through your `send` and `choose`.
+`drive(machine, emulator)` runs it on a Core emulator for scripts and tests.
+
+```python
+from pokesim_core import shortcuts
+
+shortcuts.use_item(port, 0x10, 0)                 # Full Restore on party slot 0
+shortcuts.use_field_move(port, 'FLY', 1, 'Celadon City')
+machine = shortcuts.RunAway()                     # or step it yourself
+action = machine.step(memory, {'sp': sp})
+```
+
+Every result has `outcome` and `shortcut` with `kind`, `completed` and `settled`.
+`completed` means the effect was seen in memory. `settled` means the screen reached
+rest afterwards: the overworld, or the menu the shortcut started from (pause, mart,
+PC), or in battle the battle menu, the move menu, a forced switch or the end of the
+battle. Text such as "recovered by 60!" is pressed through, never treated as rest.
+A shortcut refuses before any input when it can tell the request is invalid, stops
+without a second attempt when the game refuses, and is bounded by `max_steps`.
+
+| Shortcut | Games | Done means |
+| --- | --- | --- |
+| `use_item(port, item, target, move)` | Red, Blue, Yellow | The bag count dropped or the item's effect showed (heal, status, revive, PP, vitamin, Rare Candy, evolution stone, TM or HM learned, ball thrown, repel, escape item, rod cast, bicycle, Poke Flute). TMs on a full moveset need `forget_move`. |
+| `choose_move(port, slot)` | Red, Blue, Yellow | The turn started with that move selected. |
+| `switch_pokemon(port, slot)` | Red, Blue, Yellow | In battle the new Pokemon is out. Outside battle it is the party lead. |
+| `run_away(port)` | Red, Blue, Yellow | The wild battle ended, or the game said you can't escape. Trainer battles refuse. |
+| `reorder_party(port, first, second)` | Red, Blue, Yellow | The two party slots swapped, outside battle. |
+| `use_field_move(port, move, slot, destination)` | Red, Blue, Yellow | CUT cut the tree, SURF started surfing, STRENGTH is active, FLASH lit the area, FLY landed in `destination`. Badges and known moves are checked first. |
+| `toss_item(port, item, quantity)` | Red, Blue, Yellow | The bag lost `quantity`. Key items refuse. |
+| `buy_item(port, item, quantity)` | Red, Blue, Yellow | The bag gained `quantity`. Starts at the mart's BUY/SELL menu. |
+| `sell_item(port, item, quantity)` | Red, Blue, Yellow | The bag lost `quantity`. Starts at the mart's BUY/SELL menu. |
+| `deposit_pokemon(port, slot)` | Red, Blue, Yellow | The party shrank and the current box grew by one. Starts at the PC menu. |
+| `withdraw_pokemon(port, position)` | Red, Blue, Yellow | The box shrank and the party grew by one. |
+| `release_pokemon(port, position, allow_release=True)` | Red, Blue, Yellow | The box shrank by one. Off unless `allow_release=True`. |
+| `deposit_item(port, item, quantity)` | Red, Blue, Yellow | The bag lost `quantity` into the item PC. |
+| `withdraw_item(port, item, quantity)` | Red, Blue, Yellow | The bag gained `quantity` from the item PC. |
+
+Read-only queries: `list_items`, `list_party`, `list_moves`, `list_box` and
+`current_screen`. They work on Gen 1 and read Gen 2 memory too. Slots, positions and
+move indexes are zero based. Items are IDs or cartridge names.
+
+Gold, Silver and Crystal are not supported yet. Every action returns
+"Not supported in Gen 2 yet. No input sent." without pressing anything, and
+`current_screen` returns `unsupported` there.
 
 ## Local integration validation
 

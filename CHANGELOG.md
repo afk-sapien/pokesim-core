@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- `pokesim_core.shortcuts`: resumable menu shortcuts for Red, Blue and Yellow. Each is a
+  machine with `step(memory, ui)` that returns one button, a wait or a final `Done`, and
+  never writes memory. `run(port, machine)` and `drive(machine, emulator)` are the
+  blocking wrappers.
+- Actions: `use_item` for every item kind, `choose_move`, `switch_pokemon`, `run_away`,
+  `reorder_party`, `use_field_move` (CUT, SURF, STRENGTH, FLASH, FLY to a named town),
+  `toss_item`, `buy_item`, `sell_item`, `deposit_pokemon`, `withdraw_pokemon`,
+  `release_pokemon` (needs `allow_release=True`), `deposit_item` and `withdraw_item`.
+- Queries: `list_items`, `list_party`, `list_moves`, `list_box` and `current_screen`.
+- `ControllerPort.version` selects the game. Gen 2 actions refuse before any input.
+- Optional real cartridge shortcut tests read save states and a manifest from
+  `POKESIM_CORE_SHORTCUT_STATES`. None ship with Core.
+
+### Changed
+
+- `controls.use_item(port, item, target=None, move=None)` covers every item kind. The
+  0.3 keywords `item_id` and `party_slot` still work. `controls.switch_pokemon` runs the
+  new machine.
+
+### Fixed
+
+- Shortcuts no longer stop on a text screen after the effect. In battle, "recovered by"
+  and the foe's turn are pressed through until the battle menu, the move menu, a forced
+  switch or the end of the battle. If the screen never settles within the budget the
+  result says `completed` and not `settled`.
+
 ## 0.3.0
 
 Distributed as GitHub release files: the wheel `pokesim_core-0.3.0-py3-none-any.whl`,

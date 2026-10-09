@@ -43,3 +43,44 @@ def test_real_cartridges_carry_link_code():
         assert builds.verify_signatures(raw, cartridge.sha1) == [], path.name
         if cartridge.generation == 2:
             assert tc.communication_ok(raw, cartridge.version)
+
+
+# Shortcuts on real cartridges -------------------------------------------------------
+# POKESIM_CORE_SHORTCUT_STATES names a folder with your own save states and a
+# shortcuts.json manifest, a list of entries like
+#   {"rom": "red", "state": "wild-battle.state", "machine": "RunAway", "args": [], "kwargs": {},
+#    "expect": "completed"}
+# ``machine`` is a class from ``pokesim_core.shortcuts``. ``expect`` is "completed" (effect seen and the screen settled) or "refused" (the
+# game or the shortcut refused, and the screen still settled). No states ship here.
+STATES = os.environ.get('POKESIM_CORE_SHORTCUT_STATES')
+
+
+def _shortcut_cases():
+    if not (ROMS and STATES):
+        return []
+    import json
+    manifest = Path(STATES) / 'shortcuts.json'
+    return json.loads(manifest.read_text()) if manifest.is_file() else []
+
+
+def _rom_for(version):
+    for path in sorted(Path(ROMS).iterdir()):
+        cartridge = identify(path.read_bytes())
+        if cartridge is not None and cartridge.version == version:
+            return path
+    pytest.skip(f'no {version} cartridge in POKESIM_CORE_ROMS')
+
+
+@pytest.mark.skipif(not (ROMS and STATES), reason='set POKESIM_CORE_ROMS and POKESIM_CORE_SHORTCUT_STATES to run')
+@pytest.mark.parametrize('case', _shortcut_cases(), ids=lambda case: f"{case['machine']}:{case['state']}")
+def test_shortcuts_finish_at_a_resting_screen_on_real_cartridges(case):
+    from pokesim_core import shortcuts
+    from pokesim_core.emulator import Emulator
+    emulator = Emulator(str(_rom_for(case['rom'])), sound_emulated=False)
+    emulator.load((Path(STATES) / case['state']).read_bytes())
+    machine = getattr(shortcuts, case['machine'])(*case.get('args', []), version=case['rom'], **case.get('kwargs', {}))
+    done = shortcuts.drive(machine, emulator)
+    assert done.settled, done.outcome
+    assert done.completed == (case.get('expect', 'completed') == 'completed'), done.outcome
+    screen = shortcuts.current_screen(emulator.memory, case['rom'])
+    assert screen in ('overworld', 'battle_menu', 'move_menu', 'party', 'mart', 'pc', 'transition'), screen
