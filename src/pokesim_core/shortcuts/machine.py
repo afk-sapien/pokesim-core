@@ -48,7 +48,10 @@ REFUSALS = ('ISNTTHETIME', 'NOCYCLING', 'WONTHAVEANYEFFECT', 'NOTCOMPATIBLE', 'B
             # Gen 2 refusals.
             'ALREADYKNOWS', 'YOURLAST', 'THERESNOROOM', 'PARTYSFULL', 'NORELEASINGEGGS', 'REMOVEMAIL',
             'REMOVETHEMAIL', 'NOMOREUSABLE', 'NOTHINGTOCUT', 'CANTSURF', 'ALREADYSURFING', 'CANTBUYTHAT',
-            'CANTBEHELD', 'EGGCANTHOLD', 'STORAGESPACEFULL', 'ISNTHOLDING')
+            'CANTBEHELD', 'EGGCANTHOLD', 'STORAGESPACEFULL', 'ISNTHOLDING',
+            # Forgetting an HM.
+            'CANTBEDELETED', 'CANTBEFORGOTTEN', 'NOTTHATMOVE')
+NICKNAME_ANSWERS = ('no', 'caller')
 
 
 @dataclass(frozen=True)
@@ -101,7 +104,10 @@ class Shortcut:
     gen2 = False
     default_steps = 600
 
-    def __init__(self, *, version=None, read_party=None, read_bag=None, max_steps=None, labels=None):
+    def __init__(self, *, version=None, read_party=None, read_bag=None, max_steps=None, labels=None, nickname='no'):
+        if nickname not in NICKNAME_ANSWERS:
+            raise ValueError('nickname must be "no" (answer NO) or "caller" (stop at the prompt)')
+        self.nickname = nickname
         self.version = getattr(version, 'version', version)
         self.gen = generation(self.version)
         if max_steps is not None and (type(max_steps) is not int or max_steps < 1):
@@ -125,6 +131,7 @@ class Shortcut:
         self._stable_text = 0
         self._held = None
         self._held_waits = 0
+        self._held_screen = None
         self._seen_tiles = None
         self.recent = []
 
@@ -250,6 +257,10 @@ class Shortcut:
                 self._held_waits += 1
                 return None
             action, self._held = self._held, None
+            if action == 'a' and self._held_screen == 'dialogue' and self.obs.screen != 'dialogue':
+                # The A was for text that has since closed. On the menu that replaced it,
+                # it would pick an entry.
+                return None
             self.inputs += 1
             return action
         action = self._advance(memory, ui)
@@ -261,7 +272,7 @@ class Shortcut:
         if self.gen == 2 and self.obs is not None:
             settled = self._settled_tiles()
             if not settled and action in BUTTONS:
-                self._held, self._held_waits = action, 0
+                self._held, self._held_waits, self._held_screen = action, 0, self.obs.screen
                 return None
         if action in BUTTONS:
             self.inputs += 1
@@ -536,6 +547,9 @@ class Shortcut:
         """Answer YES/NO prompts that follow an effect. None stops for the caller."""
         words = normalize(' '.join(self.recent[-3:] + [obs.text]))
         if 'NICKNAME' in words:
+            if self.nickname == 'caller':
+                self.details['pending'] = 'nickname'
+                return None
             return 'NO'
         choice = self.learn_choice()
         if 'ABANDONLEARNING' in words or 'STOPLEARNING' in words:

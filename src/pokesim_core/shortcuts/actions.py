@@ -10,7 +10,7 @@ from ..gen1_ui import read_battler, read_screen
 from . import gen2ui
 from .items import (GEN1_FIELD_MOVES, GEN1_HM_MOVES, GEN2_FIELD_MOVES, GEN2_HM_MOVES, gen2_pocket, generation,
                     item_kind, item_names, key_item, tm_number)
-from .machine import Abort, Choose, Done, Shortcut
+from .machine import NO_RESPONSE, Abort, Choose, Done, Shortcut
 from .screens import fly_destination, menu_rows, normalize
 
 BICYCLE, POKE_FLUTE, ITEMFINDER, COIN_CASE = 0x06, 0x49, 0x47, 0x45
@@ -152,6 +152,10 @@ class GameShortcut(Shortcut):
                 yield from self.text_or_wait()
             elif screen in ('yes_no', 'switch_prompt'):
                 answer = self.prompt_answer(self.obs)
+                if answer is None and self.details.get('pending') == 'nickname':
+                    # The game asks for a nickname only after a catch.
+                    raise Abort(self.success_outcome() + ' Stopped at the nickname prompt for the caller to answer.',
+                                cleanup=False, completed=True, **self.details)
                 if answer is None:
                     raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False)
                 yield Choose(answer)
@@ -195,6 +199,15 @@ class GameShortcut(Shortcut):
 
     def open_party(self):
         if self.obs.battle:
+            # After a faint the party screen can open under "Which PKMN?" text. B there
+            # only bounces back to that text, so wait for the screen to finish drawing.
+            for _ in range(40):
+                if self.obs.screen not in ('dialogue', 'transition'):
+                    break
+                if self.forced_switch(self.obs):
+                    yield None
+                else:
+                    yield from self.text_or_wait()
             if self.obs.screen == 'party':
                 return
             if self.obs.screen == 'switch_prompt':
@@ -355,6 +368,10 @@ class UseItem(GameShortcut):
             return False
         kind = self.item_info.kind
         words = normalize(obs.text)
+        if kind == 'ball' and ('WASCAUGHT' in words or 'GOTCHA' in words):
+            # Gen 2 takes the ball from the pack only after the catch messages and the nickname prompt.
+            self.details['caught'] = True
+            return True
         if self.target is not None:
             party = self.party(obs)
             if self.target < len(party) and identity(party[self.target]) == self.target_id:
@@ -387,6 +404,8 @@ class UseItem(GameShortcut):
             if 'NOTEVENANIBBLE' in words or 'LOOKSLIKETHERE' in words:
                 return 'Used the rod. Nothing bit.'
             return 'Used the rod. Something bit.'
+        if self.details.get('caught'):
+            return 'Threw the ball and caught the Pokemon.'
         return 'Used the requested item.'
 
     def no_effect(self):
@@ -570,10 +589,18 @@ class ReorderParty(GameShortcut):
 
 
 class ChooseMove(GameShortcut):
-    """Pick a move from FIGHT in battle. Done when the turn starts."""
+    """Pick a move from FIGHT in battle. Done when the turn starts.
+
+    FIGHT can start the turn without the move list: when no move has PP (Struggle),
+    and when the battler is locked into its turn (asleep, frozen, trapped, charging,
+    thrashing or biding). Then the result is completed with ``forced`` set to
+    ``'struggle'`` or ``'locked'``, since the turn the caller asked for started.
+    """
 
     kind = 'choose_move'
     label = 'choose_move'
+    # Observations off the battle menus that mark a turn FIGHT started by itself.
+    FORCED_AFTER = 4
 
     def __init__(self, slot, **options):
         _slot(slot, 'Move slot', 4)
@@ -593,7 +620,8 @@ class ChooseMove(GameShortcut):
         self.move_id = battler['moves'][self.slot]
         if not self.move_id:
             raise Abort('Move slot is empty. No input sent.', cleanup=False)
-        if not battler['pp'][self.slot] and any(battler['pp'][i] for i, move in enumerate(battler['moves']) if move):
+        self.no_pp = not any(battler['pp'][i] for i, move in enumerate(battler['moves']) if move)
+        if not battler['pp'][self.slot] and not self.no_pp:
             raise Abort('That move has no PP left. No input sent.', cleanup=False)
         self.details['move_id'] = self.move_id
 
@@ -610,20 +638,37 @@ class ChooseMove(GameShortcut):
         return obs.memory[W_PLAYER_SELECTED_MOVE] == self.move_id
 
     def effect(self, obs):
+        if self.details.get('forced'):
+            return False
         return self.committed and obs.screen not in ('move_menu', 'battle_menu') and self.selected(obs)
 
     def success_outcome(self):
+        forced = self.details.get('forced')
+        if forced == 'struggle':
+            return 'No move has PP, so FIGHT used Struggle.'
+        if forced == 'locked':
+            return 'FIGHT started the turn without the move list (the battler is locked into its turn).'
         return 'Chose the requested move.'
 
     def flow(self):
         if self.obs.screen == 'battle_menu':
             yield from self.choose('FIGHT')
-            for _ in range(10):
+            away = 0
+            for _ in range(40):
                 if self.obs.screen == 'move_menu':
                     break
-                if self.obs.screen != 'battle_menu' and self.selected(self.obs):
+                # Battle text off the battle menu means FIGHT started the turn by itself.
+                away = away + 1 if self.obs.screen != 'battle_menu' and self.obs.text.strip() else 0
+                if away >= self.FORCED_AFTER:
                     self.committed = True
-                    return
+                    self.details['forced'] = 'struggle' if self.no_pp else 'locked'
+                    settled = yield from self.settle()
+                    if self.obs.screen != 'move_menu':
+                        return self.success(settled)
+                    # The move list opened late after all.
+                    self.committed = False
+                    del self.details['forced']
+                    break
                 yield None
         if self.obs.screen != 'move_menu':
             raise Abort('FIGHT did not open the move menu. Stopped.')
@@ -1339,6 +1384,292 @@ class TakeItem(HeldItemShortcut):
         yield from self.commit_wait(stay=('party', 'party_action', 'menu'))
 
 
+
+W_WHICH_POKEMON = 0xCF92
+W_CURRENT_BOX = 0xD5A0
+# Markers of the level-up and TM learn prompts.
+LEARN_MARKERS = ('TRYINGTOLEARN', 'DELETEANOLDER', 'ANOLDERMOVE', 'MAKEROOMFOR', 'CANTLEARNMORE',
+                 'ABANDONLEARNING', 'STOPLEARNING', 'WHICHMOVESHOULD', 'SHOULDBEFORGOTTEN')
+
+
+class LearnMove(GameShortcut):
+    """Answer a learn-a-new-move prompt that is already on screen.
+
+    ``forget`` is the move slot (0 to 3) to replace, or ``'keep'`` to keep the
+    current moves. Start at the "trying to learn" text, the delete-an-older-move
+    YES/NO or the move list. The learner is the party Pokemon the game is
+    teaching (Gen 1 wWhichPokemon, Gen 2 wCurPartyMon). HM moves cannot be
+    replaced, so asking for an HM slot is refused before any input.
+    """
+
+    kind = 'learn_move'
+    label = 'learn_move'
+
+    def __init__(self, forget, **options):
+        if forget != 'keep':
+            _slot(forget, 'forget', 4)
+        super().__init__(**options)
+        self.forget = forget
+        self.committed = False
+
+    def result_fields(self):
+        return {'forget': self.forget if self.forget == 'keep' else self.forget + 1}
+
+    def learner(self, obs):
+        index = obs.memory.byte('wCurPartyMon') if self.gen == 2 else obs.memory[W_WHICH_POKEMON]
+        party = self.party(obs)
+        return (index, party[index]) if index < len(party) else (index, None)
+
+    def check(self, obs):
+        if obs.screen not in ('dialogue', 'yes_no', 'move_list'):
+            raise Abort('learn_move starts at a learn-a-new-move prompt. No input sent.', cleanup=False)
+        words = normalize(obs.text)
+        if obs.screen != 'move_list' and not any(marker in words for marker in LEARN_MARKERS):
+            raise Abort('No learn-a-new-move prompt is on screen. No input sent.', cleanup=False)
+        index, member = self.learner(obs)
+        self.details['party_slot'] = index + 1
+        if member is None or self.forget == 'keep':
+            self.before = None
+            return
+        moves = list(member['moves'])
+        if not moves[self.forget]:
+            raise Abort('Move slot is empty. No input sent.', cleanup=False)
+        if moves[self.forget] in (GEN2_HM_MOVES if self.gen == 2 else GEN1_HM_MOVES):
+            raise Abort('HM moves cannot be forgotten here. No input sent.', cleanup=False)
+        self.details['forgotten_move_id'] = moves[self.forget]
+        self.before = (index, moves)
+
+    def learn_choice(self):
+        # A second learn prompt after this one goes back to the caller.
+        return None if self.effect_seen else self.forget
+
+    def effect(self, obs):
+        if not self.committed:
+            return False
+        words = normalize(obs.text)
+        if self.forget == 'keep':
+            return 'DIDNOTLEARN' in words
+        if 'LEARNED' in words:
+            return True
+        if self.before is None:
+            return False
+        index, moves = self.before
+        party = self.party(obs)
+        return index < len(party) and list(party[index]['moves']) != moves
+
+    def success_outcome(self):
+        if self.forget == 'keep':
+            return 'Kept the current moves.'
+        return 'Forgot the requested move and learned the new one.'
+
+    def flow(self):
+        idle = 0
+        for _ in range(240):
+            screen = self.obs.screen
+            if self.refusal:
+                self.no_effect()
+            if screen in ('yes_no', 'switch_prompt'):
+                answer = self.prompt_answer(self.obs)
+                if answer is None:
+                    raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False)
+                words = normalize(' '.join(self.recent[-2:] + [self.obs.text]))
+                if self.forget == 'keep' and answer == 'YES' and ('ABANDON' in words or 'STOPLEARNING' in words):
+                    self.committed = True
+                yield Choose(answer)
+            elif screen == 'move_list':
+                if self.forget == 'keep':
+                    yield 'b'
+                    continue
+                self.committed = True
+                yield from self.pick_move(self.forget, learn=True)
+            elif screen in ('dialogue', 'transition', 'unknown'):
+                yield from self.text_or_wait()
+            else:
+                idle += 1
+                if idle > 12:
+                    self.no_effect()
+                yield None
+        raise Abort(NO_RESPONSE)
+
+
+class ChangeBox(PCShortcut):
+    """Make ``box`` (0 based) the current box through BILL's PC. Changing a box saves the game.
+
+    Start at the PC menu or BILL's PC. Gen 1 has 12 boxes, Gen 2 has 14.
+    """
+
+    kind = 'change_box'
+    label = 'change_box'
+
+    def __init__(self, box, **options):
+        _slot(box, 'Box', 14)
+        super().__init__(**options)
+        if self.gen == 1:
+            _slot(box, 'Box', 12)
+        self.box = box
+        self.committed = False
+
+    def result_fields(self):
+        return {'box': self.box + 1}
+
+    def current_box(self, obs=None):
+        obs = obs or self.obs
+        if self.gen == 2:
+            return obs.memory.byte('wCurBox') & 0x7F
+        return obs.memory[W_CURRENT_BOX] & 0x7F
+
+    def check_pc(self, obs):
+        if self.current_box(obs) == self.box:
+            raise Abort('That box is already the current box. No input sent.', cleanup=False)
+
+    def effect(self, obs):
+        return self.committed and self.current_box(obs) == self.box
+
+    def success_outcome(self):
+        return f'Changed to box {self.box + 1}.'
+
+    def prompt_answer(self, obs):
+        text = normalize(' '.join(self.recent[-2:] + [obs.text]))
+        if any(word in text for word in ('SAVE', 'CHANGEABOX', 'DATAWILLBE')):
+            return 'YES'
+        return super().prompt_answer(obs)
+
+    def box_cursor(self, obs):
+        if self.gen == 2:
+            # The box list keeps the highlighted box number (1 based) in wMenuSelection.
+            return obs.memory.byte('wMenuSelection') - 1
+        return obs.memory[0xCC26]
+
+    def labels_of(self, obs):
+        if self.gen == 2:
+            return {normalize(label) for label, _ in obs.extra.get('choices', [])}
+        return set()
+
+    def flow(self):
+        yield from self.open_submenu()
+        yield from self.choose('CHANGE BOX')
+        picked = False
+        idle = 0
+        for _ in range(200):
+            obs = self.obs
+            screen = obs.screen
+            if self.refusal:
+                self.no_effect()
+            if screen in ('yes_no', 'switch_prompt'):
+                answer = self.prompt_answer(obs)
+                if answer is None:
+                    raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False)
+                if self.gen == 2 and picked:
+                    self.committed = True
+                yield Choose(answer)
+            elif screen == 'menu' and 'SWITCH' in self.labels_of(obs):
+                yield Choose('SWITCH')
+            elif screen == 'menu' and not picked:
+                yield from self.move_index(self.box, self.box_cursor)
+                picked = True
+                if self.gen == 1:
+                    self.committed = True
+                yield 'a'
+            elif screen in ('dialogue', 'transition', 'unknown'):
+                yield from self.text_or_wait()
+            else:
+                idle += 1
+                if idle > 16:
+                    self.no_effect()
+                yield None
+        raise Abort(NO_RESPONSE)
+
+
+class DeleteMove(GameShortcut):
+    """Gen 2: have the Move Deleter make party ``slot`` forget move ``move_slot`` (both 0 based).
+
+    Start at the Move Deleter's greeting or the first YES/NO, after talking to him.
+    The Move Deleter also deletes HM moves.
+    """
+
+    kind = 'delete_move'
+    label = 'delete_move'
+
+    def __init__(self, slot, move_slot, **options):
+        _slot(slot, 'Party slot', 6)
+        _slot(move_slot, 'Move slot', 4)
+        super().__init__(**options)
+        if self.gen != 2:
+            raise ValueError('delete_move is a Gen 2 shortcut (the Move Deleter)')
+        self.slot, self.move_slot = slot, move_slot
+        self.committed = False
+
+    def result_fields(self):
+        return {'party_slot': self.slot + 1, 'move_slot': self.move_slot + 1}
+
+    def check(self, obs):
+        if obs.battle:
+            raise Abort('Not available in battle. No input sent.', cleanup=False)
+        if obs.screen not in ('dialogue', 'yes_no'):
+            raise Abort("delete_move starts at the Move Deleter's greeting. No input sent.", cleanup=False)
+        if 'FORGET' not in normalize(obs.text) and 'MOVEDELETER' not in normalize(obs.text):
+            raise Abort("The Move Deleter's greeting is not on screen. No input sent.", cleanup=False)
+        party = self.party(obs)
+        if self.slot >= len(party):
+            raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
+        member = party[self.slot]
+        if member['egg']:
+            raise Abort('An Egg knows no moves. No input sent.', cleanup=False)
+        moves = [move for move in member['moves'] if move]
+        if self.move_slot >= len(moves):
+            raise Abort('Move slot is empty. No input sent.', cleanup=False)
+        if len(moves) == 1:
+            raise Abort('That Pokemon knows only one move. No input sent.', cleanup=False)
+        self.target_id = identity(member)
+        self.move_id = member['moves'][self.move_slot]
+        self.details['move_id'] = self.move_id
+
+    def effect(self, obs):
+        if not self.committed:
+            return False
+        party = self.party(obs)
+        return (self.slot < len(party) and identity(party[self.slot]) == self.target_id
+                and self.move_id not in party[self.slot]['moves'])
+
+    def success_outcome(self):
+        return 'The Move Deleter made the Pokemon forget the move.'
+
+    def prompt_answer(self, obs):
+        words = normalize(obs.text)
+        if 'FORGET' in words:
+            if 'MAKEITFORGET' in words:
+                self.committed = True
+            return 'YES'
+        return super().prompt_answer(obs)
+
+    def flow(self):
+        idle = 0
+        for _ in range(240):
+            screen = self.obs.screen
+            if self.refusal:
+                self.no_effect()
+            if screen == 'yes_no':
+                answer = self.prompt_answer(self.obs)
+                if answer is None:
+                    raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False)
+                yield Choose(answer)
+            elif screen == 'party':
+                self.guard_party(self.slot, self.target_id)
+                yield from self.pick_party(self.slot)
+            elif screen == 'move_list':
+                yield from self.pick_move(self.move_slot)
+            elif screen in ('dialogue', 'transition', 'unknown'):
+                yield from self.text_or_wait()
+            elif screen == 'overworld' and not self.committed:
+                # The Move Deleter said goodbye without a deletion.
+                self.no_effect()
+            else:
+                idle += 1
+                if idle > 12:
+                    self.no_effect()
+                yield None
+        raise Abort(NO_RESPONSE)
+
 __all__ = ['UseItem', 'SwitchPokemon', 'ReorderParty', 'ChooseMove', 'RunAway', 'FieldMove', 'TossItem',
            'BuyItem', 'SellItem', 'DepositPokemon', 'WithdrawPokemon', 'ReleasePokemon', 'DepositItem',
-           'WithdrawItem', 'GiveItem', 'TakeItem', 'Done', 'tm_number']
+           'WithdrawItem', 'GiveItem', 'TakeItem', 'LearnMove', 'ChangeBox', 'DeleteMove', 'Done', 'tm_number']

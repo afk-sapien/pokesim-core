@@ -8,9 +8,9 @@ Gen 2 machines resolve menu labels themselves, so ``run`` sends only single
 buttons through ``port.send`` on Gold, Silver and Crystal.
 """
 from ..controls import machine_options, switch_pokemon, use_item
-from .actions import (BuyItem, ChooseMove, DepositItem, DepositPokemon, FieldMove, GiveItem, ReleasePokemon,
-                      ReorderParty, TakeItem, RunAway, SellItem, SwitchPokemon, TossItem, UseItem, WithdrawItem,
-                      WithdrawPokemon)
+from .actions import (BuyItem, ChangeBox, ChooseMove, DeleteMove, DepositItem, DepositPokemon, FieldMove, GiveItem,
+                      LearnMove, ReleasePokemon, ReorderParty, TakeItem, RunAway, SellItem, SwitchPokemon, TossItem,
+                      UseItem, WithdrawItem, WithdrawPokemon)
 from .items import ItemKind, item_kind, item_names, move_names, tm_number
 from .machine import Abort, Choose, Done, Shortcut, drive, run
 from .queries import current_screen, list_box, list_items, list_moves, list_party
@@ -93,10 +93,27 @@ def take_item(port, slot, **options):
     return _run(port, TakeItem, slot, **options)
 
 
-__all__ = ['Abort', 'BuyItem', 'Choose', 'ChooseMove', 'DepositItem', 'DepositPokemon', 'Done', 'FieldMove',
-           'GiveItem', 'ItemKind', 'ReleasePokemon', 'ReorderParty', 'RunAway', 'SCREENS', 'SellItem', 'Shortcut',
-           'SwitchPokemon', 'TakeItem', 'TossItem', 'UseItem', 'WithdrawItem', 'WithdrawPokemon', 'buy_item', 'choose_move',
-           'continue_ready', 'current_screen', 'deposit_item', 'deposit_pokemon', 'drive', 'give_item', 'item_kind',
-           'item_names', 'list_box', 'list_items', 'list_moves', 'list_party', 'move_names', 'release_pokemon',
+
+def learn_move(port, forget, **options):
+    """Answer the learn-a-new-move prompt on screen: forget move slot ``forget`` (0 to 3), or ``'keep'``."""
+    return _run(port, LearnMove, forget, **options)
+
+
+def change_box(port, box, **options):
+    """Make ``box`` (0 based) the current box. Start at the PC menu or BILL's PC. This saves the game."""
+    return _run(port, ChangeBox, box, **options)
+
+
+def delete_move(port, slot, move_slot, **options):
+    """Gen 2: at the Move Deleter, make party ``slot`` forget ``move_slot``. Start at his greeting."""
+    return _run(port, DeleteMove, slot, move_slot, **options)
+
+
+__all__ = ['Abort', 'BuyItem', 'ChangeBox', 'Choose', 'ChooseMove', 'DeleteMove', 'DepositItem', 'DepositPokemon',
+           'Done', 'FieldMove', 'GiveItem', 'ItemKind', 'LearnMove', 'ReleasePokemon', 'ReorderParty', 'RunAway',
+           'SCREENS', 'SellItem', 'Shortcut', 'SwitchPokemon', 'TakeItem', 'TossItem', 'UseItem', 'WithdrawItem',
+           'WithdrawPokemon', 'buy_item', 'change_box', 'choose_move', 'continue_ready', 'current_screen',
+           'delete_move', 'deposit_item', 'deposit_pokemon', 'drive', 'give_item', 'item_kind', 'item_names',
+           'learn_move', 'list_box', 'list_items', 'list_moves', 'list_party', 'move_names', 'release_pokemon',
            'reorder_party', 'run', 'run_away', 'sell_item', 'switch_pokemon', 'take_item', 'tm_number', 'toss_item',
            'use_field_move', 'use_item', 'withdraw_item', 'withdraw_pokemon']

@@ -402,7 +402,7 @@ mutations with context checks and change receipts. They are never called by
 controller helpers and must not be exposed to benchmark agents. See the
 [API contracts](docs/api.md) for adapter requirements and supported operations.
 
-## Menu shortcuts (0.5.0)
+## Menu shortcuts (0.6.0)
 
 `pokesim_core.shortcuts` drives the game's own menus for Red, Blue, Yellow, Gold,
 Silver and Crystal. Each
@@ -433,7 +433,8 @@ without a second attempt when the game refuses, and is bounded by `max_steps`.
 | `use_item(port, item, target, move)` | All six | The bag count dropped or the item's effect showed (heal, Berry, status, revive, PP, vitamin, Rare Candy, evolution stone, TM or HM learned, ball thrown, repel, escape item, rod cast, bicycle, Poke Flute). Gen 2 turns to the right pocket first. TMs on a full moveset need `forget_move`. |
 | `give_item(port, item, slot, swap=False)` | Gold, Silver, Crystal | The Pokemon holds `item`. Replacing a held item needs `swap=True`. Mail refuses. |
 | `take_item(port, slot)` | Gold, Silver, Crystal | The held item is back in the pack. |
-| `choose_move(port, slot)` | All six | The turn started with that move selected. |
+| `choose_move(port, slot)` | All six | The turn started with that move selected. With no PP left, or a turn locked by a move such as THRASH, FIGHT runs Struggle or the locked move and `forced` says which. |
+| `learn_move(port, forget)` | All six | At a learn-a-new-move prompt, the move in slot `forget` was replaced, or with `'keep'` the new move was given up. HMs and empty slots refuse. |
 | `switch_pokemon(port, slot)` | All six | In battle the new Pokemon is out, also from the "change Pokemon?" prompt. Outside battle it is the party lead. |
 | `run_away(port)` | All six | The wild battle ended, or the game said you can't escape. Trainer battles refuse. |
 | `reorder_party(port, first, second)` | All six | The two party slots swapped, outside battle. |
@@ -446,6 +447,8 @@ without a second attempt when the game refuses, and is bounded by `max_steps`.
 | `release_pokemon(port, position, allow_release=True)` | All six | The box shrank by one. Off unless `allow_release=True`. |
 | `deposit_item(port, item, quantity)` | All six | The bag lost `quantity` into the item PC. |
 | `withdraw_item(port, item, quantity)` | All six | The bag gained `quantity` from the item PC. |
+| `change_box(port, box)` | All six | `box` is the current box. The game saves as part of the change. Starts at the PC menu. |
+| `delete_move(port, slot, move_slot)` | Gold, Silver, Crystal | The Move Deleter made the Pokemon forget that move. Starts at the Move Deleter's greeting. |
 
 Read-only queries: `list_items`, `list_party`, `list_moves`, `list_box` and
 `current_screen`. Slots, positions and move indexes are zero based. Items are IDs or
@@ -455,8 +458,11 @@ pocket.
 On Gold, Silver and Crystal the screen comes from the tilemap and menu bytes, so
 `current_screen` also names the bag, quantity box, item PC, Bill's PC lists, mart list
 and the battle switch prompt. `run` resolves menu choices into single buttons there
-and only calls `port.send`, never `port.choose`. Mail and the Bill's PC box change
-are not covered.
+and only calls `port.send`, never `port.choose`. Mail is not covered.
+
+A caught Pokemon's nickname prompt is answered NO by default. Pass `nickname='caller'`
+to `use_item` (or any shortcut) to stop at that prompt instead. The result is then
+completed with `pending='nickname'`, and the caller answers it.
 
 ## Local integration validation
 

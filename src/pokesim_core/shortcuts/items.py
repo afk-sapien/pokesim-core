@@ -130,7 +130,8 @@ GEN2_KEY_ITEMS = frozenset((0x07, 0x36, 0x37, 0x3A, 0x3B, 0x3D, 0x42, 0x43, 0x44
 GEN2_BALLS = frozenset(item for item, kind in GEN2_KINDS.items() if kind.kind == 'ball')
 GEN2_POCKETS = ('items', 'balls', 'key', 'tms_hms')
 # Gen 2 field moves: move ID and the Johto badge bit, None when no badge is needed.
-GEN2_FIELD_MOVES = {'CUT': (15, 1), 'FLY': (19, 4), 'SURF': (57, 3), 'STRENGTH': (70, 2), 'FLASH': (148, 0),
+# The badge bits follow the game's order, where MINERALBADGE (4) comes before STORMBADGE (5).
+GEN2_FIELD_MOVES = {'CUT': (15, 1), 'FLY': (19, 5), 'SURF': (57, 3), 'STRENGTH': (70, 2), 'FLASH': (148, 0),
                     'WHIRLPOOL': (250, 6), 'WATERFALL': (127, 7), 'ROCKSMASH': (249, None),
                     'HEADBUTT': (29, None)}
 GEN2_HM_MOVES = frozenset((15, 19, 57, 70, 148, 250, 127))

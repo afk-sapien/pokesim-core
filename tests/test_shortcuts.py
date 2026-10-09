@@ -9,8 +9,8 @@ import pytest
 
 from pokesim_core.controls import ControllerPort
 from pokesim_core.gen1 import W_TILEMAP
-from pokesim_core.shortcuts import (RunAway, buy_item, choose_move, deposit_item,
-                                    deposit_pokemon, item_kind, list_items, list_moves, list_party,
+from pokesim_core.shortcuts import (RunAway, buy_item, change_box, choose_move, deposit_item,
+                                    deposit_pokemon, item_kind, learn_move, list_items, list_moves, list_party,
                                     release_pokemon, reorder_party, run_away, sell_item, switch_pokemon,
                                     tm_number, toss_item, use_field_move, use_item, withdraw_item,
                                     withdraw_pokemon)
@@ -699,3 +699,70 @@ def test_use_item_keeps_the_old_keyword_names():
     game = Game(bag=[(0x14, 1)])
     field_bag(game, on_target=lambda: (game.add(0x14, -1), game.say('ONE recovered by 20!', then='item_target')))
     assert done(use_item(game.port(), item_id=0x14, party_slot=0))
+
+
+def test_ball_catch_can_stop_at_the_nickname_prompt():
+    game = Game('battle_menu', battle=1, bag=[(0x04, 3)])
+    game.choices[('battle_menu', 'ITEM')] = 'bag'
+    game.a['bag'] = lambda: (game.add(0x04, -1), game.say('All right! RATTATA was caught!',
+                                                          'Give a nickname to RATTATA?', then='yes_no'))
+    result = use_item(game.port(), 0x04, nickname='caller')
+    assert result['shortcut']['completed'] and result['shortcut']['pending'] == 'nickname', result
+    assert game.kind == 'yes_no' and 'NO' not in game.inputs
+
+
+def test_fight_with_no_pp_left_uses_struggle():
+    game = battle_game()
+    game.memory[0xD02D:0xD031] = bytes([0, 0, 0, 0])
+    game.choices[('battle_menu', 'FIGHT')] = lambda: game.say('ONE has no moves left!', 'ONE used STRUGGLE!',
+                                                              'Enemy RATTATA used TACKLE!', then='battle_menu')
+    result = choose_move(game.port(), 0)
+    assert done(result) and result['shortcut']['forced'] == 'struggle' and game.kind == 'battle_menu', result
+
+
+def test_change_box_picks_the_box_and_saves():
+    game = pc_game([mon('ONE')], 0)
+    game.memory[0xD5A0] = 0x80
+    game.choices[('bills_pc', 'CHANGE BOX')] = lambda: game.say('Data will be saved. OK?', then='yes_no')
+    game.choices[('yes_no', 'YES')] = 'menu'
+
+    def pick():
+        game.memory[0xD5A0] = 0x80 | game.memory[0xCC26]
+        game.say('Saving...', 'ASH saved the game.', then='bills_pc')
+    game.a['menu'] = pick
+    result = change_box(game.port(), 5)
+    assert done(result) and game.memory[0xD5A0] & 0x7F == 5 and game.kind == 'pc', result
+    assert 'already' in change_box(game.port(), 5)['outcome']
+    with pytest.raises(ValueError):
+        change_box(game.port(), 12)
+
+
+def test_learn_move_at_level_up_replaces_or_keeps():
+    game = Game('dialogue', battle=1, party=[mon('ONE', moves=(33, 45, 10, 98))])
+    game.memory[0xCF92] = 0
+
+    def prompt():
+        game.say('ONE is trying to learn THUNDER!', 'Delete an older move to make room?', then='yes_no')
+    prompt()
+
+    def forget():
+        game.party[0]['moves'][game.memory[0xCC26]] = 87
+        game.say('1, 2 and... Poof!', 'ONE learned THUNDER!', then='battle_menu')
+    game.choices[('yes_no', 'YES')] = lambda: game.say('Which move should be forgotten?', then='move_list')
+    game.choices[('yes_no', 'NO')] = lambda: game.say('Abandon learning THUNDER?', then=lambda: (
+        game.choices.__setitem__(('yes_no', 'YES'), lambda: game.say('ONE did not learn THUNDER!',
+                                                                     then='battle_menu')),
+        game.go('yes_no')))
+    game.a['move_list'] = forget
+    result = learn_move(game.port(), 1)
+    assert done(result) and game.party[0]['moves'] == [33, 87, 10, 98] and game.kind == 'battle_menu', result
+
+    game = Game('dialogue', battle=1, party=[mon('ONE', moves=(33, 45, 10, 98))])
+    game.say('ONE is trying to learn THUNDER!', 'Delete an older move to make room?', then='yes_no')
+
+    def abandon():
+        game.say('Abandon learning THUNDER?', then='yes_no')
+        game.choices[('yes_no', 'YES')] = lambda: game.say('ONE did not learn THUNDER!', then='battle_menu')
+    game.choices[('yes_no', 'NO')] = abandon
+    result = learn_move(game.port(), 'keep')
+    assert done(result) and game.party[0]['moves'] == [33, 45, 10, 98] and game.kind == 'battle_menu', result
