@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+
+- `change_box` (`ChangeBox`) switches the current box through Bill's PC on all six games
+  and answers the save prompt.
+- `learn_move` (`LearnMove`) answers a learn-a-new-move prompt on all six games: replace
+  a move slot, or keep the old moves with `'keep'`. HMs and empty slots refuse.
+- `delete_move` (`DeleteMove`) for the Gen 2 Move Deleter.
+- A `nickname` option on every shortcut. `'no'` (the default) answers NO to a caught
+  Pokemon's nickname prompt. `'caller'` stops there with `pending='nickname'`.
+- `choose_move` handles a forced turn. With no PP left or a locked move, FIGHT starts
+  the turn at once, and the result says `forced='struggle'` or `forced='locked'`.
+- A thrown ball that catches reports `caught` in the result.
+
+### Fixed
+
+- Gen 2 FLY checks the Storm Badge, not the Mineral Badge.
+- The Gen 2 party submenu is recognized when it scrolls, so party reorders, switches and
+  field moves on a Pokemon with four field moves no longer stop with no effect.
+- Gen 2 refusals for a move that can't be deleted or forgotten end the shortcut.
+- A Gen 2 switch after a faint waits for the party screen under "Which PKMN?". It no
+  longer presses B there and stops with "Menu did not respond".
+- On Gen 2, an A press meant for text is dropped when a menu replaces the text before
+  the press goes out, so it no longer opens FIGHT after a switch.
+- The Gen 2 move menu is recognized while the cursor is on a disabled move, and
+  `choose_move` refuses a disabled move before sending input.
+
 ## 0.5.0
 
 ### Added

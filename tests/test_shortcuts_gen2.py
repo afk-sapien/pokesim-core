@@ -13,10 +13,10 @@ import pytest
 
 from pokesim_core.controls import ControllerPort
 from pokesim_core.gen2.charmap import charmap
-from pokesim_core.shortcuts import (ChooseMove, buy_item, choose_move, current_screen, deposit_item,
-                                    deposit_pokemon, give_item, list_box, list_items, list_moves, list_party,
-                                    release_pokemon, reorder_party, run_away, sell_item, switch_pokemon,
-                                    take_item, toss_item, use_field_move, use_item, withdraw_item,
+from pokesim_core.shortcuts import (ChooseMove, buy_item, change_box, choose_move, current_screen, delete_move,
+                                    deposit_item, deposit_pokemon, give_item, learn_move, list_box, list_items,
+                                    list_moves, list_party, release_pokemon, reorder_party, run_away, sell_item,
+                                    switch_pokemon, take_item, toss_item, use_field_move, use_item, withdraw_item,
                                     withdraw_pokemon)
 from pokesim_core.shortcuts import gen2ui
 from pokesim_core.shortcuts.items import GEN2_FIELD_MOVES, gen2_pocket, gen2_tm_item, item_kind, key_item
@@ -111,6 +111,7 @@ class Game2:
         self.battle = battle
         self.active = 0
         self.player_move = self.move_num = 0
+        self.disabled = 0
         self.player_state = self.bike = 0
         self.map = (10, 1)
         self.badges = badges
@@ -127,6 +128,9 @@ class Game2:
         self.after = None
         self.qty = 1
         self.loaded = 0
+        self.cur_box = 0
+        self.cur_party = 0
+        self.selection = 0
         self.screen = screen
         if screen == 'battle_menu':
             self.go_battle_menu()
@@ -187,9 +191,9 @@ class Game2:
         if not self.pages:
             self.after()
 
-    def open_menu(self, labels, actions, back, *, x0=0, y0=0, text='', index=0):
+    def open_menu(self, labels, actions, back, *, x0=0, y0=0, text='', index=0, visible=None):
         self.menu = {'labels': list(labels), 'actions': actions, 'back': back, 'x0': x0, 'y0': y0, 'text': text,
-                     'index': index}
+                     'index': index, 'visible': visible}
         self.screen = 'menu'
 
     def yes_no(self, text, yes, no):
@@ -303,7 +307,8 @@ class Game2:
 
     # Party
     PROMPTS = {'use': 'Use on which POKéMON?', 'teach': 'Teach which POKéMON?', 'give': 'Give to which POKéMON?',
-               'switch': 'Move to where?', 'battle': 'Choose a POKéMON.', 'field': 'Choose a POKéMON.'}
+               'switch': 'Move to where?', 'battle': 'Choose a POKéMON.', 'field': 'Choose a POKéMON.',
+               'deleter': 'Choose a POKéMON.'}
 
     def go_party(self, mode, source=None):
         self.party_mode, self.source, self.screen = mode, source, 'party'
@@ -331,11 +336,11 @@ class Game2:
     def party_field(self, slot):
         member = self.party[slot]
         moves = [name for name, move_id in MOVE_IDS.items() if move_id in member['moves']]
-        labels = [FIELD_LABELS.get(name, name) for name in moves] + ['STATS', 'SWITCH', 'ITEM', 'CANCEL']
+        labels = [FIELD_LABELS.get(name, name) for name in moves] + ['STATS', 'SWITCH', 'MOVE', 'ITEM', 'CANCEL']
         actions = {FIELD_LABELS.get(name, name): (lambda name=name: self.field_move(slot, name)) for name in moves}
         actions.update({'SWITCH': lambda: self.go_party('switch', slot), 'ITEM': lambda: self.held_menu(slot),
                         'CANCEL': lambda: self.go_party('field', slot)})
-        self.open_menu(labels, actions, lambda: self.go_party('field', slot), x0=0, y0=0)
+        self.open_menu(labels, actions, lambda: self.go_party('field', slot), x0=0, y0=0, visible=8)
 
     def party_switch(self, slot):
         source = self.source
@@ -387,6 +392,30 @@ class Game2:
             self.yes_no('Delete an older move to make room?', yes=lambda: self.move_list(slot, 'learn'), no=stop)
         self.say(f"{member['nick']} is trying to learn a new move.", then=delete)
 
+    def party_deleter(self, slot):
+        self.say('Which move should it forget, then?', then=lambda: self.move_list(slot, 'delete'))
+
+    def move_deleter(self):
+        def ask():
+            self.yes_no('Shall I make a POKéMON forget a move?',
+                        yes=lambda: self.say('Which POKéMON?', then=lambda: self.go_party('deleter')),
+                        no=lambda: self.say('No? Come visit me again.', then=self.go_overworld))
+        self.say("Um... Oh, yes, I'm the MOVE DELETER.", then=ask)
+
+    def battle_learn(self, slot):
+        member = self.party[slot]
+        self.cur_party = slot
+
+        def stop():
+            self.yes_no('Stop learning the move?', yes=lambda: self.say(
+                f"{member['nick']} did not learn the move.", then=self.go_battle_menu), no=delete)
+
+        def delete():
+            self.yes_no('Delete an older move to make room?', yes=lambda: self.say(
+                'Which move should be forgotten?', then=lambda: self.move_list(slot, 'level')), no=stop)
+        self.say(f"{member['nick']} is trying to learn a new move.",
+                 then=delete)
+
     def party_give(self, slot):
         member, item = self.party[slot], self.item
 
@@ -426,8 +455,24 @@ class Game2:
             self.index = max(0, self.index - 1)
         elif button == 'down':
             self.index = min(count - 1, self.index + 1)
+        elif button == 'b' and self.move_mode in ('delete', 'level'):
+            self.go_overworld() if self.move_mode == 'delete' else self.go_battle_menu()
         elif button == 'b':
             self.go_bag(self.bag_mode)
+        elif button == 'a' and self.move_mode == 'delete':
+            move = member['moves'][self.index]
+
+            def forget():
+                member['moves'] = [m for m in member['moves'] if m != move] + [0]
+                self.say('Done! Your POKéMON forgot the move.', then=self.go_overworld)
+            self.yes_no(f'Make it forget MOVE {move}?', yes=forget,
+                        no=lambda: self.say('No? Come visit me again.', then=self.go_overworld))
+        elif button == 'a' and self.move_mode == 'level':
+            if member['moves'][self.index] in (15, 19, 57, 70, 148, 250, 127):
+                self.say("HM moves can't be forgotten now.", then=lambda: self.move_list(self.move_slot, 'level'))
+                return
+            member['moves'][self.index] = 99
+            self.say('1, 2 and... Poof!', f"{member['nick']} learned the move!", then=self.go_battle_menu)
         elif button == 'a' and self.move_mode == 'pp':
             self.remove(self.item)
             member['pp'][self.index] = 30
@@ -584,7 +629,24 @@ class Game2:
     def go_bills_pc(self):
         self.open_menu(['WITHDRAW PKMN', 'DEPOSIT PKMN', 'CHANGE BOX', 'SEE YA!'],
                        {'WITHDRAW PKMN': lambda: self.go_bills_list(1), 'DEPOSIT PKMN': lambda: self.go_bills_list(0),
-                        'SEE YA!': self.go_pc}, self.go_pc)
+                        'CHANGE BOX': self.go_box_list, 'SEE YA!': self.go_pc}, self.go_pc)
+
+    def go_box_list(self, index=None):
+        labels = [f'BOX{n}' if n > 9 else f'BOX {n}' for n in range(1, 15)]
+
+        def pick():
+            chosen = self.menu['index']
+
+            def switch():
+                self.cur_box = chosen
+                self.say('Saving... Do not turn off the power.', 'KRIS saved the game.', then=self.go_bills_pc)
+            self.open_menu(['SWITCH', 'NAME', 'PRINT', 'QUIT'], {
+                'SWITCH': lambda: self.yes_no('When you change a BOX, data will be saved. OK?', yes=switch,
+                                              no=lambda: self.go_box_list(chosen)),
+                'QUIT': lambda: self.go_box_list(chosen)}, lambda: self.go_box_list(chosen), x0=11, y0=4)
+        self.open_menu(labels, {label: pick for label in labels}, self.go_bills_pc,
+                       index=self.cur_box if index is None else index, visible=5)
+        self.menu['box_list'] = True
 
     def go_players_pc(self):
         self.open_menu(['WITHDRAW ITEM', 'DEPOSIT ITEM', 'TOSS ITEM', 'MAIL BOX', 'DECORATION', 'LOG OFF'],
@@ -682,7 +744,10 @@ class Game2:
             box[22 + 32 * index:54 + 32 * index] = struct(member, party=False)
             box[22 + 32 * 20 + 11 * index:22 + 32 * 20 + 11 * index + 11] = name('KRIS', self.version)
             box[22 + 43 * 20 + 11 * index:22 + 43 * 20 + 11 * index + 11] = name(member['nick'], self.version)
-        put('wCurBox', [0])
+        put('wCurBox', [self.cur_box])
+        put('wCurPartyMon', [self.cur_party])
+        if self.screen == 'menu' and self.menu.get('box_list'):
+            put('wMenuSelection', [self.menu['index'] + 1])
         put('sBox', box)
         put('wBattleMode', [self.battle])
         active = party[self.active] if self.active < len(party) else mon('NONE')
@@ -691,6 +756,8 @@ class Game2:
         put('wBattleMonPP', active['pp'])
         put('wBattleMonHP', active['hp'].to_bytes(2, 'big'))
         put('wCurPlayerMove', [self.player_move])
+        put('wDisabledMove', [self.disabled])
+        put('wPlayerDisableCount', [0x13 if self.disabled else 0])
         put('wCurMoveNum', [self.move_num])
         put('wPlayerState', [self.player_state])
         put('wBikeFlags', [self.bike])
@@ -760,16 +827,19 @@ class Game2:
     def draw_menu(self):
         menu = self.menu
         x0, y0, labels = menu['x0'], menu['y0'], menu['labels']
+        # A menu longer than its window scrolls to keep the cursor in view.
+        top = max(0, menu['index'] - menu['visible'] + 1) if menu['visible'] else 0
+        labels = labels[top:top + menu['visible']] if menu['visible'] else labels
         limit = 11 if menu['text'] else 17
         step = 2 if y0 + 2 * len(labels) + 2 <= limit else 1
         y0 = min(y0, limit - step * len(labels) - step)
         self.box_at(x0, y0, 19, y0 + step * len(labels) + step)
         for row, label in enumerate(labels):
             self.text_at(x0 + 2, y0 + step + step * row, label)
-        self.tile(x0 + 1, y0 + step + step * menu['index'], CURSOR)
+        self.tile(x0 + 1, y0 + step + step * (menu['index'] - top), CURSOR)
         if menu['text']:
             self.text_box(menu['text'])
-        self.put('wMenuCursorY', [menu['index'] + 1])
+        self.put('wMenuCursorY', [menu['index'] - top + 1])
 
     def draw_party(self):
         for index, member in enumerate(self.party):
@@ -807,7 +877,8 @@ class Game2:
     def draw_move_menu(self):
         member = self.party[self.active]
         self.box_at(0, 7, 9, 11)
-        self.text_at(1, 8, 'TYPE/')
+        moves = [move for move in member['moves'] if move]
+        self.text_at(1, 9, 'Disabled!') if moves[self.index] == self.disabled else self.text_at(1, 8, 'TYPE/')
         self.box_at(4, 12, 19, 17)
         for row, move in enumerate(move for move in member['moves'] if move):
             self.text_at(6, 13 + row, f'MOVE {move}')
@@ -983,6 +1054,30 @@ def test_switch_in_battle_from_the_menu_and_from_the_switch_prompt():
     refused(switch_pokemon(game.port(), 1), game, 'already active')
 
 
+def test_forced_switch_waits_for_the_party_screen_under_which_pkmn():
+    game = Game2(battle=1, party=[mon('ONE', hp=0), mon('TWO'), mon('SIX')])
+    waits = []
+
+    def press_text(button):
+        waits.append(button)
+        if button is None and len(waits) >= 3:
+            game.go_party('battle', 0)
+    game.press_text = press_text
+    send = game.send
+
+    def send_any(button, held=0, released=0):
+        if button is None and game.screen == 'text':
+            game.press_text(None)
+            game.sync()
+        return send(button, held, released)
+    game.send = send_any
+    game.say('Which PKMN?', then=lambda: None)
+    game.sync()
+    result = switch_pokemon(game.port(), 1)
+    assert done(result) and game.active == 1
+    assert game.inputs[:2] == ['down', 'a']
+
+
 def test_switch_and_reorder_in_the_field():
     game = Game2(party=[mon('ONE'), mon('TWO'), mon('SIX')])
     assert done(switch_pokemon(game.port(), 2))
@@ -993,6 +1088,13 @@ def test_switch_and_reorder_in_the_field():
     refused(switch_pokemon(game.port(), 0), game, 'already the lead')
     game = Game2(battle=1, screen='battle_menu')
     refused(reorder_party(game.port(), 0, 1), game, 'outside battle')
+
+
+def test_reorder_a_member_whose_party_submenu_scrolls():
+    # Four field moves push CANCEL below the submenu window, as on the cartridge.
+    game = Game2(party=[mon('ONE'), mon('SURFER', moves=(57, 250, 15, 70))])
+    assert done(reorder_party(game.port(), 1, 0))
+    assert [member['nick'] for member in game.party] == ['SURFER', 'ONE'] and game.screen == 'overworld'
 
 
 def test_choose_move_from_the_battle_menu():
@@ -1009,6 +1111,16 @@ def test_choose_move_from_the_battle_menu():
     refused(choose_move(game.port(), 3), game, 'empty')
     game = Game2()
     refused(choose_move(game.port(), 0), game, 'Not in battle')
+
+
+def test_choose_move_past_a_disabled_move_and_refuse_it():
+    game = Game2(battle=1, screen='battle_menu', party=[mon('ONE', moves=(33, 45, 10, 0))])
+    game.disabled = 33
+    game.sync()
+    result = choose_move(game.port(), 1)
+    assert done(result) and (game.player_move, game.move_num) == (45, 1)
+    game.inputs.clear()
+    refused(choose_move(game.port(), 0), game, 'disabled')
 
 
 def test_choose_move_steps_without_a_port():
@@ -1065,6 +1177,14 @@ def test_fly_scrolls_to_the_named_town():
     game = Game2(party=[mon('ONE', moves=(19, 0, 0, 0))])
     result = use_field_move(game.port(), 'FLY', 0, 'Goldenrod City')
     assert 'VIOLET CITY, CHERRYGROVE CITY' in result['outcome'] and game.screen == 'overworld'
+
+
+def test_fly_needs_the_storm_badge_not_the_mineral_badge():
+    # Johto badge bits: MINERALBADGE is 4 and STORMBADGE is 5.
+    game = Game2(badges=0x2F, party=[mon('ONE', moves=(19, 0, 0, 0))])
+    assert done(use_field_move(game.port(), 'FLY', 0, 'Cherrygrove City'))
+    game = Game2(badges=0x1F, party=[mon('ONE', moves=(19, 0, 0, 0))])
+    refused(use_field_move(game.port(), 'FLY', 0, 'Cherrygrove City'), game, 'badge')
 
 
 # Mart -----------------------------------------------------------------------------------
@@ -1175,3 +1295,76 @@ def test_list_items_reads_every_pocket(monkeypatch):
         (POTION, 'items', 'heal', True), (POKE_BALL, 'balls', 'ball', False), (BICYCLE, 'key', 'key', True),
         (TM01, 'tms_hms', 'tm', True)]
     assert items[0]['name'] == 'POTION'
+
+
+# Box change, learning and the Move Deleter -----------------------------------------------
+
+@pytest.mark.parametrize('box', [3, 12])
+def test_change_box_switches_and_saves(box):
+    game = Game2(screen='pc')
+    result = change_box(game.port(), box)
+    assert done(result) and game.cur_box == box and game.screen == 'menu', result
+    assert current_screen(game.memory, 'crystal') == 'pc' and result['shortcut']['box'] == box + 1
+    assert game.inputs.count('a') >= 4
+
+
+def test_change_box_refuses_the_current_box_and_bad_numbers():
+    game = Game2(screen='pc')
+    refused(change_box(game.port(), 0), game, 'already')
+    with pytest.raises(ValueError):
+        change_box(game.port(), 14)
+
+
+def test_learn_move_in_battle_replaces_the_requested_slot():
+    game = Game2(battle=1, screen='battle_menu', party=[mon('ONE', moves=(33, 45, 10, 98)), mon('TWO')])
+    game.battle_learn(0)
+    game.sync()
+    result = learn_move(game.port(), 2)
+    assert done(result) and game.party[0]['moves'] == [33, 45, 99, 98] and game.screen == 'battle_menu', result
+    assert result['shortcut']['forgotten_move_id'] == 10
+
+
+def test_learn_move_keep_and_hm_refusal():
+    game = Game2(battle=1, screen='battle_menu', party=[mon('ONE', moves=(15, 45, 10, 98))])
+    game.battle_learn(0)
+    game.sync()
+    refused(learn_move(game.port(), 0), game, 'HM')
+    result = learn_move(game.port(), 'keep')
+    assert done(result) and game.party[0]['moves'] == [15, 45, 10, 98] and game.screen == 'battle_menu', result
+
+
+def test_move_deleter_forgets_the_requested_move():
+    game = Game2(party=[mon('ONE'), mon('TWO', moves=(15, 45, 70, 0))])
+    game.move_deleter()
+    game.sync()
+    result = delete_move(game.port(), 1, 2)
+    assert done(result) and game.party[1]['moves'] == [15, 45, 0, 0] and game.screen == 'overworld', result
+    game = Game2(party=[mon('ONE'), mon('TWO', moves=(15, 45, 70, 0))])
+    game.move_deleter()
+    game.sync()
+    refused(delete_move(game.port(), 1, 3), game, 'empty')
+    game = Game2()
+    refused(delete_move(game.port(), 0, 0), game, 'No input sent')
+
+
+def test_throw_can_hand_the_nickname_prompt_to_the_caller():
+    game = Game2(balls=[(POKE_BALL, 2)], battle=1, screen='battle_menu')
+    result = use_item(game.port(), POKE_BALL, nickname='caller')
+    assert result['shortcut']['completed'] and result['shortcut']['pending'] == 'nickname', result
+    assert game.screen == 'menu' and 'NICKNAME' in gen2ui.text_box(gen2ui.View(game.memory, 'crystal')).upper().replace(' ', '')
+    game = Game2(balls=[(POKE_BALL, 2)], battle=1, screen='battle_menu')
+    assert done(use_item(game.port(), POKE_BALL)) and game.screen == 'overworld'
+
+
+def test_fight_with_no_pp_left_uses_struggle():
+    game = Game2(battle=1, screen='battle_menu')
+    game.party[0]['pp'] = [0, 0, 0, 0]
+    game.sync()
+
+    def fight():
+        game.say('ONE has no moves left!', 'ONE used STRUGGLE!', then=game.enemy_turn)
+    original = game.press_battle_menu
+    game.press_battle_menu = lambda button: fight() if button == 'a' and game.battle_cursor == (9, 14) else original(
+        button)
+    result = choose_move(game.port(), 0)
+    assert done(result) and result['shortcut']['forced'] == 'struggle' and game.screen == 'battle_menu', result

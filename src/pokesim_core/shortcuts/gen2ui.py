@@ -237,7 +237,9 @@ def classify(view, rows=None):
         if x == 7 and y in (2, 4, 6, 8, 10) and not menu:
             extra['pocket'] = view.byte('wCurPocket')
             return 'bag', extra
-        if battle and x == 5 and 13 <= y <= 16 and any('TYPE/' in row for row in rows[8:13]):
+        # The info box shows TYPE/, or "Disabled!" while the cursor is on a disabled move.
+        info = rows[8:13]
+        if battle and x == 5 and 13 <= y <= 16 and any('TYPE/' in row or 'Disabled!' in row for row in info):
             return 'move_menu', extra
         if x == 6 and view.tile(5, 2) == BOX_TL and 4 <= y <= 10 and len(menu) <= 4:
             return 'move_list', extra
@@ -245,7 +247,8 @@ def classify(view, rows=None):
             return 'mart', extra
         if 'QUIT' in words and words & {'USE', 'GIVE', 'TOSS', 'SEL'}:
             return 'item_action', extra
-        if {'STATS', 'SWITCH', 'CANCEL'} <= words:
+        if {'STATS', 'SWITCH'} <= words:
+            # With four field moves the party submenu scrolls and CANCEL is off screen.
             return 'party_action', extra
         if {'STATS', 'RELEASE', 'CANCEL'} <= words and words & {'DEPOSIT', 'WITHDRAW'}:
             return 'pc_mon_action', extra
