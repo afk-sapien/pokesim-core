@@ -1,4 +1,4 @@
-"""Read-only screen classification for English Red, Blue and Yellow.
+"""Read-only screen classification for English Red, Blue, Yellow, Gold, Silver and Crystal.
 
 ``current_screen`` names the screen from the tilemap and menu WRAM only. It never
 writes memory and never guesses a menu from a nickname: party rows must match the
@@ -127,9 +127,10 @@ def fly_destination(screen):
 
 
 def current_screen(memory, ui=None, *, version=None):
-    """Name the visible screen. See ``SCREENS``. Gen 2 returns ``unsupported``."""
+    """Name the visible screen. See ``SCREENS``. Gen 2 screens come from ``gen2ui.classify``."""
     if generation(version) != 1:
-        return 'unsupported'
+        from . import gen2ui
+        return gen2ui.classify(gen2ui.View(memory, version))[0]
     memory = red_layout(memory, version)
     if not memory[0xFF40] & 128 or memory[0xFF47] in (0, 85, 170, 255):
         return 'transition'

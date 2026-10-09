@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+
+- Menu shortcuts for Gold, Silver and Crystal. Every 0.4.0 action now runs on Gen 2:
+  `use_item` (all kinds, with pocket switching and Berries), `choose_move`,
+  `switch_pokemon` (also from the battle switch prompt), `run_away`, `reorder_party`,
+  `use_field_move`, `toss_item`, `buy_item`, `sell_item`, `deposit_pokemon`,
+  `withdraw_pokemon`, `release_pokemon` (still needs `allow_release=True`),
+  `deposit_item` and `withdraw_item`.
+- `give_item` and `take_item` (`GiveItem`, `TakeItem`) for Gen 2 held items. Replacing
+  a held item needs `swap=True`.
+- Gen 2 field moves WHIRLPOOL, WATERFALL, ROCKSMASH and HEADBUTT, with badge checks.
+- Gen 2 item kinds and usage for every item ID, from pret pokecrystal and pokegold.
+  Item names are decoded from the cartridge.
+- `current_screen` names Gen 2 screens: the four pack pockets, party, item target,
+  move list, quantity box, mart menu and list, the PC, Bill's PC menu and lists, the
+  item PC, the battle menus, the switch prompt, YES/NO and text.
+
+### Changed
+
+- Gen 2 actions no longer refuse with "Not supported in Gen 2 yet".
+- On Gen 2, `run` resolves menu choices itself and only calls `port.send`.
+- The optional real cartridge shortcut tests release every button after loading a
+  state and accept the battle switch prompt as rest.
+
 ## 0.4.0
 
 ### Added

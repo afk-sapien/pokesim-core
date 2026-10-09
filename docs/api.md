@@ -203,14 +203,15 @@ continue-only dialogue, never a choice. The default waits without confirming.
 Menu macros have a 200-iteration ceiling in addition to the consumer's frame
 budget. They do not own threads, emulator lifecycle, logging, replay or locks.
 Call them only with exclusive access to the emulator. All helpers support the
-verified English Red, Blue and Yellow layouts, not ROM hacks. Gen 2 actions refuse.
+verified English Red, Blue and Yellow layouts, not ROM hacks. The shortcuts below
+also cover English Gold, Silver and Crystal.
 
 ## Menu shortcuts
 
 `pokesim_core.shortcuts` holds one class per action (`UseItem`, `ChooseMove`,
 `SwitchPokemon`, `RunAway`, `ReorderParty`, `FieldMove`, `TossItem`, `BuyItem`,
 `SellItem`, `DepositPokemon`, `WithdrawPokemon`, `ReleasePokemon`, `DepositItem`,
-`WithdrawItem`) and a function of the same name in snake case that runs it on a port.
+`WithdrawItem`, and for Gen 2 `GiveItem` and `TakeItem`) and a function of the same name in snake case that runs it on a port.
 
 - `machine.step(memory, ui=None)` returns a button name, None to wait, or `Done`.
   `ui` may carry `screen` (overrides `current_screen`), `continue_ready` (bool) and
@@ -232,8 +233,19 @@ verified English Red, Blue and Yellow layouts, not ROM hacks. Gen 2 actions refu
   box=None, version=None)` and `current_screen(memory, version=None)`. Screen names
   are in `shortcuts.SCREENS`.
 
-Gen 2 gaps: every action refuses before input, `current_screen` returns
-`unsupported`, and Gen 2 item names come only for TMs and HMs.
+Gen 2 (Gold, Silver, Crystal):
+
+- The screen is classified from the tilemap and WRAM menu bytes. Extra screen names
+  are `bag`, `quantity`, `pc_items`, `pc_party`, `pc_box`, `mart_list`,
+  `item_target`, `move_list`, `fly_map` and `switch_prompt`.
+- `run(port, machine)` calls `machine.step`, which turns menu choices into single
+  cursor presses. It only calls `port.send`. `port.choose` is never called.
+- Each press is held until two observations show the same screen, so the default
+  budget is 600 steps, and 900 for marts.
+- `use_item` turns to the item's pocket. Hold items go through `give_item(port,
+  item, slot, swap=False)` and come back with `take_item(port, slot)`.
+- `use_field_move` adds WHIRLPOOL, WATERFALL, ROCKSMASH and HEADBUTT.
+- Gaps: mail, changing the Bill's PC box, and PC boxes other than the current one.
 
 ## Cached readers
 

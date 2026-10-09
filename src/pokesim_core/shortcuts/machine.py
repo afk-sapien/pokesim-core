@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from .. import gen1
 from ..gen1_ui import read_screen
 from ..yellow import red_layout
+from . import gen2ui
 from .items import generation
 from .screens import (_BATTLE_MENU, continue_ready as rom_continue_ready, current_screen, menu_rows,
                       normalize, text_lines)
@@ -43,7 +44,11 @@ REFUSALS = ('ISNTTHETIME', 'NOCYCLING', 'WONTHAVEANYEFFECT', 'NOTCOMPATIBLE', 'B
             'NORUNNING', 'CANTPUTAPRICE', 'TOOIMPORTANT', 'ENOUGHMONEY', 'NOROOMFOR', 'CANTCARRY',
             'NOTHINGTOSTORE', 'CANTUSEITHERE', 'NOWILLTOFIGHT', 'CANTFLYHERE',
             'NOPPLEFT', 'ALREADYOUT', 'CANTSWITCH', 'CANTTAKEANY', 'CANTSTOREANY', 'CANTCARRYANY',
-            'LASTPOKMON', 'YOUCANTDEPOSIT', 'BOXISFULL', 'CANTESCAPE')
+            'LASTPOKMON', 'YOUCANTDEPOSIT', 'BOXISFULL', 'CANTESCAPE',
+            # Gen 2 refusals.
+            'ALREADYKNOWS', 'YOURLAST', 'THERESNOROOM', 'PARTYSFULL', 'NORELEASINGEGGS', 'REMOVEMAIL',
+            'REMOVETHEMAIL', 'NOMOREUSABLE', 'NOTHINGTOCUT', 'CANTSURF', 'ALREADYSURFING', 'CANTBUYTHAT',
+            'CANTBEHELD', 'EGGCANTHOLD', 'STORAGESPACEFULL', 'ISNTHOLDING')
 
 
 @dataclass(frozen=True)
@@ -86,6 +91,7 @@ class Observation:
     ready: bool | None
     words: str
     text: str
+    extra: dict = field(default_factory=dict)
 
 
 class Shortcut:
@@ -97,7 +103,7 @@ class Shortcut:
 
     def __init__(self, *, version=None, read_party=None, read_bag=None, max_steps=None, labels=None):
         self.version = getattr(version, 'version', version)
-        generation(self.version)
+        self.gen = generation(self.version)
         if max_steps is not None and (type(max_steps) is not int or max_steps < 1):
             raise ValueError('max_steps must be a positive integer')
         self.max_steps = max_steps or self.default_steps
@@ -117,6 +123,9 @@ class Shortcut:
         self._choose_tries = 0
         self._last_text = None
         self._stable_text = 0
+        self._held = None
+        self._held_waits = 0
+        self._seen_tiles = None
         self.recent = []
 
     # Readers ---------------------------------------------------------------
@@ -124,12 +133,16 @@ class Shortcut:
         obs = obs or self.obs
         if self._read_party is not None:
             return list(self._read_party(obs.raw))
+        if self.gen == 2:
+            return gen2ui.read_party(obs.raw, self.version)
         return gen1.read_party(obs.memory)
 
     def bag(self, obs=None):
         obs = obs or self.obs
         if self._read_bag is not None:
             return list(self._read_bag(obs.raw))
+        if self.gen == 2:
+            return gen2ui.read_bag(obs.raw, self.version)
         return list(gen1.read_bag(obs.memory))
 
     def quantity(self, item, obs=None):
@@ -172,6 +185,8 @@ class Shortcut:
     # Observation -----------------------------------------------------------
     def observe(self, memory, ui=None):
         ui = dict(ui or {})
+        if self.gen == 2:
+            return self._observe2(memory, ui)
         view = red_layout(memory, self.version) if generation(self.version) == 1 else memory
         screen = ui.get('screen') or current_screen(memory, version=self.version)
         ready = ui.get('continue_ready')
@@ -182,6 +197,30 @@ class Shortcut:
         text = text_lines(view)
         return Observation(memory, view, ui, screen, rows, tilemap['cursor'],
                            view[0xD057] in (1, 2), ready, normalize(' '.join(rows)), text)
+
+    def _observe2(self, memory, ui):
+        view = gen2ui.View(memory, self.version)
+        rows = gen2ui.rows_of(view)
+        screen, extra = gen2ui.classify(view, rows)
+        screen = ui.get('screen') or screen
+        ready = ui.get('continue_ready')
+        if ready is None:
+            ready = gen2ui.ready(view)
+        return Observation(memory, view, ui, screen, rows, extra['cursor'], extra['battle'], ready,
+                           normalize(' '.join(rows)), gen2ui.text_box(view), extra)
+
+    # Generation-neutral reads ------------------------------------------------
+    def menu_y(self, obs=None):
+        """The menu cursor row (Gen 1 wCurrentMenuItem, Gen 2 wMenuCursorY)."""
+        obs = obs or self.obs
+        return obs.memory.byte('wMenuCursorY') if self.gen == 2 else obs.memory[0xCC26]
+
+    def list_position(self, obs=None):
+        """The highlighted entry of the list on screen, 0 based with scrolling."""
+        obs = obs or self.obs
+        if self.gen == 2:
+            return gen2ui.list_index(obs.memory, obs.screen)
+        return obs.memory[0xCC26] + obs.memory[0xCC36]
 
     def ready(self):
         """Whether A only continues printed text.
@@ -197,16 +236,43 @@ class Shortcut:
 
     # Stepping --------------------------------------------------------------
     def step(self, memory, ui=None):
-        """Return one button, None (wait) or a Done. See the module docstring."""
+        """Return one button, None (wait) or a Done. See the module docstring.
+
+        Gen 2 menus drop a press that lands while they still draw or print, so on
+        Gold, Silver and Crystal a button waits until two observations in a row show
+        the same tilemap (at most four waits).
+        """
+        if self._held is not None and self.result is None:
+            self.obs = self.observe(memory, ui)
+            self._track_text(self.obs)
+            self.steps += 1
+            if not self._settled_tiles() and self._held_waits < 4:
+                self._held_waits += 1
+                return None
+            action, self._held = self._held, None
+            self.inputs += 1
+            return action
         action = self._advance(memory, ui)
         if isinstance(action, Choose):
             if self._choosing is not action:
                 self._choosing = action
                 self._choose_tries = 0
             action = self._resolve_choose()
+        if self.gen == 2 and self.obs is not None:
+            settled = self._settled_tiles()
+            if not settled and action in BUTTONS:
+                self._held, self._held_waits = action, 0
+                return None
         if action in BUTTONS:
             self.inputs += 1
         return action
+
+    def _settled_tiles(self):
+        """Gen 2: whether the tilemap matches the previous observation, ignoring the blinking text arrow."""
+        tiles = bytearray(self.obs.memory.tiles)
+        tiles[17 * 20 + 18] = 0
+        settled, self._seen_tiles = tiles == self._seen_tiles, tiles
+        return settled
 
     def _advance(self, memory, ui):
         if self.result is not None:
@@ -286,7 +352,14 @@ class Shortcut:
             self._choosing = None
             return self._finish(Done(f'Could not select {label}. Stopped.', False, False, dict(self.details)))
         cursor = tuple(obs.cursor) if obs.cursor else None
-        if obs.screen == 'battle_menu':
+        wanted = normalize(label)
+        if self.gen == 2:
+            aliases = ({'POKEMON', 'PKMN'} if wanted in ('POKEMON', 'PKMN') else
+                       {'ITEM', 'PACK'} if wanted in ('ITEM', 'PACK') else {wanted})
+            menu = gen2ui.BATTLE_MENU.items() if obs.screen == 'battle_menu' else [
+                (tile, name) for name, tile in obs.extra.get('choices', [])]
+            targets = [tuple(tile) for tile, name in menu if normalize(name) in aliases]
+        elif obs.screen == 'battle_menu':
             targets = [tile for tile, name in _BATTLE_MENU.items() if normalize(name) == normalize(label)]
         else:
             rows = menu_rows(obs.memory, read_screen(obs.memory))
@@ -349,12 +422,21 @@ class Shortcut:
 
     def pick_list(self, index):
         """Highlight list entry ``index`` (0 based, including scroll) and press A."""
-        position = lambda obs: obs.memory[0xCC26] + obs.memory[0xCC36]
-        yield from self.move_index(index, position)
+        yield from self.move_index(index, self.list_position)
         yield 'a'
 
     def pick_party(self, slot):
-        yield from self.move_index(slot, lambda obs: obs.memory[0xCC26])
+        offset = 1 if self.gen == 2 else 0
+        yield from self.move_index(slot + offset, self.menu_y)
+        yield 'a'
+
+    def pick_move(self, slot, learn=False):
+        """On a move list, highlight move ``slot`` (0 based) and press A.
+
+        Gen 1 counts the forget-a-move list from 0 and the others from 1. Gen 2 counts every list from 1.
+        """
+        offset = 0 if learn and self.gen == 1 else 1
+        yield from self.move_index(slot + offset, self.menu_y)
         yield 'a'
 
     def open_pause(self):
@@ -381,7 +463,7 @@ class Shortcut:
             screen = self.obs.screen
             if screen == 'battle_menu':
                 return
-            if screen in ('move_menu', 'bag', 'party', 'party_action', 'item_action', 'item_target'):
+            if screen in ('move_menu', 'bag', 'party', 'party_action', 'item_action', 'item_target', 'menu'):
                 yield 'b'
             elif screen in ('dialogue', 'transition'):
                 yield from self.text_or_wait()
@@ -401,6 +483,8 @@ class Shortcut:
 
     def forced_switch(self, obs):
         """In battle, the party screen rests only when the active battler fainted."""
+        if self.gen == 2:
+            return obs.memory.read('wBattleMonHP', 2) == b'\x00\x00'
         from ..gen1_ui import read_battler
         return read_battler(obs.memory)['hp'] == 0
 
@@ -427,8 +511,7 @@ class Shortcut:
                     return 'prompt'
                 yield from self.choose(answer)
             elif screen == 'move_list' and answer_prompts and isinstance(self.learn_choice(), int):
-                yield from self.move_index(self.learn_choice(), lambda o: o.memory[0xCC26])
-                yield 'a'
+                yield from self.pick_move(self.learn_choice(), learn=True)
             elif obs.battle and screen in ('party', 'item_target'):
                 # Text printed over the party screen after an item or a switch.
                 party_waits += 1
@@ -473,6 +556,11 @@ def runner_ui(port, memory):
     ui = port.observe() or {}
     ui = dict(ui) if isinstance(ui, dict) else {}
     version = getattr(port, 'version', None)
+    if generation(version) == 2:
+        # Gen 2 screens always come from Core's classifier, since port panels read Gen 1 menus.
+        ui.pop('screen', None)
+        ui['continue_ready'] = None if port.continue_ready is _never_ready else bool(port.continue_ready())
+        return ui
     if port.panel is not default_panel:
         screen = port.panel(memory, ui, port.item_labels)
         if screen in ('dialogue', 'unknown', 'transition', 'menu', 'overworld'):
@@ -498,7 +586,9 @@ def run(port, machine, **extra):
         if port.stopped():
             done = machine._finish(Done(STOP_OUTCOME, False, False, dict(machine.details)))
             break
-        action = machine._advance(memory, runner_ui(port, memory))
+        ui = runner_ui(port, memory)
+        # Gen 2 menus are resolved to single buttons here, since a port's choose reads Gen 1 menus.
+        action = machine.step(memory, ui) if machine.gen == 2 else machine._advance(memory, ui)
         if isinstance(action, Done):
             done = action
             break
@@ -512,7 +602,8 @@ def run(port, machine, **extra):
         if action is None:
             ok = port.send(None, 30, 0)
         else:
-            machine.inputs += 1
+            if machine.gen != 2:
+                machine.inputs += 1
             ok = port.send(action, 8, 24) and port.send(None, 12, 0)
         if not ok:
             done = machine._finish(Done(STOP_OUTCOME, False, False, dict(machine.details)))

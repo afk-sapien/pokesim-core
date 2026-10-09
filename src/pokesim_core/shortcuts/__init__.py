@@ -1,14 +1,15 @@
-"""Resumable menu shortcuts for Red, Blue and Yellow, plus read-only queries.
+"""Resumable menu shortcuts for Red, Blue, Yellow, Gold, Silver and Crystal, plus read-only queries.
 
 Each action is a machine with ``step(memory, ui) -> button | None | Done``: one
 input per call, no memory writes. ``run(port, machine)`` is the blocking wrapper
 over a ``controls.ControllerPort`` and ``drive(machine, emulator)`` runs one on a
 Core emulator. The functions below build a machine and run it on a port.
-Gen 2 queries read the gen2 state readers. Gen 2 actions refuse before any input.
+Gen 2 machines resolve menu labels themselves, so ``run`` sends only single
+buttons through ``port.send`` on Gold, Silver and Crystal.
 """
 from ..controls import machine_options, switch_pokemon, use_item
-from .actions import (BuyItem, ChooseMove, DepositItem, DepositPokemon, FieldMove, ReleasePokemon,
-                      ReorderParty, RunAway, SellItem, SwitchPokemon, TossItem, UseItem, WithdrawItem,
+from .actions import (BuyItem, ChooseMove, DepositItem, DepositPokemon, FieldMove, GiveItem, ReleasePokemon,
+                      ReorderParty, TakeItem, RunAway, SellItem, SwitchPokemon, TossItem, UseItem, WithdrawItem,
                       WithdrawPokemon)
 from .items import ItemKind, item_kind, item_names, move_names, tm_number
 from .machine import Abort, Choose, Done, Shortcut, drive, run
@@ -36,7 +37,10 @@ def reorder_party(port, first, second, **options):
 
 
 def use_field_move(port, move, slot, destination=None, **options):
-    """Use CUT, SURF, STRENGTH, FLASH or FLY (with a town ``destination``) from party ``slot``."""
+    """Use a field move from party ``slot``. FLY needs a town ``destination``.
+
+    Gen 1: CUT, SURF, STRENGTH, FLASH, FLY. Gen 2 adds WHIRLPOOL, WATERFALL, ROCK SMASH and HEADBUTT.
+    """
     return _run(port, FieldMove, move, slot, destination, **options)
 
 
@@ -79,10 +83,20 @@ def withdraw_item(port, item, quantity=1, **options):
     return _run(port, WithdrawItem, item, quantity, **options)
 
 
+def give_item(port, item, slot, *, swap=False, **options):
+    """Gen 2: give a bag item to party ``slot`` to hold. ``swap=True`` trades a held item back to the bag."""
+    return run(port, GiveItem(item, slot, swap=swap, **machine_options(port, **options)))
+
+
+def take_item(port, slot, **options):
+    """Gen 2: take party ``slot``'s held item into the bag."""
+    return _run(port, TakeItem, slot, **options)
+
+
 __all__ = ['Abort', 'BuyItem', 'Choose', 'ChooseMove', 'DepositItem', 'DepositPokemon', 'Done', 'FieldMove',
-           'ItemKind', 'ReleasePokemon', 'ReorderParty', 'RunAway', 'SCREENS', 'SellItem', 'Shortcut',
-           'SwitchPokemon', 'TossItem', 'UseItem', 'WithdrawItem', 'WithdrawPokemon', 'buy_item', 'choose_move',
-           'continue_ready', 'current_screen', 'deposit_item', 'deposit_pokemon', 'drive', 'item_kind',
+           'GiveItem', 'ItemKind', 'ReleasePokemon', 'ReorderParty', 'RunAway', 'SCREENS', 'SellItem', 'Shortcut',
+           'SwitchPokemon', 'TakeItem', 'TossItem', 'UseItem', 'WithdrawItem', 'WithdrawPokemon', 'buy_item', 'choose_move',
+           'continue_ready', 'current_screen', 'deposit_item', 'deposit_pokemon', 'drive', 'give_item', 'item_kind',
            'item_names', 'list_box', 'list_items', 'list_moves', 'list_party', 'move_names', 'release_pokemon',
-           'reorder_party', 'run', 'run_away', 'sell_item', 'switch_pokemon', 'tm_number', 'toss_item',
+           'reorder_party', 'run', 'run_away', 'sell_item', 'switch_pokemon', 'take_item', 'tm_number', 'toss_item',
            'use_field_move', 'use_item', 'withdraw_item', 'withdraw_pokemon']

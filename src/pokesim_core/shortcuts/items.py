@@ -4,8 +4,11 @@ The tables hold item IDs and mechanical facts only, as ``RESTORATIVE_ITEMS`` doe
 Names are never shipped. ``item_names`` and ``move_names`` decode them from the
 cartridge in memory, and callers may pass their own labels instead.
 
+Gen 1 IDs follow pret pokered. Gen 2 IDs follow pret pokecrystal and pokegold,
+which share one item list, and Berries count as heal or status items.
+
 Kinds: heal, status, revive, pp, ball, repel, escape, evolution, tm, hm, key,
-fishing, battle-stat, vitamin, rare-candy and other. ``target`` is what the item
+fishing, battle-stat, vitamin, rare-candy, held (Gen 2 hold items), mail and other. ``target`` is what the item
 asks for after USE: ``party`` (a party slot), ``move`` (a party slot, then a
 move), or ``none``.
 """
@@ -77,13 +80,19 @@ GEN1_HM_MOVES = frozenset((15, 19, 57, 70, 148))
 # Badge bit in wObtainedBadges for each field move, and the move ID.
 GEN1_FIELD_MOVES = {'CUT': (15, 1), 'FLY': (19, 2), 'SURF': (57, 4), 'STRENGTH': (70, 3), 'FLASH': (148, 0)}
 
+_HELD = ItemKind('held', False, False, note='hold item, pass it to give_item')
+_MAIL = ItemKind('mail', False, False, note='mail is not supported by the shortcuts')
+_SPOT = dict(note='works only at one place in the story')
+
+# Gen 2 kinds from the pret pokecrystal and pokegold item attributes (pocket, field and battle menus).
 GEN2_KINDS = _table(
     ((0x01, 0x02, 0x04, 0x05, 0x9D, 0x9F, 0xA0, 0xA1, 0xA4, 0xA5, 0xA6), ItemKind('ball', False, True,
                                                                                     wild_only=True)),
     ((0xB1,), ItemKind('ball', False, False, note='Bug-Catching Contest only')),
     ((0x08, 0x16, 0x17, 0x18, 0x22, 0xA9), ItemKind('evolution', True, False, 'party')),
-    ((0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x26, 0x7B, 0x4A, 0x4E, 0x4F, 0x50, 0x53, 0x54, 0x6D),
+    ((0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x26, 0x4A, 0x4E, 0x4F, 0x50, 0x54, 0x6D, 0x7B),
      ItemKind('status', **_PARTY_BOTH)),
+    ((0x53,), ItemKind('status', False, True, 'party')),
     ((0x0E, 0x0F, 0x10, 0x11, 0x12, 0x2E, 0x2F, 0x30, 0x48, 0x72, 0x79, 0x7A, 0x8B, 0xAD, 0xAE),
      ItemKind('heal', **_PARTY_BOTH)),
     ((0x27, 0x28, 0x7C), ItemKind('revive', **_PARTY_BOTH)),
@@ -97,16 +106,34 @@ GEN2_KINDS = _table(
     ((0x3A, 0x3B, 0x3D), ItemKind('fishing', True, False)),
     ((0x3E,), ItemKind('pp', True, False, 'move')),
     ((0x3F, 0x40, 0x96), ItemKind('pp', True, True, 'move')),
-    ((0x41, 0x15), ItemKind('pp', **_PARTY_BOTH)),
+    ((0x15, 0x41), ItemKind('pp', **_PARTY_BOTH)),
     ((0x07,), ItemKind('key', True, False, note='Bicycle')),
-    ((0x38,), ItemKind('key', True, True, note='Poke Flute')),
-    ((0x06, 0x36, 0x37, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x73, 0x74, 0x7F, 0x80, 0x81, 0x82, 0x85,
-      0x86, 0xAF, 0xB2), ItemKind('key', False, False, note='no shortcut effect')),
+    ((0x36, 0x74), ItemKind('key', True, False, note='prints a message')),
+    ((0x37,), ItemKind('key', True, False, note='Itemfinder')),
+    ((0x7F, 0x85, 0xAF), ItemKind('key', False, False, **_SPOT)),
+    ((0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x73, 0x80, 0x81, 0x82, 0x86, 0xB2),
+     ItemKind('key', False, False, note='no shortcut effect')),
+    ((0x03, 0x1E, 0x23, 0x39, 0x49, 0x4C, 0x4D, 0x51, 0x52, 0x58, 0x5B, 0x5E, 0x5F, 0x60, 0x62, 0x66, 0x68,
+      0x69, 0x6A, 0x6B, 0x6C, 0x70, 0x71, 0x75, 0x76, 0x77, 0x7D, 0x7E, 0x8A, 0x8C, 0x8F, 0x90, 0x92, 0x97,
+      0x98, 0xA3, 0xAA, 0xAC), _HELD),
+    ((0x9E, *range(0xB5, 0xBE)), _MAIL),
     (range(0xBF, 0xF3), ItemKind('tm', True, False, 'party')),
     (range(0xF3, 0xFA), ItemKind('hm', True, False, 'party')),
 )
 GEN2_KINDS.pop(0xC3)
 GEN2_KINDS.pop(0xDC)
+# Crystal-only key items. Gold and Silver keep unused placeholders at these IDs.
+GEN2_CRYSTAL_ONLY = frozenset((0x46, 0x73, 0x74, 0x81))
+# Gen 2 items the pack never lets the player toss or sell (pret CANT_TOSS).
+GEN2_KEY_ITEMS = frozenset((0x07, 0x36, 0x37, 0x3A, 0x3B, 0x3D, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x73, 0x74,
+                            0x7F, 0x80, 0x81, 0x82, 0x85, 0x86, 0xAF, 0xB2, *range(0xF3, 0xFA)))
+GEN2_BALLS = frozenset(item for item, kind in GEN2_KINDS.items() if kind.kind == 'ball')
+GEN2_POCKETS = ('items', 'balls', 'key', 'tms_hms')
+# Gen 2 field moves: move ID and the Johto badge bit, None when no badge is needed.
+GEN2_FIELD_MOVES = {'CUT': (15, 1), 'FLY': (19, 4), 'SURF': (57, 3), 'STRENGTH': (70, 2), 'FLASH': (148, 0),
+                    'WHIRLPOOL': (250, 6), 'WATERFALL': (127, 7), 'ROCKSMASH': (249, None),
+                    'HEADBUTT': (29, None)}
+GEN2_HM_MOVES = frozenset((15, 19, 57, 70, 148, 250, 127))
 
 GEN2 = ('gold', 'silver', 'crystal')
 _OTHER = ItemKind('other', False, False, note='not usable')
@@ -123,8 +150,32 @@ def generation(version):
 
 def item_kind(item_id, version=None):
     """The :class:`ItemKind` of an item ID. Unknown IDs are ``other`` and not usable."""
-    table = GEN1_KINDS if generation(version) == 1 else GEN2_KINDS
-    return table.get(item_id, _OTHER)
+    if generation(version) == 1:
+        return GEN1_KINDS.get(item_id, _OTHER)
+    if item_id in GEN2_CRYSTAL_ONLY and getattr(version, 'version', version) != 'crystal':
+        return _OTHER
+    return GEN2_KINDS.get(item_id, _OTHER)
+
+
+def gen2_pocket(item_id, version='crystal'):
+    """The Gen 2 pack pocket of an item ID: items, balls, key or tms_hms."""
+    if tm_number(item_id, version):
+        return 'tms_hms'
+    if item_id in GEN2_BALLS:
+        return 'balls'
+    kind = item_kind(item_id, version).kind
+    if kind in ('key', 'fishing') or (item_id in GEN2_KEY_ITEMS and kind != 'other'):
+        return 'key'
+    return 'items'
+
+
+def key_item(item_id, version=None):
+    """True for items the game never lets the player toss or sell."""
+    if generation(version) == 1:
+        return item_id in GEN1_KEY_ITEMS
+    if item_id in GEN2_CRYSTAL_ONLY and getattr(version, 'version', version) != 'crystal':
+        return False
+    return item_id in GEN2_KEY_ITEMS
 
 
 def tm_number(item_id, version=None):
@@ -173,13 +224,13 @@ def _header(memory):
         return None
 
 
-def _decode_list(memory, anchor, count, key):
+def _decode_list(memory, anchor, count, key, decode=decode_text, banks=64):
     header = _header(memory)
     cache_key = (header, key)
     if header is not None and cache_key in _NAME_CACHE:
         return _NAME_CACHE[cache_key]
     names = {}
-    for data in _rom_banks(memory):
+    for data in _rom_banks(memory, banks):
         start = data.find(anchor)
         if start < 0:
             continue
@@ -188,7 +239,7 @@ def _decode_list(memory, anchor, count, key):
             end = data.find(b'\x50', position)
             if end < 0:
                 break
-            names[index] = decode_text(data[position:end])
+            names[index] = decode(data[position:end])
             position = end + 1
         break
     if header is not None:
@@ -196,17 +247,30 @@ def _decode_list(memory, anchor, count, key):
     return names
 
 
-def item_names(memory, version=None):
-    """{item ID: name} decoded from the English Gen 1 cartridge in memory, or {} when not found.
+def _gen2_decode(raw):
+    from ..gen2.tables import decode_text as gen2_decode
+    return gen2_decode(bytes(raw) + b'\x50').replace('#', 'POKé').replace('<PK>', 'PK').replace('<MN>', 'MN')
 
-    TMs and HMs are named TM01 to TM50 and HM01 to HM05, as the game prints them.
-    Gen 2 names are not decoded yet, so Gen 2 gets machine names only.
+
+def _gen2_anchor(text):
+    from ..gen2.charmap import charmap
+    table = {value: key for key, value in charmap('crystal').items() if len(value) == 1}
+    return bytes(0x50 if char == '@' else table[char] for char in text)
+
+
+def item_names(memory, version=None):
+    """{item ID: name} decoded from the English cartridge in memory, or {} when not found.
+
+    TMs and HMs are named TM01 to TM50 and HM01 to HM05 (HM07 in Gen 2), as the game prints them.
     """
     names = {}
     if generation(version) == 1:
         names.update(_decode_list(memory, _GEN1_ITEM_ANCHOR, 0x53, 'items'))
         candidates = range(0xC4, 0xFB)
     else:
+        names.update({item: name for item, name in _decode_list(
+            memory, _gen2_anchor('MASTER BALL@ULTRA BALL@'), 0xBE, 'gen2-items', _gen2_decode, 128).items()
+            if name and name != 'TERU-SAMA'})
         candidates = range(0xBF, 0xFA)
     for item in candidates:
         number = tm_number(item, version)
@@ -216,7 +280,7 @@ def item_names(memory, version=None):
 
 
 def move_names(memory, version=None):
-    """{move ID: name} decoded from the English Gen 1 cartridge in memory, or {} when not found."""
+    """{move ID: name} decoded from the English cartridge in memory, or {} when not found."""
     if generation(version) != 1:
-        return {}
+        return _decode_list(memory, _gen2_anchor('POUND@KARATE CHOP@'), 251, 'gen2-moves', _gen2_decode, 128)
     return _decode_list(memory, _GEN1_MOVE_ANCHOR, 165, 'moves')

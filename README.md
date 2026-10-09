@@ -402,9 +402,10 @@ mutations with context checks and change receipts. They are never called by
 controller helpers and must not be exposed to benchmark agents. See the
 [API contracts](docs/api.md) for adapter requirements and supported operations.
 
-## Menu shortcuts (0.4.0)
+## Menu shortcuts (0.5.0)
 
-`pokesim_core.shortcuts` drives the game's own menus for Red, Blue and Yellow. Each
+`pokesim_core.shortcuts` drives the game's own menus for Red, Blue, Yellow, Gold,
+Silver and Crystal. Each
 action is a resumable machine: `machine.step(memory, ui)` returns one button, `None`
 (wait) or a final `Done`. It never writes memory. `run(port, machine)` loops it over
 a `ControllerPort`, so every input still goes through your `send` and `choose`.
@@ -429,28 +430,33 @@ without a second attempt when the game refuses, and is bounded by `max_steps`.
 
 | Shortcut | Games | Done means |
 | --- | --- | --- |
-| `use_item(port, item, target, move)` | Red, Blue, Yellow | The bag count dropped or the item's effect showed (heal, status, revive, PP, vitamin, Rare Candy, evolution stone, TM or HM learned, ball thrown, repel, escape item, rod cast, bicycle, Poke Flute). TMs on a full moveset need `forget_move`. |
-| `choose_move(port, slot)` | Red, Blue, Yellow | The turn started with that move selected. |
-| `switch_pokemon(port, slot)` | Red, Blue, Yellow | In battle the new Pokemon is out. Outside battle it is the party lead. |
-| `run_away(port)` | Red, Blue, Yellow | The wild battle ended, or the game said you can't escape. Trainer battles refuse. |
-| `reorder_party(port, first, second)` | Red, Blue, Yellow | The two party slots swapped, outside battle. |
-| `use_field_move(port, move, slot, destination)` | Red, Blue, Yellow | CUT cut the tree, SURF started surfing, STRENGTH is active, FLASH lit the area, FLY landed in `destination`. Badges and known moves are checked first. |
-| `toss_item(port, item, quantity)` | Red, Blue, Yellow | The bag lost `quantity`. Key items refuse. |
-| `buy_item(port, item, quantity)` | Red, Blue, Yellow | The bag gained `quantity`. Starts at the mart's BUY/SELL menu. |
-| `sell_item(port, item, quantity)` | Red, Blue, Yellow | The bag lost `quantity`. Starts at the mart's BUY/SELL menu. |
-| `deposit_pokemon(port, slot)` | Red, Blue, Yellow | The party shrank and the current box grew by one. Starts at the PC menu. |
-| `withdraw_pokemon(port, position)` | Red, Blue, Yellow | The box shrank and the party grew by one. |
-| `release_pokemon(port, position, allow_release=True)` | Red, Blue, Yellow | The box shrank by one. Off unless `allow_release=True`. |
-| `deposit_item(port, item, quantity)` | Red, Blue, Yellow | The bag lost `quantity` into the item PC. |
-| `withdraw_item(port, item, quantity)` | Red, Blue, Yellow | The bag gained `quantity` from the item PC. |
+| `use_item(port, item, target, move)` | All six | The bag count dropped or the item's effect showed (heal, Berry, status, revive, PP, vitamin, Rare Candy, evolution stone, TM or HM learned, ball thrown, repel, escape item, rod cast, bicycle, Poke Flute). Gen 2 turns to the right pocket first. TMs on a full moveset need `forget_move`. |
+| `give_item(port, item, slot, swap=False)` | Gold, Silver, Crystal | The Pokemon holds `item`. Replacing a held item needs `swap=True`. Mail refuses. |
+| `take_item(port, slot)` | Gold, Silver, Crystal | The held item is back in the pack. |
+| `choose_move(port, slot)` | All six | The turn started with that move selected. |
+| `switch_pokemon(port, slot)` | All six | In battle the new Pokemon is out, also from the "change Pokemon?" prompt. Outside battle it is the party lead. |
+| `run_away(port)` | All six | The wild battle ended, or the game said you can't escape. Trainer battles refuse. |
+| `reorder_party(port, first, second)` | All six | The two party slots swapped, outside battle. |
+| `use_field_move(port, move, slot, destination)` | All six | CUT cut the tree, SURF started surfing, STRENGTH is active, FLASH lit the area, FLY landed in `destination`. Gen 2 adds WHIRLPOOL, WATERFALL, ROCK SMASH and HEADBUTT. Badges and known moves are checked first. |
+| `toss_item(port, item, quantity)` | All six | The bag lost `quantity`. Key items refuse. |
+| `buy_item(port, item, quantity)` | All six | The bag gained `quantity`. Starts at the mart's BUY/SELL menu. |
+| `sell_item(port, item, quantity)` | All six | The bag lost `quantity`. Starts at the mart's BUY/SELL menu. |
+| `deposit_pokemon(port, slot)` | All six | The party shrank and the current box grew by one. Starts at the PC menu. |
+| `withdraw_pokemon(port, position)` | All six | The box shrank and the party grew by one. |
+| `release_pokemon(port, position, allow_release=True)` | All six | The box shrank by one. Off unless `allow_release=True`. |
+| `deposit_item(port, item, quantity)` | All six | The bag lost `quantity` into the item PC. |
+| `withdraw_item(port, item, quantity)` | All six | The bag gained `quantity` from the item PC. |
 
 Read-only queries: `list_items`, `list_party`, `list_moves`, `list_box` and
-`current_screen`. They work on Gen 1 and read Gen 2 memory too. Slots, positions and
-move indexes are zero based. Items are IDs or cartridge names.
+`current_screen`. Slots, positions and move indexes are zero based. Items are IDs or
+cartridge names. Gen 2 `list_items` names every item from the cartridge and gives its
+pocket.
 
-Gold, Silver and Crystal are not supported yet. Every action returns
-"Not supported in Gen 2 yet. No input sent." without pressing anything, and
-`current_screen` returns `unsupported` there.
+On Gold, Silver and Crystal the screen comes from the tilemap and menu bytes, so
+`current_screen` also names the bag, quantity box, item PC, Bill's PC lists, mart list
+and the battle switch prompt. `run` resolves menu choices into single buttons there
+and only calls `port.send`, never `port.choose`. Mail and the Bill's PC box change
+are not covered.
 
 ## Local integration validation
 
