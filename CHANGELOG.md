@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1
+
+### Fixed
+
+- `use_item` with a fishing rod waits on the overworld while the line is cast. Gen 2 closes
+  the pack before "Not even a nibble!" or "Oh! A bite!" prints, so every rod used to stop with
+  "returned without a confirmed effect". A cast that never prints a message still stops
+  without a second cast.
+- Waiting for an item's effect on the overworld no longer presses A there, where it could
+  talk to someone or offer SURF.
+
 ## 0.6.0
 
 ### Added
