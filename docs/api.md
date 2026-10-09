@@ -2,7 +2,7 @@
 
 The Python import is `pokesim_core`. The distribution and repository are
 `pokesim-core`. `__version__` identifies the package release and `API_VERSION`
-identifies the major data contract. It is 1 in every 0.1.x release, in 0.2.0 and in 0.3.0,
+identifies the major data contract. It is 1 in every 0.1.x release and in 0.2.0, 0.3.0 and 0.4.0,
 and changes only for an incompatible change to documented field shapes.
 
 ## ROM module
@@ -177,15 +177,20 @@ frame budgets and record every input. No helper bypasses these callbacks.
 continue-only dialogue, never a choice. The default waits without confirming.
 `choose` selects only the supplied visible label and must also be bounded.
 
-- `use_item(port, item_id, party_slot)` supports status cures, potions, revives
-  and Elixers. It does not choose a target, use balls, teach moves or select PP
-  targets. Missing items and invalid slots produce no input. Slots are zero based.
-- `switch_pokemon(port, party_slot)` switches a battler or rearranges the field
-  party lead. Fainted or already active battle targets are rejected.
+- `use_item(port, item, target=None, move=None)` uses any bag item through
+  `shortcuts.UseItem`. `item_id=` and `party_slot=` are accepted as aliases.
+- `switch_pokemon(port, party_slot)` switches a battler or makes the field party
+  lead. Fainted or already active battle targets are rejected.
 - Both return `outcome` and, once validated, `shortcut` metadata. `completed`
   records the observed effect, even if the controller budget expires during
-  cleanup. `item_consumed` reports a verified bag decrement, not a promise of
-  a particular HP change. No unconfirmed effect is repeated automatically.
+  cleanup. `settled` records that the screen reached rest after it.
+  `item_consumed` reports a verified bag decrement. No unconfirmed effect is
+  repeated automatically.
+- `ControllerPort.version` names the game (`red`, `blue`, `yellow`, `gold`,
+  `silver`, `crystal`, or None for Red and Blue). `read_party`, `read_bag` and
+  `panel` may be replaced. A port with its own `panel` should also supply
+  `continue_ready`, or text is pressed only after it has stayed the same for two
+  steps.
 - `naming.name_step(rows, cursor, name, limit=10)` returns a `ButtonAction` or
   None outside the keyboard. It reads back partial text and corrects mismatches.
 - `naming.enter_name(port, name, limit=10, max_actions=256)` drives a supplied
@@ -198,7 +203,37 @@ continue-only dialogue, never a choice. The default waits without confirming.
 Menu macros have a 200-iteration ceiling in addition to the consumer's frame
 budget. They do not own threads, emulator lifecycle, logging, replay or locks.
 Call them only with exclusive access to the emulator. All helpers support the
-verified English Red/Blue layouts, not ROM hacks or other generations.
+verified English Red, Blue and Yellow layouts, not ROM hacks. Gen 2 actions refuse.
+
+## Menu shortcuts
+
+`pokesim_core.shortcuts` holds one class per action (`UseItem`, `ChooseMove`,
+`SwitchPokemon`, `RunAway`, `ReorderParty`, `FieldMove`, `TossItem`, `BuyItem`,
+`SellItem`, `DepositPokemon`, `WithdrawPokemon`, `ReleasePokemon`, `DepositItem`,
+`WithdrawItem`) and a function of the same name in snake case that runs it on a port.
+
+- `machine.step(memory, ui=None)` returns a button name, None to wait, or `Done`.
+  `ui` may carry `screen` (overrides `current_screen`), `continue_ready` (bool) and
+  `sp` (the CPU stack pointer, used to find the text wait routine). After a `Done`
+  every further call returns the same `Done`.
+- `Done` has `outcome`, `completed`, `settled` and `details`. The port functions
+  return it as `{'outcome': ..., 'shortcut': {'kind', 'completed', 'settled', ...}}`.
+- Constructor options: `version`, `read_party`, `read_bag`, `labels` and
+  `max_steps` (default 600 steps).
+- `run(port, machine)` presses a button with `send(button, 8, 24)` then waits
+  `send(None, 12, 0)`, waits with `send(None, 30, 0)`, and turns a pending menu
+  choice into cursor presses. `drive(machine, emulator)` does the same on a Core
+  emulator.
+- Shortcuts never write memory and never press A on a YES/NO prompt they were not
+  asked to answer. Nickname prompts get NO. Move learning follows `forget_move`
+  (a move index, or `'keep'`).
+- Queries: `list_items(memory, version=None, labels=None)`, `list_party(memory,
+  version=None)`, `list_moves(memory, slot, version=None)`, `list_box(memory,
+  box=None, version=None)` and `current_screen(memory, version=None)`. Screen names
+  are in `shortcuts.SCREENS`.
+
+Gen 2 gaps: every action refuses before input, `current_screen` returns
+`unsupported`, and Gen 2 item names come only for TMs and HMs.
 
 ## Cached readers
 
