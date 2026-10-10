@@ -402,7 +402,7 @@ mutations with context checks and change receipts. They are never called by
 controller helpers and must not be exposed to benchmark agents. See the
 [API contracts](docs/api.md) for adapter requirements and supported operations.
 
-## Menu shortcuts (0.6.0)
+## Menu shortcuts (0.7.0)
 
 `pokesim_core.shortcuts` drives the game's own menus for Red, Blue, Yellow, Gold,
 Silver and Crystal. Each
@@ -420,7 +420,11 @@ machine = shortcuts.RunAway()                     # or step it yourself
 action = machine.step(memory, {'sp': sp})
 ```
 
-Every result has `outcome` and `shortcut` with `kind`, `completed` and `settled`.
+Every result has `outcome` and `shortcut` with `kind`, `completed`, `settled`,
+`stop_reason` and `can_continue`. `stop_reason` says why the command stopped (one of
+`shortcuts.STOP_REASONS`, such as `completed`, `refused`, `budget`, `choice` or
+`blocked`). `can_continue` is true when the screen came to rest, so the next command
+can start without inspecting it first.
 `completed` means the effect was seen in memory. `settled` means the screen reached
 rest afterwards: the overworld, or the menu the shortcut started from (pause, mart,
 PC), or in battle the battle menu, the move menu, a forced switch or the end of the
@@ -449,6 +453,8 @@ without a second attempt when the game refuses, and is bounded by `max_steps`.
 | `withdraw_item(port, item, quantity)` | All six | The bag gained `quantity` from the item PC. |
 | `change_box(port, box)` | All six | `box` is the current box. The game saves as part of the change. Starts at the PC menu. |
 | `delete_move(port, slot, move_slot)` | Gold, Silver, Crystal | The Move Deleter made the Pokemon forget that move. Starts at the Move Deleter's greeting. |
+| `advance_dialogue(port)` | All six | Text was advanced to a choice (`stop_reason='choice'`, with `screen` and `choices`) or to its end (`'text_end'`). `lines` and `text` hold the conversation. Choices are never answered. |
+| `walk(port, direction, tiles=1)` | All six | The player moved `tiles` tiles toward `direction`. It stops early with `blocked`, `battle`, `map_change` or `dialogue` and reports `tiles_moved`, `start`, `end` and `facing`. A ledge hop counts two tiles. On a bicycle a tap can move further than one tile. |
 
 Read-only queries: `list_items`, `list_party`, `list_moves`, `list_box` and
 `current_screen`. Slots, positions and move indexes are zero based. Items are IDs or
@@ -459,6 +465,17 @@ On Gold, Silver and Crystal the screen comes from the tilemap and menu bytes, so
 `current_screen` also names the bag, quantity box, item PC, Bill's PC lists, mart list
 and the battle switch prompt. `run` resolves menu choices into single buttons there
 and only calls `port.send`, never `port.choose`. Mail is not covered.
+
+`shortcuts.describe()` lists every command as JSON-ready data: arguments as a JSON
+Schema object, the screens it can start from, whether it needs or rules out a battle,
+and the games it runs on. `describe(version='red')` keeps the commands that game
+supports, so a consumer can build its tool list from it. Which commands to offer, and
+any budgets or scoring, stay in the consumer.
+
+```python
+tools = [{'name': c['name'], 'description': c['summary'], 'input_schema': c['arguments']}
+         for c in shortcuts.describe(version='crystal')]
+```
 
 A caught Pokemon's nickname prompt is answered NO by default. Pass `nickname='caller'`
 to `use_item` (or any shortcut) to stop at that prompt instead. The result is then

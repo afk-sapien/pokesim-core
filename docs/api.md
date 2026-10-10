@@ -211,14 +211,45 @@ also cover English Gold, Silver and Crystal.
 `pokesim_core.shortcuts` holds one class per action (`UseItem`, `ChooseMove`,
 `SwitchPokemon`, `RunAway`, `ReorderParty`, `FieldMove`, `TossItem`, `BuyItem`,
 `SellItem`, `DepositPokemon`, `WithdrawPokemon`, `ReleasePokemon`, `DepositItem`,
-`WithdrawItem`, and for Gen 2 `GiveItem` and `TakeItem`) and a function of the same name in snake case that runs it on a port.
+`WithdrawItem`, `ChangeBox`, `LearnMove`, `AdvanceDialogue`, `Walk`, and for Gen 2
+`GiveItem`, `TakeItem` and `DeleteMove`) and a function of the same name in snake case
+that runs it on a port.
 
 - `machine.step(memory, ui=None)` returns a button name, None to wait, or `Done`.
   `ui` may carry `screen` (overrides `current_screen`), `continue_ready` (bool) and
   `sp` (the CPU stack pointer, used to find the text wait routine). After a `Done`
   every further call returns the same `Done`.
-- `Done` has `outcome`, `completed`, `settled` and `details`. The port functions
-  return it as `{'outcome': ..., 'shortcut': {'kind', 'completed', 'settled', ...}}`.
+- `Done` has `outcome`, `completed`, `settled`, `details` and `reason` (a `StopReason`).
+  `done.stop_reason` fills in a reason when none was set and `done.can_continue` is
+  `settled`. The port functions return it as `{'outcome': ..., 'shortcut': {'kind',
+  'completed', 'settled', 'stop_reason', 'can_continue', ...}}`.
+- Stop reasons (`shortcuts.STOP_REASONS`): `completed` (the effect happened and the
+  screen settled), `prompt` (stopped at a game prompt for the caller), `unsettled` (the
+  effect happened but the screen did not settle), `refused` (refused before any input),
+  `game_refused` (the game refused the action), `no_effect` (no effect showed),
+  `no_response` (a menu did not respond), `budget` (`max_steps` or the controller
+  budget ran out), `stopped` (the screen stopped changing, or a script kept the
+  controls), `choice` and `text_end` (`advance_dialogue`), and `blocked`, `battle`,
+  `map_change` and `dialogue` (`walk`). `can_continue` is false only when the screen
+  did not settle.
+- `AdvanceDialogue(quiet=4, patience=120)` presses A only when the text-wait check
+  says the game waits to continue. It stops at any screen that waits for a menu
+  answer, or after `quiet` observations of the overworld with no script holding the
+  controls (Gen 1 `wJoyIgnore` or `wStatusFlags5` bit 7, Gen 2 `wScriptRunning`).
+  Details: `lines`, `text`, `truncated`, and at a choice `screen` and `choices`.
+- `Walk(direction, tiles=1, patience=4)` taps `direction` once per tile and reads the
+  map and coordinates (Gen 1 `wCurMap`, `wXCoord`, `wYCoord`, Gen 2 `wMapGroup`,
+  `wMapNumber`, `wXCoord`, `wYCoord`). A tap that only turns the player is followed by
+  another, and a dropped tap is retried once before the way counts as blocked. After a
+  map change it waits for the fade and the entry script. Details: `direction`,
+  `requested`, `tiles_moved`, `start`, `end` (each `{'map', 'x', 'y'}`, a Gen 2 map is
+  `[group, number]`) and `facing`.
+- `describe(name=None, version=None)` returns plain JSON data per command: `name`,
+  `machine`, `summary`, `generations`, `arguments` (a JSON Schema object), `options`
+  (`max_steps`, `nickname`), `start` (`screens`, `battle` as `any`, `required` or
+  `forbidden`, and an optional `note`, plus `battle_screens` for commands that also
+  run in battle) and `returns` (extra result keys and their types).
+  `result_schema()` describes the common result dict.
 - Constructor options: `version`, `read_party`, `read_bag`, `labels` and
   `max_steps` (default 600 steps).
 - `run(port, machine)` presses a button with `send(button, 8, 24)` then waits

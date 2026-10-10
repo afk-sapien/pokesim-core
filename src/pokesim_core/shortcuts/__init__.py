@@ -11,10 +11,13 @@ from ..controls import machine_options, switch_pokemon, use_item
 from .actions import (BuyItem, ChangeBox, ChooseMove, DeleteMove, DepositItem, DepositPokemon, FieldMove, GiveItem,
                       LearnMove, ReleasePokemon, ReorderParty, TakeItem, RunAway, SellItem, SwitchPokemon, TossItem,
                       UseItem, WithdrawItem, WithdrawPokemon)
+from .catalog import describe, result_schema
+from .dialogue import AdvanceDialogue
 from .items import ItemKind, item_kind, item_names, move_names, tm_number
-from .machine import Abort, Choose, Done, Shortcut, drive, run
+from .machine import STOP_REASONS, Abort, Choose, Done, Shortcut, StopReason, drive, run
 from .queries import current_screen, list_box, list_items, list_moves, list_party
 from .screens import SCREENS, continue_ready
+from .walk import Walk
 
 
 def _run(port, cls, *args, **options):
@@ -93,7 +96,6 @@ def take_item(port, slot, **options):
     return _run(port, TakeItem, slot, **options)
 
 
-
 def learn_move(port, forget, **options):
     """Answer the learn-a-new-move prompt on screen: forget move slot ``forget`` (0 to 3), or ``'keep'``."""
     return _run(port, LearnMove, forget, **options)
@@ -109,11 +111,23 @@ def delete_move(port, slot, move_slot, **options):
     return _run(port, DeleteMove, slot, move_slot, **options)
 
 
-__all__ = ['Abort', 'BuyItem', 'ChangeBox', 'Choose', 'ChooseMove', 'DeleteMove', 'DepositItem', 'DepositPokemon',
-           'Done', 'FieldMove', 'GiveItem', 'ItemKind', 'LearnMove', 'ReleasePokemon', 'ReorderParty', 'RunAway',
-           'SCREENS', 'SellItem', 'Shortcut', 'SwitchPokemon', 'TakeItem', 'TossItem', 'UseItem', 'WithdrawItem',
-           'WithdrawPokemon', 'buy_item', 'change_box', 'choose_move', 'continue_ready', 'current_screen',
-           'delete_move', 'deposit_item', 'deposit_pokemon', 'drive', 'give_item', 'item_kind', 'item_names',
-           'learn_move', 'list_box', 'list_items', 'list_moves', 'list_party', 'move_names', 'release_pokemon',
-           'reorder_party', 'run', 'run_away', 'sell_item', 'switch_pokemon', 'take_item', 'tm_number', 'toss_item',
-           'use_field_move', 'use_item', 'withdraw_item', 'withdraw_pokemon']
+def advance_dialogue(port, **options):
+    """Advance text and collect it. Stops at a choice or menu, or once the text ends and the player has control."""
+    return _run(port, AdvanceDialogue, **options)
+
+
+def walk(port, direction, tiles=1, **options):
+    """Walk up to ``tiles`` tiles toward ``direction``. Stops early at an obstacle, a battle, a map change or text."""
+    return _run(port, Walk, direction, tiles, **options)
+
+
+__all__ = ['Abort', 'AdvanceDialogue', 'BuyItem', 'ChangeBox', 'Choose', 'ChooseMove', 'DeleteMove', 'DepositItem',
+           'DepositPokemon', 'Done', 'FieldMove', 'GiveItem', 'ItemKind', 'LearnMove', 'ReleasePokemon',
+           'ReorderParty', 'RunAway', 'SCREENS', 'STOP_REASONS', 'SellItem', 'Shortcut', 'StopReason',
+           'SwitchPokemon', 'TakeItem', 'TossItem', 'UseItem', 'Walk', 'WithdrawItem', 'WithdrawPokemon',
+           'advance_dialogue', 'buy_item', 'change_box', 'choose_move', 'continue_ready', 'current_screen',
+           'delete_move', 'deposit_item', 'deposit_pokemon', 'describe', 'drive', 'give_item', 'item_kind',
+           'item_names', 'learn_move', 'list_box', 'list_items', 'list_moves', 'list_party', 'move_names',
+           'release_pokemon', 'reorder_party', 'result_schema', 'run', 'run_away', 'sell_item', 'switch_pokemon',
+           'take_item', 'tm_number', 'toss_item', 'use_field_move', 'use_item', 'walk', 'withdraw_item',
+           'withdraw_pokemon']
