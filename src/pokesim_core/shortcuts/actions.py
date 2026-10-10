@@ -10,7 +10,7 @@ from ..gen1_ui import read_battler, read_screen
 from . import gen2ui
 from .items import (GEN1_FIELD_MOVES, GEN1_HM_MOVES, GEN2_FIELD_MOVES, GEN2_HM_MOVES, gen2_pocket, generation,
                     item_kind, item_names, key_item, tm_number)
-from .machine import NO_RESPONSE, Abort, Choose, Done, Shortcut
+from .machine import NO_RESPONSE, Abort, Choose, Done, Shortcut, StopReason
 from .screens import fly_destination, menu_rows, normalize
 
 BICYCLE, POKE_FLUTE, ITEMFINDER, COIN_CASE = 0x06, 0x49, 0x47, 0x45
@@ -135,8 +135,9 @@ class GameShortcut(Shortcut):
 
     def no_effect(self):
         if self.refusal:
-            raise Abort(f'The game refused: {self.refusal}')
-        raise Abort('Requested selection returned without a confirmed effect. No second use attempted.')
+            raise Abort(f'The game refused: {self.refusal}', reason=StopReason.GAME_REFUSED)
+        raise Abort('Requested selection returned without a confirmed effect. No second use attempted.',
+                    reason=StopReason.NO_EFFECT)
 
     def commit_wait(self, stay, limit=120, patience=12):
         """After the committing press, pass text and prompts until the effect is seen.
@@ -155,9 +156,10 @@ class GameShortcut(Shortcut):
                 if answer is None and self.details.get('pending') == 'nickname':
                     # The game asks for a nickname only after a catch.
                     raise Abort(self.success_outcome() + ' Stopped at the nickname prompt for the caller to answer.',
-                                cleanup=False, completed=True, **self.details)
+                                cleanup=False, completed=True, reason=StopReason.PROMPT, **self.details)
                 if answer is None:
-                    raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False)
+                    raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False,
+                                reason=StopReason.PROMPT)
                 yield Choose(answer)
             elif screen == 'move_list' and isinstance(self.learn_choice(), int):
                 yield from self.pick_move(self.learn_choice(), learn=True)
@@ -169,7 +171,7 @@ class GameShortcut(Shortcut):
                 yield 'a' if self.obs.ready and screen != 'overworld' else None
             else:
                 self.no_effect()
-        raise Abort('Menu did not respond. Stopped without repeating the requested effect.')
+        raise Abort(NO_RESPONSE)
 
     def open_bag(self, item=None):
         """Open the bag. In Gen 2, also turn to the pocket that holds ``item``."""
@@ -256,7 +258,7 @@ class GameShortcut(Shortcut):
                 yield 'down'
             else:
                 yield 'up' if here < quantity else 'down'
-        raise Abort('Menu did not respond. Stopped without repeating the requested effect.')
+        raise Abort(NO_RESPONSE)
 
     def resolve_item(self, item):
         if isinstance(item, int):
@@ -411,7 +413,7 @@ class UseItem(GameShortcut):
 
     def no_effect(self):
         if self.forget_move == 'keep' and 'DIDNOTLEARN' in normalize(' '.join(self.recent)):
-            raise Abort('Kept the old moves as requested. The machine was not used.')
+            raise Abort('Kept the old moves as requested. The machine was not used.', reason=StopReason.NO_EFFECT)
         super().no_effect()
 
     def cast_wait(self):
