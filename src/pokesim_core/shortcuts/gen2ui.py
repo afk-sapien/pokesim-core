@@ -122,15 +122,20 @@ def text_box(view):
     Bill's PC prints in a one-line box on rows 15 to 17. The mart money box or a
     YES/NO box can overlap a corner, so rows without both side bars are skipped.
     """
+    return ' '.join(text_box_lines(view))
+
+
+def text_box_lines(view):
+    """The non-blank lines of the bottom text box, as ``text_box`` finds it, or [] with no box."""
     if view.tile(0, 17) != BOX_BL:
-        return ''
+        return []
     top = next((y for y in (12, 14, 15) if view.tile(0, y) in (BOX_TL, BOX_V)
                 and view.tile(19, y) in (BOX_TR, BOX_BR)), None)
     if top is None:
-        return ''
+        return []
     rows = [y for y in range(top + 1, 17) if view.tile(0, y) == BOX_V and view.tile(19, y) == BOX_V]
     lines = [' '.join(tile_text(view, 1, 19, y).split()) for y in rows]
-    return ' '.join(line for line in lines if line)
+    return [line for line in lines if line]
 
 
 def cursors(view, tile=CURSOR):

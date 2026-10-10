@@ -17,10 +17,15 @@ menu it started from) outside battle, or the battle menu, the move menu, a
 YES/NO switch prompt or the forced-switch party screen in battle. If the game
 never settles within the step budget, the result is ``completed=True`` and
 ``settled=False``. A machine never reports success it did not observe.
+
+Every :class:`Done` also carries a :class:`StopReason` and ``can_continue``.
+The reason says why the machine stopped. ``can_continue`` says whether the game
+rests at a known screen, so the caller may start another command at once.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from enum import Enum
 
 from .. import gen1
 from ..gen1_ui import read_screen
@@ -54,16 +59,66 @@ REFUSALS = ('ISNTTHETIME', 'NOCYCLING', 'WONTHAVEANYEFFECT', 'NOTCOMPATIBLE', 'B
 NICKNAME_ANSWERS = ('no', 'caller')
 
 
+class StopReason(str, Enum):
+    """Why a shortcut stopped. The value is the string that goes into result dicts.
+
+    Shared by every machine, so a consumer can branch on one field.
+    """
+    COMPLETED = 'completed'        # the requested effect happened and the game rests
+    PROMPT = 'prompt'              # stopped at a game prompt left for the caller
+    UNSETTLED = 'unsettled'        # the effect happened, but the screen never came to rest
+    REFUSED = 'refused'            # refused before any input: bad state or arguments
+    GAME_REFUSED = 'game_refused'  # the game printed a refusal
+    NO_EFFECT = 'no_effect'        # inputs went out but no effect was observed
+    NO_RESPONSE = 'no_response'    # a menu stopped reacting to input
+    BUDGET = 'budget'              # the step budget or the controller ran out
+    STOPPED = 'stopped'            # stopped for another observed reason, see the outcome
+    CHOICE = 'choice'              # dialogue reached a menu or a YES/NO choice
+    TEXT_END = 'text_end'          # dialogue closed and control returned to the player
+    BLOCKED = 'blocked'            # the player could not step further
+    BATTLE = 'battle'              # a battle started
+    MAP_CHANGE = 'map_change'      # the player left the map
+    DIALOGUE = 'dialogue'          # text or a menu opened while walking
+
+
+STOP_REASONS = tuple(reason.value for reason in StopReason)
+
+
 @dataclass(frozen=True)
 class Done:
-    """Final result of a shortcut. ``completed`` means the requested effect was observed."""
+    """Final result of a shortcut. ``completed`` means the requested effect was observed.
+
+    ``reason`` is a :class:`StopReason`. When it is left out, ``stop_reason`` derives one
+    from the other fields. ``can_continue`` is True when the game rests at a known
+    screen, so another command can safely start.
+    """
     outcome: str
     completed: bool = False
     settled: bool = True
     details: dict = field(default_factory=dict)
+    reason: StopReason | None = None
+
+    @property
+    def stop_reason(self):
+        if self.reason is not None:
+            return StopReason(self.reason)
+        if self.completed:
+            if not self.settled:
+                return StopReason.UNSETTLED
+            return StopReason.PROMPT if self.details.get('pending') else StopReason.COMPLETED
+        if self.outcome == STOP_OUTCOME:
+            return StopReason.BUDGET
+        if self.outcome == NO_RESPONSE:
+            return StopReason.NO_RESPONSE
+        return StopReason.STOPPED
+
+    @property
+    def can_continue(self):
+        return bool(self.settled)
 
     def as_result(self, kind, **extra):
-        shortcut = {'kind': kind, 'completed': self.completed, 'settled': self.settled, **extra, **self.details}
+        shortcut = {'kind': kind, 'completed': self.completed, 'settled': self.settled, **extra, **self.details,
+                    'stop_reason': self.stop_reason.value, 'can_continue': self.can_continue}
         return {'outcome': self.outcome, 'shortcut': shortcut}
 
 
@@ -76,9 +131,11 @@ class Choose:
 class Abort(Exception):
     """Stop the flow with an outcome. ``cleanup`` backs out of menus first."""
 
-    def __init__(self, outcome, cleanup=True, completed=False, **details):
+    def __init__(self, outcome, cleanup=True, completed=False, *, reason=None, **details):
         super().__init__(outcome)
-        self.done = Done(outcome, completed, True, details)
+        if reason is None and outcome == NO_RESPONSE:
+            reason = StopReason.NO_RESPONSE
+        self.done = Done(outcome, completed, True, details, reason)
         self.cleanup = cleanup
 
 
@@ -181,13 +238,13 @@ class Shortcut:
     def success(self, settled=True):
         details = dict(self.details)
         if settled is True:
-            return Done(self.success_outcome(), True, True, details)
+            return Done(self.success_outcome(), True, True, details, StopReason.COMPLETED)
         if settled == 'prompt':
             details['pending'] = self.details.get('pending', 'prompt')
             return Done(self.success_outcome() + ' Stopped at a game prompt for the caller to answer.',
-                        True, True, details)
+                        True, True, details, StopReason.PROMPT)
         return Done(self.success_outcome() + ' The effect happened, but the screen did not settle. '
-                    'Inspect current state before continuing.', True, False, details)
+                    'Inspect current state before continuing.', True, False, details, StopReason.UNSETTLED)
 
     # Observation -----------------------------------------------------------
     def observe(self, memory, ui=None):
@@ -296,12 +353,13 @@ class Shortcut:
             try:
                 self.validate(obs)
             except Abort as abort:
-                return self._finish(abort.done)
+                done = abort.done
+                return self._finish(done if done.reason else replace(done, reason=StopReason.REFUSED))
             self._flow = self.flow()
         if self.steps > self.max_steps:
             if self.effect_seen:
                 return self._finish(self.success(False))
-            return self._finish(Done(STOP_OUTCOME, False, False, dict(self.details)))
+            return self._finish(Done(STOP_OUTCOME, False, False, dict(self.details), StopReason.BUDGET))
         if obs.screen not in ('overworld', 'transition'):
             self._note_refusal(obs)
         if not self.effect_seen and self.effect(obs):
@@ -320,7 +378,8 @@ class Shortcut:
                 done = stop.value
                 if not isinstance(done, Done):
                     done = self.success(True) if self.effect_seen else Done(
-                        'Requested selection returned without a confirmed effect. No second use attempted.')
+                        'Requested selection returned without a confirmed effect. No second use attempted.',
+                        reason=StopReason.NO_EFFECT)
                 return self._finish(done)
             except Abort as abort:
                 if abort.cleanup and self.inputs:
@@ -331,11 +390,15 @@ class Shortcut:
 
     def _cleanup(self, done):
         settled = yield from self.settle(limit=80, answer_prompts=False)
-        return Done(done.outcome, done.completed, settled is not False, done.details)
+        return replace(done, settled=settled is not False)
 
     def _finish(self, done):
         if self.effect_seen and not done.completed:
-            done = Done(done.outcome, True, done.settled, done.details)
+            done = replace(done, completed=True)
+        if done.reason is None and not done.completed and not self.inputs:
+            done = replace(done, reason=StopReason.REFUSED)
+        if done.reason is None:
+            done = replace(done, reason=done.stop_reason)
         self.result = done
         return done
 
@@ -361,7 +424,8 @@ class Shortcut:
         self._choose_tries += 1
         if self._choose_tries > 24:
             self._choosing = None
-            return self._finish(Done(f'Could not select {label}. Stopped.', False, False, dict(self.details)))
+            return self._finish(Done(f'Could not select {label}. Stopped.', False, False, dict(self.details),
+                                     StopReason.NO_RESPONSE))
         cursor = tuple(obs.cursor) if obs.cursor else None
         wanted = normalize(label)
         if self.gen == 2:
@@ -598,7 +662,7 @@ def run(port, machine, **extra):
     memory = port.memory
     while True:
         if port.stopped():
-            done = machine._finish(Done(STOP_OUTCOME, False, False, dict(machine.details)))
+            done = machine._finish(Done(STOP_OUTCOME, False, False, dict(machine.details), StopReason.BUDGET))
             break
         ui = runner_ui(port, memory)
         # Gen 2 menus are resolved to single buttons here, since a port's choose reads Gen 1 menus.
@@ -610,7 +674,7 @@ def run(port, machine, **extra):
             machine.inputs += 1
             if not port.choose(action.label):
                 done = machine._finish(Done('Controller stopped before confirming the requested effect.',
-                                            False, False, dict(machine.details)))
+                                            False, False, dict(machine.details), StopReason.BUDGET))
                 break
             continue
         if action is None:
@@ -620,7 +684,7 @@ def run(port, machine, **extra):
                 machine.inputs += 1
             ok = port.send(action, 8, 24) and port.send(None, 12, 0)
         if not ok:
-            done = machine._finish(Done(STOP_OUTCOME, False, False, dict(machine.details)))
+            done = machine._finish(Done(STOP_OUTCOME, False, False, dict(machine.details), StopReason.BUDGET))
             break
     return done.as_result(machine.kind, **{**machine.result_fields(), **extra})
 

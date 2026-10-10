@@ -1,4 +1,4 @@
 """Dependency-free shared game primitives, with an optional emulator adapter."""
 
-__version__ = "0.6.1"
+__version__ = "0.7.0"
 API_VERSION = 1

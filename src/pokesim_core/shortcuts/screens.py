@@ -75,6 +75,18 @@ def text_lines(memory):
     return ' '.join(out)
 
 
+def text_rows(memory):
+    """The lines inside the framed bottom text box (rows 13 to 16), or [] when no box is framed there.
+
+    Blank lines are left out and contractions are spelled out. ``memory`` is Red layout.
+    """
+    raw = bytes(memory[W_TILEMAP:W_TILEMAP + 360])
+    if raw[12 * 20] != 0x79:
+        return []
+    lines = (' '.join(tile_text(raw[row * 20 + 1:row * 20 + 19]).split()) for row in range(13, 17))
+    return [line for line in lines if line]
+
+
 def screen_words(memory):
     """All visible tilemap text normalized to capital letters and digits, for marker checks."""
     return normalize(' '.join(read_screen(memory)['rows']))

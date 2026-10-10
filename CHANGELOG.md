@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.0
+
+### Added
+
+- `advance_dialogue` (`AdvanceDialogue`) advances printed text on all six games and
+  returns the whole conversation in `lines` and `text`. It presses A only when Core's
+  text-wait check says the game waits to continue, and it stops at the first choice or
+  menu (YES/NO, multiple choice, the battle menu) with `screen` and `choices`, or once the
+  text box closes and the player has control again. It never answers a choice.
+- `walk` (`Walk`) walks up to `tiles` tiles in one direction on all six games. A tap that
+  only turns the player is followed by another. It stops early when the player cannot
+  move, when a battle starts, when the map changes, or when text or a menu opens. The
+  result gives `tiles_moved`, `start`, `end` and `facing`. There is no route finding.
+- Every result's `shortcut` dict now has `stop_reason` and `can_continue`.
+  `stop_reason` is one of `shortcuts.STOP_REASONS` (the `StopReason` enum): `completed`,
+  `prompt`, `unsettled`, `refused`, `game_refused`, `no_effect`, `no_response`, `budget`,
+  `stopped`, `choice`, `text_end`, `blocked`, `battle`, `map_change` or `dialogue`.
+  `can_continue` says whether another command can start without inspecting the screen
+  first. `Done` gained the matching `reason` field and properties.
+- `shortcuts.describe(name=None, version=None)` describes every command as plain JSON
+  data: its arguments as a JSON Schema object, the common options, the start
+  preconditions (screens, and whether a battle is required or ruled out), the games it
+  runs on and the result keys it adds. `shortcuts.result_schema()` describes the result
+  dict every command returns. Which commands to offer stays the consumer's choice.
+
 ## 0.6.1
 
 ### Fixed
