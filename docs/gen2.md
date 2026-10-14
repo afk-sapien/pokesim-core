@@ -76,3 +76,30 @@ never changed and nothing is written beside the ROM.
 - `gen1_save.export(rom, state)` and `verify(rom, save, symbols, expected)` accept the
   verified English Red, Blue and Yellow builds (`symbols_for(rom)`). Yellow runs on
   `YellowEmulator`, so `progress(memory, symbols)` reads Red addresses on all three.
+
+## Map collision and ice
+
+`gen2.maps` says where the game lets the player walk. Route planning stays with the
+consumer. Grids are one collision byte per tile, row by row, and each `data.maps` entry
+needs `constant`, `width`, `height`, `collision`, `block_collision` and `objects`.
+
+- `collision(memory, data, snapshot)` decodes the loaded map from `wOverworldMapBlocks`, so it
+  shows the blocks the game has swapped in (the bedroom's bed and PC, opened doors, pushed
+  boulders), then applies `travel_collision`. Each call decodes again and returns a new list.
+  `decode_blocks(blocks, width, height, table)` is the same decode on bytes already read.
+- `passable(data, tile, surf=False)` reads the low nibble of `data.permissions`: 0 walks, 1 surfs.
+- `side_blocked(tile, direction)` (also `blocked_side`) is a one-sided wall from `WALLS`.
+- `move(grid, width, height, point, button, enter, solid=(), stop=())` is where one step ends,
+  sliding across `ICE` tiles, or None when the first tile cannot be entered. `slide` continues
+  a slide from the tile just entered. `enter(tile)` says whether a tile can be walked on,
+  `solid` holds tiles taken by objects and a tile in `stop` (a warp, a goal) ends the slide.
+- `travel_collision(data, snapshot, map_id, grid)` adds the walls story flags and items clear:
+  the Route 36 Sudowoodo, the Vermilion Snorlax, the Route 19 rocks, the Victory Road gate
+  guards and the bike-only Route 16 and 17 gates.
+- `event_changes(data, snapshot, live=None)` returns `{map id: grid}` for the maps that event
+  flags change while they are not loaded (`CHANGES`, `LEAGUE`, the switch room `DOORS`) and the
+  `TRAVEL_MAPS`. `live` gives the last grid seen on a map, used as the base for the edits.
+- `ice_solids(data, snapshot, map_id)` is the tiles objects hold, with boulders where the game
+  reports them while their map is loaded and hidden objects left out.
+- `flyer(snapshot)` is the party slot that can use Fly, or None. `OUTSIDE` is the map
+  environments Fly works from.

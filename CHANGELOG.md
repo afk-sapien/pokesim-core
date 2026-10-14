@@ -55,6 +55,11 @@
 - `gen1_save` does the same for Red, Blue and Yellow (`capture`, `export`, `verify`,
   `progress`, `symbols_for`). Progress is compared as raw party, box, Pokédex, money and
   name bytes, so it needs no species tables.
+- `gen2.maps` holds the Gen II map physics from PokeSim: the live collision decoder
+  (`collision(memory, data, snapshot)`, `decode_blocks`), `passable`, one-sided walls
+  (`WALLS`, `side_blocked`), ice slides (`ICE`, `slide`, `move`, `has_ice`), the story walls
+  of `travel_collision`, the event flag map changes (`CHANGES`, `DOORS`, `LEAGUE`,
+  `event_changes`), `ice_solids`, `flyer` and `OUTSIDE`. The names are also on `gen2`.
 
 ### Fixed
 
