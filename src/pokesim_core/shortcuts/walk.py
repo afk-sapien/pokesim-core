@@ -10,14 +10,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ..gen1 import W_CUR_MAP, W_X, W_Y
+from ..gen1 import W_CUR_MAP, W_FACING, W_X, W_Y
 from .dialogue import controls_locked
 from .machine import Abort, Done, Shortcut, StopReason
 
 DIRECTIONS = ('up', 'down', 'left', 'right')
 # Facing values (direction >> 2) in Gen 1 sprite data and Gen 2 wPlayerDirection.
 FACING = ('down', 'up', 'left', 'right')
-W_PLAYER_FACING = 0xC109
+W_PLAYER_FACING = W_FACING
 MAX_TILES = 64
 # Screens seen while the game is still moving the player or fading.
 _MOVING = ('overworld', 'transition', 'unknown')

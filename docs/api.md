@@ -115,6 +115,16 @@ Party dict keys are `species`, `hp`, `max_hp`, `level`, `nick`, `status`, `types
 `dvs`, `stat_exp`, and `trainer_id`. Pending counted slots remain present.
 Box data uses `individual_data` but box enumeration remains application-owned.
 
+`gen1` also names the overworld, menu and battle bytes consumers read, all Red
+addresses from pret/pokered: `W_FACING` (a key of `FACINGS`), `W_WALK_COUNTER`,
+`W_WHICH_POKEMON`, `W_MOVE_NUM`, `W_PLAYER_DISABLED_MOVE`, `W_WALK_BIKE_SURF_STATE`
+(0 walking, 1 biking, 2 surfing), `W_STATUS_FLAGS1` with `BIT_STRENGTH_ACTIVE` and
+`BIT_GAVE_SAFFRON_GUARDS_DRINK`, and `W_MOVEMENT_FLAGS` with `BIT_SPINNING` (arrow
+tiles). `W_SPRITE_STATE_DATA2`, `SPRITE_STRUCT`, `SPRITE_MAP_Y` and `SPRITE_MAP_X`
+locate sprite positions, and `sprite_tile(memory, sprite, *, version=None)` returns
+the (x, y) tile of sprite slot `sprite`: 0 is the player and 1 to 15 the map's objects.
+Read Yellow through `yellow.red_layout` as with the other addresses.
+
 ## Emulator module
 
 Importing the module is safe without the emulator extra. Constructing `GameBoy`

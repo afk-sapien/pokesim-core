@@ -129,3 +129,30 @@ def test_progress_does_not_accept_empty_or_incomplete_party(memory):
     memory[gen1.W_PARTY_COUNT] = 1
     memory[gen1.W_PARTY_MONS] = 0
     assert not gen1.read_progress(memory)["valid"]
+
+
+def test_named_addresses_match_pret_pokered():
+    assert (gen1.W_FACING, gen1.W_WALK_COUNTER, gen1.W_WHICH_POKEMON, gen1.W_MOVE_NUM) == (0xC109, 0xCFC5, 0xCF92, 0xD0E0)
+    assert (gen1.W_PLAYER_DISABLED_MOVE, gen1.W_WALK_BIKE_SURF_STATE) == (0xD06D, 0xD700)
+    assert (gen1.W_STATUS_FLAGS1, gen1.W_MOVEMENT_FLAGS) == (0xD728, 0xD736)
+    assert gen1.W_SPRITE_STATE_DATA2 + gen1.SPRITE_STRUCT + gen1.SPRITE_MAP_Y == 0xC214
+    assert gen1.FACINGS[4] == 'up'
+
+
+def test_sprite_tile_reads_the_map_block_position():
+    raw = bytearray(65536)
+    raw[0xC214], raw[0xC215] = 9, 14
+    raw[0xC204], raw[0xC205] = 4, 5
+    assert gen1.sprite_tile(raw, 1) == (10, 5)
+    assert gen1.sprite_tile(raw, 0) == (1, 0)
+    # Sprite data sits below the Yellow shift, so the raw Yellow bytes are the same.
+    assert gen1.sprite_tile(raw, 1, version='yellow') == (10, 5)
+
+
+def test_named_addresses_read_yellow_through_the_red_layout():
+    from pokesim_core.yellow import red_layout
+    raw = bytearray(65536)
+    raw[0xCFC4], raw[0xD6FF], raw[0xD735] = 3, 2, 0x80
+    view = red_layout(raw, 'yellow')
+    assert view[gen1.W_WALK_COUNTER] == 3 and view[gen1.W_WALK_BIKE_SURF_STATE] == 2
+    assert view[gen1.W_MOVEMENT_FLAGS] & 1 << gen1.BIT_SPINNING
