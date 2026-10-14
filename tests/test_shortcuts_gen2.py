@@ -1347,8 +1347,6 @@ def test_move_deleter_forgets_the_requested_move():
     refused(delete_move(game.port(), 0, 0), game, 'No input sent')
 
 
-
-
 def test_throw_can_hand_the_nickname_prompt_to_the_caller():
     game = Game2(balls=[(POKE_BALL, 2)], battle=1, screen='battle_menu')
     result = use_item(game.port(), POKE_BALL, nickname='caller')
