@@ -24,6 +24,10 @@
   preconditions (screens, and whether a battle is required or ruled out), the games it
   runs on and the result keys it adds. `shortcuts.result_schema()` describes the result
   dict every command returns. Which commands to offer stays the consumer's choice.
+- Top-level `textmatch` module with `has_word` and `ScreenText`, the whole-word keyword
+  search for decoded screen text. A nickname such as PROTOTYPE or MOSQUITO no longer
+  reads as TYPE or QUIT. It is generation neutral, and `gen2.screens` re-exports the
+  same objects, so existing `gen2.has_word` and `gen2.ScreenText` imports keep working.
 
 ### Fixed
 

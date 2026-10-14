@@ -3,36 +3,11 @@
 The Gen 2 policy classifies screens by searching the 20x18 tilemap text. A
 nickname such as CANCEL, PROTOTYPE or MOSQUITO shows up in the battle HUD and
 the party roster, so plain substring search would read it as a menu label.
-Two defences live here. HUD name fields are blanked, and keyword search uses
-letter boundaries so a keyword only matches as a whole word.
+Two defences apply. HUD name fields are blanked here, and keyword search uses
+letter boundaries (from :mod:`pokesim_core.textmatch`) so a keyword only
+matches as a whole word.
 """
-import re
-
-_BOUNDARY = {}
-
-
-def _pattern(key):
-    pattern = _BOUNDARY.get(key)
-    if pattern is None:
-        head = r'(?<![A-Za-z])' if key[:1].isalpha() else ''
-        tail = r'(?![A-Za-z])' if key[-1:].isalpha() else ''
-        pattern = _BOUNDARY[key] = re.compile(head + re.escape(key) + tail)
-    return pattern
-
-
-def has_word(text, key):
-    """True when key occurs in text and is not embedded in a longer word."""
-    return key in text and _pattern(key).search(text) is not None
-
-
-class ScreenText(str):
-    """Screen text whose `in` operator matches whole words only."""
-
-    def __contains__(self, key):
-        if not isinstance(key, str) or not key:
-            return str.__contains__(self, key)
-        return has_word(str(self), key)
-
+from ..textmatch import ScreenText as ScreenText, has_word as has_word
 
 KEEP = set('│┌┐└┘─▶▷▼×')
 
