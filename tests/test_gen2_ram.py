@@ -1,4 +1,5 @@
 """Gen II decoding on synthetic banked memory. No cartridge data is used."""
+import copy
 import random
 from collections import defaultdict
 from types import SimpleNamespace
@@ -313,3 +314,30 @@ def test_transformed_ditto_reports_its_own_dvs():
 def test_memory_maps_place_the_transform_backup_dvs():
     assert memory_map.symbols('gold')['wEnemyBackupDVs'] == (0, 0xCBD0)
     assert memory_map.symbols('crystal')['wEnemyBackupDVs'] == (0, 0xC6F2)
+
+
+def test_enemy_shiny_falls_back_when_the_symbol_table_lacks_transform_symbols():
+    data = synthetic_data()
+    memory = battle(data)
+    put(memory, data, 'wEnemySubStatus5', 8)
+    put(memory, data, 'wEnemyBackupDVs', PLAIN)
+    for missing in ('wEnemyBackupDVs', 'wEnemySubStatus5'):
+        symbols = {name: value for name, value in data.symbols.items() if name != missing}
+        partial = copy.copy(data)
+        partial.symbols = symbols
+        # Without the backup or the substatus, the DVs on show decide.
+        assert read_snapshot(memory, partial, cache=False).enemy_shiny is True
+
+
+def test_enemy_shiny_is_unknown_without_any_enemy_dvs():
+    data = synthetic_data()
+    memory = battle(data)
+    symbols = {name: value for name, value in data.symbols.items()
+               if name not in {'wEnemyMonDVs', 'wEnemyBackupDVs', 'wEnemySubStatus5'}}
+    partial = copy.copy(data)
+    partial.symbols = symbols
+    snapshot = read_snapshot(memory, partial, cache=False)
+    assert snapshot.enemy_shiny is None and snapshot.to_dict()['enemy_shiny'] is None
+    # Outside a wild battle there is nothing to judge, so the answer stays False.
+    put(memory, data, 'wBattleMode', 2)
+    assert read_snapshot(memory, partial, cache=False).enemy_shiny is False

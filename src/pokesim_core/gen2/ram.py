@@ -284,7 +284,7 @@ class Snapshot:
     roamers: tuple[dict, ...] = ()
     step_count: int = 0
     happiness_cycle: int = 0
-    enemy_shiny: bool = False
+    enemy_shiny: bool | None = False
 
     @property
     def started(self):
@@ -396,6 +396,21 @@ def _screen(raw, battle, data):
     return mask_hud(rows) if battle else rows
 
 
+def _enemy_shiny(mem, battle):
+    """Whether a wild opponent is shiny, or None when the symbol table cannot tell."""
+    if battle != 1:
+        return False
+    symbols = mem.data.symbols
+    # A wild Ditto that Transformed shows its target's DVs. Its own are kept in the backup.
+    # A custom symbol table without the Transform symbols falls back to the shown DVs.
+    if ('wEnemySubStatus5' in symbols and 'wEnemyBackupDVs' in symbols
+            and mem.byte('wEnemySubStatus5') & 8):
+        return shiny_bytes(mem.read('wEnemyBackupDVs', 2))
+    if 'wEnemyMonDVs' not in symbols:
+        return None
+    return shiny_bytes(mem.read('wEnemyMonDVs', 2))
+
+
 def read_snapshot(memory, data, frame=0, *, cache=True):
     """Decode the observable game state. ``cache`` reuses decoded regions whose bytes are unchanged."""
     mem = Memory(memory, data)
@@ -448,9 +463,6 @@ def read_snapshot(memory, data, frame=0, *, cache=True):
             roamers.append({'species': raw[0], 'level': raw[1], 'map': raw[2] * 256 + raw[3], 'hp': raw[4]})
     battle = mem.byte('wBattleMode')
     tilemap = mem.read('wTilemap', 360)
-    # A wild Ditto that Transformed shows its target's DVs. Its own are kept in the backup.
-    enemy_dvs = (mem.read('wEnemyBackupDVs' if mem.byte('wEnemySubStatus5') & 8 else 'wEnemyMonDVs', 2)
-                 if battle == 1 else b'')
     screen_tiles = region('screen', (battle, tilemap), data, lambda: _screen(tilemap, battle, data))
     return Snapshot(frame, mem.byte('wMapGroup') * 256 + mem.byte('wMapNumber'), mem.byte('wXCoord'), mem.byte('wYCoord'),
                     mem.text('wPlayerName'), mem.text('wRivalName'), tuple(party), tuple(stored), tuple(box_counts), active_box,
@@ -464,4 +476,4 @@ def read_snapshot(memory, data, frame=0, *, cache=True):
                     daycare=daycare, egg_ready=bool(mem.byte('wDayCareMan') & 64),
                     breeding_compatible=bool(mem.byte('wDayCareMan') & 32), roamers=tuple(roamers),
                     step_count=mem.byte('wStepCount'), happiness_cycle=mem.byte('wHappinessStepCount'),
-                    enemy_shiny=shiny_bytes(enemy_dvs))
+                    enemy_shiny=_enemy_shiny(mem, battle))

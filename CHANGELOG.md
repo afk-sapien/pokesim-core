@@ -35,6 +35,8 @@
   data: level, time of day and the landmark, Event or Gift.
 - `Snapshot.enemy_shiny` reports a shiny wild opponent. A wild Ditto that transformed is
   judged by its own DVs from `wEnemyBackupDVs`, which joins the Gen 2 memory maps.
+  A custom symbol table without the Transform symbols falls back to `wEnemyMonDVs`,
+  and one without `wEnemyMonDVs` gives None.
 - `Mon.to_dict(egg_view=True)` and `Snapshot.to_dict(egg_view=True)` hide the species of
   an unhatched egg (`dex=None`, `name='Egg'`, no types), as PokeSim shows it. The default
   is unchanged, so existing values stay the same.

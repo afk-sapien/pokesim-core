@@ -315,7 +315,8 @@ and `egg_cycles` to an egg. `Mon.to_dict(egg_view=True)` and
 `Snapshot.to_dict(egg_view=True)` show an unhatched egg the way the game does,
 with no Pokedex number, name or types. The default keeps the species. A
 `Snapshot` has `enemy_shiny` for a wild opponent, read from the Transform backup
-DVs when a wild Ditto has transformed.
+DVs when a wild Ditto has transformed. It is None when the symbol table has no
+enemy DVs.
 
 ## Per-step memory snapshot
 
