@@ -301,6 +301,8 @@ Also in `pokesim_core.gen2`:
 - `offspring`, `retrieval_cost`, `branch_parents`, `ancestors` and `level_credit` apply the Day Care and evolution-line rules.
 - `live_status(game, collection, *, data=None)` builds the shared adventure status payload.
 - `ScreenText`, `has_word`, `mask_hud`, `mask_roster` and `is_roster` match whole words in screen text.
+  `ScreenText` and `has_word` come from the generation-neutral `pokesim_core.textmatch`, which Gen 1
+  screen readers can import too.
 - `decode_mon`, `individual`, `calculated_stats`, `experience_at`, `experience_progress`, `dex_flags` and `decode_text` are the building blocks.
 
 Output is identical, field for field and in `repr`, to PokeSim's `pokesim.gen2`
