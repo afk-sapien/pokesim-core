@@ -165,7 +165,8 @@ class GameShortcut(Shortcut):
                 idle += 1
                 if self.refusal or idle > patience:
                     self.no_effect()
-                yield 'a' if self.obs.ready else None
+                # On the overworld an A press would talk, read a sign or offer SURF.
+                yield 'a' if self.obs.ready and screen != 'overworld' else None
             else:
                 self.no_effect()
         raise Abort('Menu did not respond. Stopped without repeating the requested effect.')
@@ -413,6 +414,16 @@ class UseItem(GameShortcut):
             raise Abort('Kept the old moves as requested. The machine was not used.')
         super().no_effect()
 
+    def cast_wait(self):
+        """Screens a targetless item rests on before its effect shows, and how long it may rest.
+
+        A rod closes the bag and casts on the overworld. Its message prints only after the cast,
+        about two seconds later on Gen 2.
+        """
+        if self.item_info.kind == 'fishing':
+            return {'stay': ('bag', 'item_action', 'overworld'), 'patience': 90}
+        return {'stay': ('bag', 'item_action')}
+
     def walk_state(self, obs):
         if self.gen == 2:
             return obs.memory.byte('wPlayerState')
@@ -435,7 +446,7 @@ class UseItem(GameShortcut):
                 self.committed = kind.target == 'none'
                 yield from self.choose('USE')
         if kind.target == 'none':
-            yield from self.commit_wait(stay=('bag', 'item_action'))
+            yield from self.commit_wait(**self.cast_wait())
             return
         if kind.kind in ('tm', 'hm'):
             for _ in range(40):
@@ -471,7 +482,7 @@ class UseItem(GameShortcut):
         self.committed = kind.target == 'none'
         yield from self.choose('USE')
         if kind.target == 'none':
-            yield from self.commit_wait(stay=('bag', 'item_action'))
+            yield from self.commit_wait(**self.cast_wait())
             return
         for _ in range(40):
             screen = self.obs.screen
