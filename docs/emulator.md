@@ -100,6 +100,32 @@ plain emulator.
 register parking and hook cleanup. Applications own participants, navigation,
 time budgets, persistence and transaction adoption.
 
+`gen1_cable.CableDriver(sides, plan, progress=None, cancelled=None, *, walk=None,
+snapshot=None)` presses the controller buttons of one Red, Blue or Yellow trade:
+`enter` walks both trainers to their Cable Club attendants and into the club,
+`exchange` offers each side's `party_slot`, `leave` saves and walks out, and
+`return_to_center` confirms a Continue prompt after a restart. `plan` needs
+`max_steps`, `timeout_seconds` and `speed` (0 runs unpaced). `enter` records the
+Center each side starts in as `source_center_map` and refuses to start anywhere else.
+Progress is reported under each side's `label`. Route finding stays with the caller: `walk(side, snapshot, target)`
+returns the next button toward `target` (map, x, y). Without `walk` the driver raises
+`CableError` as soon as a trainer has to move. `snapshot(side)` defaults to
+`centers.location(side.pb.memory)`.
+
+`centers` holds the Centers a cable session can start from:
+
+- `CENTERS` maps each map ID with a Cable Club attendant to its `name`, its `pc` tile
+  and its `rendezvous` tile in front of the attendant. The Celadon hotel is left out.
+- `location(memory)` reads the map, position, battle flags, `textbox` and
+  `start_menu` from Red-layout memory. `valid` is a table-free check (a real map ID, a
+  playtime clock below 60, party levels and HP in range) and `started` is true once
+  there is a map, playtime or a party.
+- `safe_center(snapshot, map_id, memory)` is true only in the loaded overworld of
+  Center `map_id`, with no battle, text box, menu, naming keyboard or quantity prompt,
+  and not on the Continue screen that shows the save just loaded.
+- `screen(memory)` gives the raw screen `rows`, whole-word `text`, the `cursor` and the
+  top menu corner.
+
 ## Experimental native decoder
 
 The separate, unpublished `pokesim-core-native` distribution in `native/` uses

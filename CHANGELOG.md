@@ -4,6 +4,12 @@
 
 ### Added
 
+- `gen1_cable.CableDriver` drives a Red, Blue or Yellow Cable Club trade with
+  controller input, and the new `centers` module has `CENTERS`, `location`, `screen`
+  and `safe_center` for the Centers a session starts from. The caller passes route
+  finding in as `walk`. `CableEndpoint` gains `party_slot` and `label`.
+- `gen2.cable` has `CableSide`, `TimeCapsuleSide`, `CableDriver` and `MixedDriver` for
+  Gold, Silver and Crystal trades and Time Capsule trades with Red, Blue or Yellow.
 - `advance_dialogue` (`AdvanceDialogue`) advances printed text on all six games and
   returns the whole conversation in `lines` and `text`. It presses A only when Core's
   text-wait check says the game waits to continue, and it stops at the first choice or

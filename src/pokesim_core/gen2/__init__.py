@@ -8,8 +8,9 @@ only a version name. The submodules ``clock`` and ``save`` drive the cartridge c
 Save menu on a Core emulator and need the emulator extra when called. :mod:`pokesim_core.gen2.maps`
 decodes live map collision and ice slides. :mod:`pokesim_core.gen2.hooks` finds verified ROM code
 addresses for emulator hooks and :mod:`pokesim_core.gen2.resets` holds trusted setup writes.
+:mod:`pokesim_core.gen2.cable` drives Cable Club and Time Capsule trades on Core emulators.
 """
-from . import clock, hooks, maps, resets, save
+from . import cable, clock, hooks, maps, resets, save
 from .battle_power import battle_power, hidden_power
 from .breeding import (DITTO, TYROGUE, ancestors, branch_parents, breeding_stock, descendants_wanted, egg_lines,
                        families, free_slots, level_credit, lines, offspring, retrieval_cost, single_source)
@@ -33,16 +34,16 @@ from .tables import GameTables, decode_text, pretty
 __all__ = [
     'BADGES', 'CHANGES', 'CRYSTAL_ONLY', 'DEFAULT_VERSION', 'DIRS', 'DITTO', 'DOORS', 'GameTables', 'ICE', 'Mon',
     'OPPOSITE', 'OUTSIDE', 'STAT_NAMES', 'ScreenText', 'Snapshot', 'TIMES_OF_DAY', 'TYROGUE', 'VERSIONS', 'WALLS',
-    'ancestors', 'battle_power', 'bcd', 'box_gift', 'branch_parents', 'breeding_stock', 'calculated_stats',
-    'capture_hooks', 'caught_data', 'caught_details', 'clear_region_cache', 'clock', 'clock_archive',
-    'clock_elapsed', 'clock_lock_state', 'collision', 'contest_hook', 'decode_mon', 'decode_struct', 'decode_text',
-    'descendants_wanted', 'dex_flags', 'egg_lines', 'encounter_hook', 'experience_at', 'experience_progress',
-    'export_clock', 'export_with_clock', 'families', 'flyer', 'follow_game_time', 'free_slots', 'has_ice',
-    'has_word', 'hatch_hook', 'hidden_power', 'hooks', 'host_elapsed', 'ice_solids', 'individual', 'is_roster',
-    'landmark_name', 'level_credit', 'lines', 'live_status', 'lock_clock', 'maps', 'mart_hooks', 'mask_hud',
-    'mask_roster', 'memory_reader', 'move', 'offspring', 'passable', 'pokerus', 'pretty', 'read_box_counts',
-    'read_box_structs', 'read_clock', 'read_daycare', 'read_items', 'read_party_structs', 'read_player',
-    'read_pokedex', 'read_roamers', 'read_snapshot', 'rebase_to_host', 'reset_event', 'resets', 'retrieval_cost',
-    'save', 'set_gs_ball', 'side_blocked', 'single_source', 'slide', 'step_hook', 'stop_with_clock', 'symbols',
-    'tile_rows', 'travel_collision', 'version_of', 'write_byte', 'write_flag',
+    'ancestors', 'battle_power', 'bcd', 'box_gift', 'branch_parents', 'breeding_stock', 'cable', 'calculated_stats',
+    'capture_hooks', 'caught_data', 'caught_details', 'clear_region_cache', 'clock', 'clock_archive', 'clock_elapsed',
+    'clock_lock_state', 'collision', 'contest_hook', 'decode_mon', 'decode_struct', 'decode_text', 'descendants_wanted',
+    'dex_flags', 'egg_lines', 'encounter_hook', 'experience_at', 'experience_progress', 'export_clock',
+    'export_with_clock', 'families', 'flyer', 'follow_game_time', 'free_slots', 'has_ice', 'has_word', 'hatch_hook',
+    'hidden_power', 'hooks', 'host_elapsed', 'ice_solids', 'individual', 'is_roster', 'landmark_name', 'level_credit',
+    'lines', 'live_status', 'lock_clock', 'maps', 'mart_hooks', 'mask_hud', 'mask_roster', 'memory_reader', 'move',
+    'offspring', 'passable', 'pokerus', 'pretty', 'read_box_counts', 'read_box_structs', 'read_clock', 'read_daycare',
+    'read_items', 'read_party_structs', 'read_player', 'read_pokedex', 'read_roamers', 'read_snapshot',
+    'rebase_to_host', 'reset_event', 'resets', 'retrieval_cost', 'save', 'set_gs_ball', 'side_blocked', 'single_source',
+    'slide', 'step_hook', 'stop_with_clock', 'symbols', 'tile_rows', 'travel_collision', 'version_of', 'write_byte',
+    'write_flag',
 ]
