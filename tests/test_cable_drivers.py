@@ -141,8 +141,8 @@ def test_cable_side_queue_overflow_is_refused():
 
 
 def test_time_capsule_side_checks_the_rom_instructions():
-    class Banked(dict):
-        def __missing__(self, key):
+    class Banked:
+        def __getitem__(self, key):
             return bytes(2) if isinstance(key, tuple) else 0
     endpoint = SimpleNamespace(memory=Banked(), register_file=SimpleNamespace(), hook_register=None)
     tables = SimpleNamespace(game='gold', symbols={})
