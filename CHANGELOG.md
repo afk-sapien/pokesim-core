@@ -28,6 +28,18 @@
   search for decoded screen text. A nickname such as PROTOTYPE or MOSQUITO no longer
   reads as TYPE or QUIT. It is generation neutral, and `gen2.screens` re-exports the
   same objects, so existing `gen2.has_word` and `gen2.ScreenText` imports keep working.
+- Gen 2 `Mon` gains `pokerus` and `caught` (the raw Pokerus byte and Crystal caught data
+  word). `Mon.to_dict()` adds `pokerus` ('infected', 'cured' or None), `caught` on Crystal,
+  `power` and `accuracy` on each move, and `egg_cycles` on an egg.
+- `gen2.caught_details`, `gen2.landmark_name` and `gen2.TIMES_OF_DAY` name Crystal caught
+  data: level, time of day and the landmark, Event or Gift.
+- `Snapshot.enemy_shiny` reports a shiny wild opponent. A wild Ditto that transformed is
+  judged by its own DVs from `wEnemyBackupDVs`, which joins the Gen 2 memory maps.
+  A custom symbol table without the Transform symbols falls back to `wEnemyMonDVs`,
+  and one without `wEnemyMonDVs` gives None.
+- `Mon.to_dict(egg_view=True)` and `Snapshot.to_dict(egg_view=True)` hide the species of
+  an unhatched egg (`dex=None`, `name='Egg'`, no types), as PokeSim shows it. The default
+  is unchanged, so existing values stay the same.
 
 ### Fixed
 
