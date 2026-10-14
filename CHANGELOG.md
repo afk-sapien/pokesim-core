@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Shortcuts on Yellow read the party and bag at Yellow addresses. `use_item`,
+  `switch_pokemon` and the other shortcuts used the Red and Blue readers on raw Yellow
+  memory, which is shifted by one byte.
+
 ## 0.6.0
 
 ### Added
