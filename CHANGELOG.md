@@ -40,6 +40,10 @@
 - `Mon.to_dict(egg_view=True)` and `Snapshot.to_dict(egg_view=True)` hide the species of
   an unhatched egg (`dex=None`, `name='Egg'`, no types), as PokeSim shows it. The default
   is unchanged, so existing values stay the same.
+- Gen II breeding helpers: `families`, `single_source`, `lines`, `breeding_stock`,
+  `egg_lines`, `free_slots` and `descendants_wanted`, plus the `DITTO` and `TYROGUE`
+  constants at package level. They find the gift and static families that only the
+  Day Care can copy and keep their last parent home.
 
 ### Fixed
 
@@ -54,6 +58,12 @@
   without a second cast.
 - Waiting for an item's effect on the overworld no longer presses A there, where it could
   talk to someone or offer SURF.
+
+### Changed
+
+- `gen2.offspring` builds each species table's pre-evolution map once instead of
+  scanning the table for every pair. The result is unchanged, including the first
+  pre-evolution in species order when two species evolve into the same one.
 
 ## 0.6.0
 
