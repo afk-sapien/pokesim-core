@@ -44,6 +44,17 @@
   `egg_lines`, `free_slots` and `descendants_wanted`, plus the `DITTO` and `TYROGUE`
   constants at package level. They find the gift and static families that only the
   Day Care can copy and keep their last parent home.
+- `gen2.clock` holds the Gold, Silver and Crystal clock helpers from PokeSim: `boot`,
+  `lock_clock`, `follow_game_time`, `rebase_to_host`, `clock_elapsed`, `host_elapsed`,
+  `clock_lock_state`, `export_clock` and `stop_with_clock`. A backend without clock
+  control raises `CoreCapabilityError`. The common names are also on `gen2`.
+- `gen2.save` exports a verified battery save and its `.rtc` file through the game's own
+  Save menu (`capture`, `export`, `export_with_clock`, `verify`, `clock_archive`,
+  `checkpoint_clock`, `continue_save`). `continue_save` returns once the trainer walks and
+  no longer checks for the Pokémon Center upstairs, which stays with the caller.
+- `gen1_save` does the same for Red, Blue and Yellow (`capture`, `export`, `verify`,
+  `progress`, `symbols_for`). Progress is compared as raw party, box, Pokédex, money and
+  name bytes, so it needs no species tables.
 
 ### Fixed
 
@@ -64,6 +75,9 @@
 - `gen2.offspring` builds each species table's pre-evolution map once instead of
   scanning the table for every pair. The result is unchanged, including the first
   pre-evolution in species order when two species evolve into the same one.
+- The emulator extra requires PyBoy RS 0.1.2 or newer (`pyboy-rs>=0.1.2,<0.2`). Its clock
+  `set` is exact, a halted clock stays frozen, and loading a state restores the latched
+  registers. CI installs the v0.1.2 release wheel.
 
 ## 0.6.0
 
