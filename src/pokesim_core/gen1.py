@@ -82,6 +82,31 @@ W_STATUS_FLAGS1 = W_EVENT_FLAGS - 31
 
 W_PLAYTIME_H = 0xDA41
 
+# Overworld, menu and battle state, by pret/pokered name. Bits count from 0.
+# wSpritePlayerStateData1FacingDirection: a key of FACINGS.
+W_FACING = 0xC109
+FACINGS = {0: 'down', 4: 'up', 8: 'left', 12: 'right'}
+# wSpriteStateData2: 16 sprites of SPRITE_STRUCT bytes, the player first, then map objects.
+# The map Y and X bytes count 2x2 blocks from 4. See sprite_tile.
+W_SPRITE_STATE_DATA2 = 0xC200
+SPRITE_STRUCT = 16
+SPRITE_MAP_Y, SPRITE_MAP_X = 4, 5
+# wWalkCounter: nonzero while a step animation runs.
+W_WALK_COUNTER = 0xCFC5
+# wWhichPokemon: the party or box slot the last menu chose, from 0.
+W_WHICH_POKEMON = 0xCF92
+# wPlayerDisabledMove: the disabled move (1 to 4) in the high nibble, turns left in the low nibble.
+W_PLAYER_DISABLED_MOVE = 0xD06D
+# wMoveNum: the move the move menus and the move relearner work on.
+W_MOVE_NUM = 0xD0E0
+# wWalkBikeSurfState: 0 walking, 1 biking, 2 surfing.
+W_WALK_BIKE_SURF_STATE = 0xD700
+# Bits of W_STATUS_FLAGS1 and wMovementFlags.
+BIT_STRENGTH_ACTIVE = 0
+BIT_GAVE_SAFFRON_GUARDS_DRINK = 6
+W_MOVEMENT_FLAGS = 0xD736
+BIT_SPINNING = 7    # riding the arrow tiles in the Rocket Hideout and Viridian Gym
+
 PARTY_STRUCT = 44
 
 TILE_BOX_TL = 0x79
@@ -182,6 +207,13 @@ def read_bag(memory, *, version=None) -> tuple[tuple[int, int], ...]:
     raw = bytes(memory[W_BAG_ITEMS:W_BAG_ITEMS + count * 2]) if count else b""
     return tuple((raw[index], raw[index + 1]) for index in range(0, len(raw), 2)
                  if raw[index] not in (0, 255))
+
+
+def sprite_tile(memory, sprite: int, *, version=None) -> tuple[int, int]:
+    """(x, y) map tile of sprite slot ``sprite``: 0 is the player, 1 to 15 the map's objects in order."""
+    memory = red_layout(memory, version)
+    base = W_SPRITE_STATE_DATA2 + sprite * SPRITE_STRUCT
+    return memory[base + SPRITE_MAP_X] - 4, memory[base + SPRITE_MAP_Y] - 4
 
 
 def event_set(flags, index: int) -> bool:

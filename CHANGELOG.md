@@ -67,6 +67,12 @@
 - `gen2.resets` holds trusted setup writes: `write`, `write_byte`, `write_flag`,
   `reset_event` (a group of flags, checked before any write and rolled back on failure),
   `box_gift` (a level 5 PC gift) and `set_gs_ball` (Crystal).
+- `gen1` names more Red addresses from pret/pokered: `W_FACING` and `FACINGS`,
+  `W_WALK_COUNTER`, `W_WHICH_POKEMON`, `W_MOVE_NUM`, `W_PLAYER_DISABLED_MOVE`,
+  `W_WALK_BIKE_SURF_STATE`, `W_MOVEMENT_FLAGS`, the sprite position layout
+  (`W_SPRITE_STATE_DATA2`, `SPRITE_STRUCT`, `SPRITE_MAP_Y`, `SPRITE_MAP_X`) and the bits
+  `BIT_STRENGTH_ACTIVE`, `BIT_GAVE_SAFFRON_GUARDS_DRINK` and `BIT_SPINNING`.
+  `gen1.sprite_tile` reads a sprite's map tile.
 
 ### Fixed
 
@@ -90,6 +96,9 @@
 - The emulator extra requires PyBoy RS 0.1.2 or newer (`pyboy-rs>=0.1.2,<0.2`). Its clock
   `set` is exact, a halted clock stays frozen, and loading a state restores the latched
   registers. CI installs the v0.1.2 release wheel.
+- The shortcuts read Gen 1 addresses from `gen1` instead of their own copies.
+  `shortcuts.actions.W_WALK_BIKE_SURF` is now `W_WALK_BIKE_SURF_STATE`, and
+  `shortcuts.walk.W_PLAYER_FACING` is the same value as `gen1.W_FACING`.
 
 ## 0.6.0
 
