@@ -125,6 +125,30 @@ ROM labels come from `data.symbols` first, then `hooks.LABELS`, which holds the 
 finders need from the pinned pret symbol files. A minimal `GameTables({"game": "crystal"})`
 is enough. `bcd(value)` packs 0 to 999999 as the game stores money and prices.
 
+## Cable Club
+
+`gen2.cable` runs a trade between two emulators with the Gen 1 transport (see
+[emulator.md](emulator.md#gen-1-virtual-cable)) over the Gen 2 link routines.
+
+- `CableSide(emulator, symbols, data, max_queue=4)` is one cartridge. `symbols` are
+  `gen2_link_metadata.build(sha1)["symbols"]`, so check `verify_signatures` first.
+  `get` reads a link symbol, then any `data.symbols` label.
+- `TimeCapsuleSide(emulator, symbols, data, rom, max_queue=4)` also counts
+  Gen2ToGen1LinkComms. It raises `CableError` unless `timecapsule.communication_ok(rom,
+  data.game)`.
+- `CableDriver(sides, plan, progress=None, cancelled=None, *, walk=None)` presses the
+  buttons of a Gold, Silver or Crystal trade until both sides leave. `MixedDriver(gen1,
+  gen2, plan, ...)` trades a Red-layout Gen 1 `CableEndpoint` with a `TimeCapsuleSide`.
+  `plan` needs `max_steps`, `timeout_seconds` and `speed` (0 runs unpaced). Each side
+  offers `party_slot` and reports progress under `label`.
+- `data.map_ids` must name `POKECENTER_2F` and `data.maps` must give each map's
+  `constant`. A side outside the trade rooms heads for the attendant on Pokémon Center 2F
+  through `walk(side, snapshot, target)`, which returns the next button toward `target`
+  (map, x, y), or None to wait. Without `walk` the driver raises `CableError` as soon as a
+  trainer has to move. Route finding stays with the caller.
+- The driver raises `CableError` with `ABNORMAL` when the game rejects the incoming
+  Pokémon as abnormal, because the game then cancels the trade by itself.
+
 ## Setup writes
 
 `gen2.resets` mirrors the Gen 1 `resets` module for banked memory. These are trusted setup

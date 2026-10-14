@@ -75,6 +75,10 @@ All trade helpers are pure and read-only.
   `gen1_individual_key`, `gen2_individual_key`, `verify_gen1_received`,
   `gen2_evolved_species`, `gen2_untraded_party` and `verify_gen2_received`.
   Failed checks raise `gen1_cable.CableError` with PokeSim's messages.
+- `gen1_cable.CableDriver` and `centers` drive a Red, Blue or Yellow trade (see
+  [emulator.md](emulator.md#gen-1-virtual-cable)). `gen2.cable` has `CableSide`,
+  `TimeCapsuleSide`, `CableDriver`, `MixedDriver` and `ABNORMAL` for Gold, Silver and
+  Crystal (see [gen2.md](gen2.md#cable-club)).
 
 ## Generation I module
 
