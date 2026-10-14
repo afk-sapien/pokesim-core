@@ -10,8 +10,9 @@ decodes live map collision and ice slides. :mod:`pokesim_core.gen2.hooks` finds 
 addresses for emulator hooks and :mod:`pokesim_core.gen2.resets` holds trusted setup writes.
 :mod:`pokesim_core.gen2.cable` drives Cable Club and Time Capsule trades on Core emulators.
 :mod:`pokesim_core.gen2.puzzles` reads and solves the Ruins of Alph picture boards.
+:mod:`pokesim_core.gen2.sprites` decodes front portraits from the cartridge.
 """
-from . import cable, clock, hooks, maps, puzzles, resets, save
+from . import cable, clock, hooks, maps, puzzles, resets, save, sprites
 from .battle_power import battle_power, hidden_power
 from .breeding import (DITTO, TYROGUE, ancestors, branch_parents, breeding_stock, descendants_wanted, egg_lines,
                        families, free_slots, level_credit, lines, offspring, retrieval_cost, single_source)
@@ -50,6 +51,6 @@ __all__ = [
     'pretty', 'prizes', 'puzzle_button', 'puzzles', 'read_box_counts', 'read_box_structs', 'read_clock', 'read_daycare',
     'read_items', 'read_party_structs', 'read_player', 'read_pokedex', 'read_roamers', 'read_snapshot',
     'rebase_to_host', 'reset_event', 'resets', 'retrieval_cost', 'save', 'set_gs_ball', 'side_blocked', 'single_source',
-    'slide', 'step_hook', 'stop_with_clock', 'symbols', 'tile_rows', 'travel_collision', 'version_of', 'write_byte',
-    'write_flag',
+    'slide', 'sprites', 'step_hook', 'stop_with_clock', 'symbols', 'tile_rows', 'travel_collision', 'version_of',
+    'write_byte', 'write_flag',
 ]

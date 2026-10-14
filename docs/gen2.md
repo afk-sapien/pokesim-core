@@ -69,6 +69,20 @@ with no Pokedex number, name or types. The default keeps the species. A
 DVs when a wild Ditto has transformed. It is None when the symbol table has no
 enemy DVs.
 
+## Portraits
+
+`gen2.sprites` decodes the front portraits from the cartridge with no game tables. The ROM
+tables come from `sprites.LABELS` and every read checks the base data's Pokedex number.
+
+- `picture(rom, version, dex, *, unown=0)` returns rows of colour indices 0 (lightest) to 3
+  (darkest), then the width and height in tiles. `unown` picks Unown's letter, 0 to 25.
+- `portrait(rom, version, dex, *, shiny=False, unown=0)` frames the picture on a 56 by 56
+  canvas, centred and on the bottom edge as the game shows it, and returns the rows with
+  the species' palette. The margin is index 0.
+- `palette(rom, version, dex, *, shiny=False)` is four RGBA colours. Index 0 is transparent.
+- `front_pointer`, `pic_bank`, `dimensions`, `decompress` and `offset` are the steps.
+- `pokesim_core.sprites.png(rows, palette)` writes a PNG with the standard library.
+
 ## Save-menu exports
 
 `gen2.save` and `gen1_save` produce a battery save the way a console would: a private clone

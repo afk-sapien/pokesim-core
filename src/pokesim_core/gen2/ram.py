@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from math import isqrt
 
 from ..dvs import shiny_bytes
+from ..formulas import experience_at, experience_progress  # noqa: F401  (re-exported)
 from .screens import ScreenText, mask_hud
 
 BADGES = ('Zephyr', 'Hive', 'Plain', 'Fog', 'Mineral', 'Storm', 'Glacier', 'Rising',
@@ -68,25 +69,6 @@ def individual(raw):
     dvs = (hp, attack, defense, speed, special)
     training = tuple(int.from_bytes(raw[index:index + 2], 'big') for index in range(11, 21, 2))
     return dvs, training
-
-
-def experience_at(level, growth):
-    n = max(1, min(100, level))
-    if growth == 'FAST':
-        return 4 * n ** 3 // 5
-    if growth == 'SLOW':
-        return 5 * n ** 3 // 4
-    if growth == 'MEDIUM_SLOW':
-        return max(0, 6 * n ** 3 // 5 - 15 * n ** 2 + 100 * n - 140)
-    return n ** 3
-
-
-def experience_progress(total, level, growth):
-    start = experience_at(level, growth)
-    end = experience_at(min(100, level + 1), growth)
-    return {'total': total, 'level_start': start, 'next_level': end,
-            'remaining': max(0, end - total), 'max_level': level >= 100,
-            'percent': 100 if level >= 100 else round(max(0, min(100, (total - start) * 100 / max(1, end - start))), 1)}
 
 
 def calculated_stats(base, level, dvs, training):

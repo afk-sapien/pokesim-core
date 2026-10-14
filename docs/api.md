@@ -79,6 +79,25 @@ All trade helpers are pure and read-only.
   [emulator.md](emulator.md#gen-1-virtual-cable)). `gen2.cable` has `CableSide`,
   `TimeCapsuleSide`, `CableDriver`, `MixedDriver` and `ABNORMAL` for Gold, Silver and
   Crystal (see [gen2.md](gen2.md#cable-club)).
+- `identity.family_key(trainer, dvs, dex, families=None)` is a trade key: the
+  `pokemon_identity` signature, a hyphen and the evolution family root, the lowest Pokedex
+  number in the family (`FAMILY_ROOTS`, built from `FAMILIES`). It survives evolution in
+  both generations and the Time Capsule and tells apart two species that share a trainer
+  and DVs. `dex_of(mon)` reads `dex`, or a Red, Blue or Yellow species index through
+  `GEN1_DEX` (`GEN1_INDEX` is the inverse). `same(current, wanted)` and
+  `find(rows, wanted, field='trade_key')` also accept a bare signature with no family, and
+  `find` returns a row only when exactly one answers.
+
+## Sprites and formulas
+
+- `sprites.portraits(rom)` decodes all 151 Red, Blue and Yellow front portraits, as Pokedex
+  number to rows of colour indices 0 (lightest) to 3 (darkest). `front_sprite(rom, dex)`
+  decodes one and returns the rows, width and height in tiles. Yellow is detected from the
+  ROM. Gold, Silver and Crystal portraits are in [gen2.md](gen2.md).
+- `sprites.png(rows, palette=SHADES)` writes an RGBA PNG with the standard library.
+  `SHADES` makes index 0 transparent.
+- `formulas.experience_at(level, growth)` and `experience_progress(total, level, growth)`
+  are the experience curves of both generations, by the growth name without `GROWTH_`.
 
 ## Generation I module
 

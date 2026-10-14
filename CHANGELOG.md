@@ -93,6 +93,19 @@
   `wTradeFlags`, the `wContestMon` fields, `wEnemyMonAttack`, `wEnemyMonSpclAtk` and the
   naming keyboard's destination and length symbols join the Gen 2 memory maps.
 - `gen2.puzzles`: `puzzle_button` and `control` solve the Ruins of Alph picture boards.
+- `sprites` decodes the 151 Red, Blue and Yellow front portraits from the cartridge
+  (`front_sprite`, `portraits`, `decode`, `sprite_bank`, `base_stats`), and `gen2.sprites`
+  the 251 Gold, Silver and Crystal portraits (`picture`, `portrait`, `palette`,
+  `front_pointer`, `dimensions`, `decompress`, `offset`). Pictures are rows of colour
+  indices. `sprites.png(pixels, palette=SHADES)` writes one as an RGBA PNG with the
+  standard library, so no imaging library is needed.
+- `formulas` holds the experience curves both generations share: `experience_at` and
+  `experience_progress`. `gen2.experience_at` and `gen2.experience_progress` are the same
+  functions.
+- `identity` gains trade keys that survive evolution and the Time Capsule:
+  `family_key(trainer, dvs, dex, families=None)`, `family`, `dex_of`, `same`, `find`,
+  `legacy` and `is_legacy`, with the `FAMILIES`, `FAMILY_ROOTS`, `GEN1_DEX` and
+  `GEN1_INDEX` tables.
 
 ### Fixed
 
