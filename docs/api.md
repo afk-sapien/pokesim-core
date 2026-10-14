@@ -207,9 +207,20 @@ continue-only dialogue, never a choice. The default waits without confirming.
   steps.
 - `naming.name_step(rows, cursor, name, limit=10)` returns a `ButtonAction` or
   None outside the keyboard. It reads back partial text and corrects mismatches.
-- `naming.enter_name(port, name, limit=10, max_actions=256)` drives a supplied
-  uppercase ASCII name from an already open naming keyboard. Use limit 7 for
-  player and rival names. It does not accept nickname prompts or pick names.
+- `naming.enter_name(port, name, limit=10, max_actions=256, version=None)` drives
+  a supplied name from an already open naming keyboard. `version` defaults to
+  `port.version`. On Red, Blue and Yellow the name is uppercase ASCII. Use limit
+  7 there for player and rival names. On Gold, Silver and Crystal it is capital
+  letters, space and `-?!/.,`, and the keyboard's own limit applies (7 for the
+  player and rival, 10 otherwise). A name over it raises ValueError. It does not
+  accept nickname prompts or pick names.
+- `naming.gen2_naming(memory, version)` reads the open Gen 2 keyboard: `entered`
+  (read back from the name's destination), `length`, `limit`, `cursor` as
+  (column, row), `lowercase` and `subject` (`pokemon`, `player`, `rival` or
+  `other`). None when the keyboard is not on screen.
+  `naming.gen2_name_step(memory, version, name)` returns its next `ButtonAction`.
+  A letter that does not match is deleted with B, START moves to END and A on END
+  submits.
 - `naming.menu_button(current, target)` returns one linear menu direction or A.
 - `menus.menu_options(memory, screen, kind=None)` reads visible menu rows.
   Consumer observation filtering remains required.

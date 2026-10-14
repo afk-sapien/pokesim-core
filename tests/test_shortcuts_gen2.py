@@ -13,11 +13,11 @@ import pytest
 
 from pokesim_core.controls import ControllerPort
 from pokesim_core.gen2.charmap import charmap
-from pokesim_core.shortcuts import (ChooseMove, buy_item, change_box, choose_move, current_screen, delete_move,
-                                    deposit_item, deposit_pokemon, give_item, learn_move, list_box, list_items,
-                                    list_moves, list_party, release_pokemon, reorder_party, run_away, sell_item,
-                                    switch_pokemon, take_item, toss_item, use_field_move, use_item, withdraw_item,
-                                    withdraw_pokemon)
+from pokesim_core.shortcuts import (ChooseMove, buy_item, change_box, choose_move, current_screen, day_care,
+                                    delete_move, deposit_item, deposit_pokemon, give_item, learn_move, list_box,
+                                    list_items, list_moves, list_party, release_pokemon, reorder_party, run_away,
+                                    sell_item, show_partner, switch_pokemon, take_item, toss_item, tune_radio,
+                                    use_field_move, use_item, withdraw_item, withdraw_pokemon)
 from pokesim_core.shortcuts import gen2ui
 from pokesim_core.shortcuts.items import GEN2_FIELD_MOVES, gen2_pocket, gen2_tm_item, item_kind, key_item
 
@@ -133,6 +133,9 @@ class Game2:
         self.cur_box = 0
         self.cur_party = 0
         self.selection = 0
+        self.daycare = [None, None]
+        self.event_flags = bytearray(256)
+        self.pokegear = self.card = self.knob = self.music = 0
         self.screen = screen
         if screen == 'battle_menu':
             self.go_battle_menu()
@@ -226,9 +229,25 @@ class Game2:
         self.screen = 'overworld'
 
     def go_pause(self):
-        self.open_menu(['POKéDEX', 'POKéMON', 'PACK', 'KRIS', 'SAVE', 'OPTION', 'EXIT'],
+        gear = ['POKéGEAR'] if self.pokegear else []
+        self.open_menu(['POKéDEX', 'POKéMON', 'PACK', *gear, 'KRIS', 'SAVE', 'OPTION', 'EXIT'],
                        {'POKéMON': lambda: self.go_party('field'), 'PACK': lambda: self.go_bag('field'),
-                        'EXIT': self.go_overworld}, self.go_overworld, index=2)
+                        'POKéGEAR': self.go_pokegear, 'EXIT': self.go_overworld}, self.go_overworld, index=2)
+
+    # Pokégear: the clock card first, the radio card (3) last. The Poké Flute plays at knob 78.
+    def go_pokegear(self):
+        self.card, self.screen = 0, 'pokegear'
+
+    def press_pokegear(self, button):
+        if button == 'right' and self.pokegear & 0x02:
+            self.card = min(3, self.card + 1)
+        elif button == 'left':
+            self.card = max(0, self.card - 1)
+        elif button in ('up', 'down') and self.card == 3:
+            self.knob = max(0, min(80, self.knob + (1 if button == 'up' else -1)))
+            self.music = 0x40 if self.knob == 78 else 0
+        elif button == 'b':
+            self.go_overworld()
 
     # Pack
     def entries(self):
@@ -319,7 +338,7 @@ class Game2:
     # Party
     PROMPTS = {'use': 'Use on which POKéMON?', 'teach': 'Teach which POKéMON?', 'give': 'Give to which POKéMON?',
                'switch': 'Move to where?', 'battle': 'Choose a POKéMON.', 'field': 'Choose a POKéMON.',
-               'deleter': 'Choose a POKéMON.'}
+               'deleter': 'Choose a POKéMON.', 'daycare': 'Which one should I raise?', 'show': 'Show me which one?'}
 
     def go_party(self, mode, source=None):
         self.party_mode, self.source, self.screen = mode, source, 'party'
@@ -339,6 +358,8 @@ class Game2:
             elif mode == 'battle':
                 if self.party[self.active]['hp']:
                     self.go_battle_menu()
+            elif mode in ('daycare', 'show'):
+                self.say('Oh, fine then.', then=self.go_overworld)
             else:
                 self.go_bag(self.bag_mode)
         elif button == 'a':
@@ -412,6 +433,37 @@ class Game2:
                         yes=lambda: self.say('Which POKéMON?', then=lambda: self.go_party('deleter')),
                         no=lambda: self.say('No? Come visit me again.', then=self.go_overworld))
         self.say("Um... Oh, yes, I'm the MOVE DELETER.", then=ask)
+
+    def day_care(self, parent=0):
+        held = self.daycare[parent]
+
+        def deposit(slot):
+            self.daycare[parent] = self.party.pop(slot)
+            self.say('Come back for it later.', then=self.go_overworld)
+
+        def withdraw():
+            self.party.append(self.daycare[parent])
+            self.daycare[parent] = None
+            self.say('Here you go.', then=self.go_overworld)
+        self.party_daycare = deposit
+        if held is None:
+            self.say("I'm the DAY-CARE MAN.", then=lambda: self.yes_no(
+                'Should I raise one of your POKéMON?', yes=lambda: self.go_party('daycare'),
+                no=lambda: self.say('Oh, fine then.', then=self.go_overworld)))
+        else:
+            self.yes_no('Do you want your POKéMON back?', yes=withdraw,
+                        no=lambda: self.say('Oh, fine then.', then=self.go_overworld))
+
+    def show_me(self, species, flag):
+        def show(slot):
+            if self.party[slot]['species'] == species:
+                self.event_flags[flag // 8] |= 1 << flag % 8
+                self.say('Wow! Thank you!', then=self.go_overworld)
+            else:
+                self.say("That's not the one.", then=self.go_overworld)
+        self.party_show = show
+        self.yes_no('Would you show me a POKéMON?', yes=lambda: self.go_party('show'),
+                    no=lambda: self.say('Oh well.', then=self.go_overworld))
 
     def battle_learn(self, slot):
         member = self.party[slot]
@@ -781,6 +833,17 @@ class Game2:
         put('wCurPocket', [self.pocket])
         put('wBillsPC_LoadedBox', [self.loaded])
         put('wWindowStackSize', [0 if self.screen == 'overworld' else 1])
+        for index, held in enumerate(self.daycare, 1):
+            put('wDayCareMan' if index == 1 else 'wDayCareLady', [1 if held else 0])
+            put(f'wBreedMon{index}', struct(held, party=False) if held else bytes(32))
+            put(f'wBreedMon{index}Nickname', name(held['nick'], self.version) if held else bytes(11))
+        put('wEventFlags', self.event_flags)
+        put('wPokegearFlags', [self.pokegear])
+        if self.screen == 'pokegear':
+            # The card byte is shared with other menus, so it is written only while the Pokégear is open.
+            put('wPokegearCard', [self.card])
+        put('wRadioTuningKnob', [self.knob])
+        put('wMapMusic', [self.music])
         self.tiles = bytearray([SPACE] * 360)
         getattr(self, 'draw_' + self.screen)()
         put('wTilemap', self.tiles)
@@ -831,6 +894,11 @@ class Game2:
 
     def draw_overworld(self):
         pass
+
+    def draw_pokegear(self):
+        self.text_at(1, 1, 'SUN 10:00')
+        if self.card == 3:
+            self.text_at(1, 9, f'TUNING {self.knob}')
 
     def draw_text(self):
         self.text_box(self.pages[0], more=True)
@@ -1371,6 +1439,118 @@ def test_move_deleter_forgets_the_requested_move():
     game = Game2()
     refused(delete_move(game.port(), 0, 0), game, 'No input sent')
 
+
+
+# Day Care, showing a partner and the radio ------------------------------------------------
+
+def test_day_care_takes_the_requested_pokemon_and_gives_it_back():
+    game = Game2(party=[mon('ONE'), mon('TWO', species=4), mon('SIX')])
+    game.day_care(0)
+    game.sync()
+    result = day_care(game.port(), 0, 1)
+    assert done(result) and game.daycare[0]['nick'] == 'TWO' and game.screen == 'overworld', result
+    assert [m['nick'] for m in game.party] == ['ONE', 'SIX'] and result['shortcut']['action'] == 'deposit'
+    game.inputs.clear()
+    game.day_care(0)
+    game.sync()
+    result = day_care(game.port(), 0)
+    assert done(result) and game.daycare[0] is None and game.party[-1]['nick'] == 'TWO', result
+
+
+def test_day_care_never_counts_a_look_alike():
+    # ONE and TWO share species, trainer and DVs. Only the nickname tells them apart, and the
+    # game leaving ONE where TWO was asked for is no deposit of TWO.
+    game = Game2(party=[mon('ONE'), mon('TWO'), mon('SIX')])
+    game.day_care(0)
+    game.sync()
+    original = game.party_daycare
+    game.party_daycare = lambda slot: original(0)
+    result = day_care(game.port(), 0, 1)
+    assert not result['shortcut']['completed'] and game.daycare[0]['nick'] == 'ONE', result
+
+
+def test_day_care_refusals_send_no_input():
+    game = Game2(party=[mon('ONE')])
+    game.day_care(0)
+    game.sync()
+    refused(day_care(game.port(), 0, 3), game, 'unavailable')
+    refused(day_care(game.port(), 0), game, 'empty')
+    game.party.append(mon('EGG', egg=True))
+    game.sync()
+    refused(day_care(game.port(), 0, 1), game, 'Egg')
+    game.daycare[1] = mon('HELD')
+    game.sync()
+    refused(day_care(game.port(), 1, 0), game, 'taken')
+    game = Game2(party=[mon(str(index)) for index in range(6)])
+    game.daycare[0] = mon('HELD')
+    game.day_care(0)
+    game.sync()
+    refused(day_care(game.port(), 0), game, 'full')
+    refused(day_care(Game2().port(), 0, 0), Game2(), 'greeting')
+
+
+def test_day_care_stops_when_another_pokemon_takes_the_slot():
+    game = Game2(party=[mon('ONE'), mon('TWO'), mon('SIX')])
+    game.day_care(0)
+    game.sync()
+    original = game.go_party
+
+    def go_party(mode, source=None):
+        game.party.pop(0)    # a stale slot: SIX now sits where TWO was
+        original(mode, source)
+    game.go_party = go_party
+    result = day_care(game.port(), 0, 1)
+    assert not result['shortcut']['completed'] and 'Party changed' in result['outcome'], result
+    assert game.daycare[0] is None
+
+
+def test_show_partner_sets_the_event_flag():
+    game = Game2(party=[mon('ONE'), mon('TWO', species=25)])
+    game.show_me(25, 300)
+    game.sync()
+    result = show_partner(game.port(), 1, 300)
+    assert done(result) and game.event_flags[300 // 8] >> 300 % 8 & 1 and game.screen == 'overworld', result
+    game.inputs.clear()
+    game.show_me(25, 300)
+    game.sync()
+    refused(show_partner(game.port(), 1, 300), game, 'already')
+    game = Game2(party=[mon('ONE'), mon('TWO', species=25)])
+    game.show_me(25, 300)
+    game.sync()
+    result = show_partner(game.port(), 0, 300)
+    assert not result['shortcut']['completed'] and game.screen == 'overworld', result
+    game = Game2(party=[mon('ONE')])
+    game.show_me(25, 300)
+    game.sync()
+    refused(show_partner(game.port(), 2, 300), game, 'unavailable')
+    with pytest.raises(ValueError):
+        show_partner(game.port(), 0, 2048)
+
+
+def test_radio_tunes_to_the_poke_flute_and_returns():
+    game = Game2(screen='overworld')
+    game.pokegear = 0x82
+    game.sync()
+    result = tune_radio(game.port())
+    assert done(result) and game.knob == 78 and game.music == 0x40 and game.screen == 'overworld', result
+    assert result['shortcut']['station'] == 78
+    game = Game2(screen='overworld')
+    game.pokegear = 0x80
+    game.sync()
+    refused(tune_radio(game.port()), game, 'radio card')
+    with pytest.raises(ValueError):
+        tune_radio(game.port(), 256)
+
+
+def test_menu_labels_and_choices_read_like_the_screen():
+    assert gen2ui.menu_label('│▶POKéMON      │') == 'POKéMON'
+    assert gen2ui.menu_label(' 12 ▶TM12       ×1') == 'TM12       ×1'
+    rows = ['│ BILL\'s PC    │', '│▶KRIS\'s PC    │', '│ TURN OFF     │']
+    assert gen2ui.choose(rows, 'TURN OFF') == 'down' and gen2ui.choose(rows, 'turn') == 'down'
+    assert gen2ui.choose(rows, "KRIS's PC", exact=True) == 'a'
+    assert gen2ui.choose(rows, 'TURN', exact=True) is None and gen2ui.choose(['  YES'], 'YES') is None
+    assert gen2ui.close_pc(rows, 'Access whose PC?') == 'down'
+    assert gen2ui.close_pc(rows, "BILL's PC accessed.") == 'b'
 
 def test_throw_can_hand_the_nickname_prompt_to_the_caller():
     game = Game2(balls=[(POKE_BALL, 2)], battle=1, screen='battle_menu')

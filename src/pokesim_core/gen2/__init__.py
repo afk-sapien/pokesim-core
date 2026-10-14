@@ -9,8 +9,9 @@ Save menu on a Core emulator and need the emulator extra when called. :mod:`poke
 decodes live map collision and ice slides. :mod:`pokesim_core.gen2.hooks` finds verified ROM code
 addresses for emulator hooks and :mod:`pokesim_core.gen2.resets` holds trusted setup writes.
 :mod:`pokesim_core.gen2.cable` drives Cable Club and Time Capsule trades on Core emulators.
+:mod:`pokesim_core.gen2.puzzles` reads and solves the Ruins of Alph picture boards.
 """
-from . import cable, clock, hooks, maps, resets, save
+from . import cable, clock, hooks, maps, puzzles, resets, save
 from .battle_power import battle_power, hidden_power
 from .breeding import (DITTO, TYROGUE, ancestors, branch_parents, breeding_stock, descendants_wanted, egg_lines,
                        families, free_slots, level_credit, lines, offspring, retrieval_cost, single_source)
@@ -23,25 +24,30 @@ from .memory_map import CRYSTAL_ONLY, VERSIONS, symbols, version_of
 from .ram import (BADGES, STAT_NAMES, TIMES_OF_DAY, Mon, Snapshot, calculated_stats, caught_details, clear_region_cache,
                   decode_mon, dex_flags, experience_at, experience_progress, individual, landmark_name, read_snapshot,
                   tile_rows)
+from .puzzles import DESTINATIONS, PUZZLES, puzzle_button
 from .resets import box_gift, reset_event, set_gs_ball, write_byte, write_flag
 from .save import clock_archive, export_with_clock
 from .screens import ScreenText, has_word, is_roster, mask_hud, mask_roster
-from .state import (caught_data, decode_struct, memory_reader, pokerus, read_box_counts, read_box_structs, read_clock,
-                    read_daycare, read_items, read_party_structs, read_player, read_pokedex, read_roamers)
+from .state import (CONTEST_STATS, caught_data, contest_score, decode_struct, memory_reader, npc_trade_done,
+                    npc_trade_flags, npc_trade_qualifies, npc_trades_done, pokerus, read_box_counts,
+                    read_box_structs, read_clock, read_daycare, read_items, read_party_structs, read_player,
+                    read_pokedex, read_roamers)
 from .status import DEFAULT_VERSION, live_status
-from .tables import GameTables, decode_text, pretty
+from .tables import FIELD_MOVES, NPC_TRADES, PRIZES, GameTables, NpcTrade, decode_text, npc_trades, pretty, prizes
 
 __all__ = [
-    'BADGES', 'CHANGES', 'CRYSTAL_ONLY', 'DEFAULT_VERSION', 'DIRS', 'DITTO', 'DOORS', 'GameTables', 'ICE', 'Mon',
-    'OPPOSITE', 'OUTSIDE', 'STAT_NAMES', 'ScreenText', 'Snapshot', 'TIMES_OF_DAY', 'TYROGUE', 'VERSIONS', 'WALLS',
-    'ancestors', 'battle_power', 'bcd', 'box_gift', 'branch_parents', 'breeding_stock', 'cable', 'calculated_stats',
-    'capture_hooks', 'caught_data', 'caught_details', 'clear_region_cache', 'clock', 'clock_archive', 'clock_elapsed',
-    'clock_lock_state', 'collision', 'contest_hook', 'decode_mon', 'decode_struct', 'decode_text', 'descendants_wanted',
-    'dex_flags', 'egg_lines', 'encounter_hook', 'experience_at', 'experience_progress', 'export_clock',
-    'export_with_clock', 'families', 'flyer', 'follow_game_time', 'free_slots', 'has_ice', 'has_word', 'hatch_hook',
-    'hidden_power', 'hooks', 'host_elapsed', 'ice_solids', 'individual', 'is_roster', 'landmark_name', 'level_credit',
-    'lines', 'live_status', 'lock_clock', 'maps', 'mart_hooks', 'mask_hud', 'mask_roster', 'memory_reader', 'move',
-    'offspring', 'passable', 'pokerus', 'pretty', 'read_box_counts', 'read_box_structs', 'read_clock', 'read_daycare',
+    'BADGES', 'CHANGES', 'CONTEST_STATS', 'CRYSTAL_ONLY', 'DEFAULT_VERSION', 'DESTINATIONS', 'DIRS', 'DITTO', 'DOORS',
+    'FIELD_MOVES', 'GameTables', 'ICE', 'Mon', 'NPC_TRADES', 'NpcTrade', 'OPPOSITE', 'OUTSIDE', 'PRIZES', 'PUZZLES',
+    'STAT_NAMES', 'ScreenText', 'Snapshot', 'TIMES_OF_DAY', 'TYROGUE', 'VERSIONS', 'WALLS', 'ancestors', 'battle_power',
+    'bcd', 'box_gift', 'branch_parents', 'breeding_stock', 'cable', 'calculated_stats', 'capture_hooks', 'caught_data',
+    'caught_details', 'clear_region_cache', 'clock', 'clock_archive', 'clock_elapsed', 'clock_lock_state', 'collision',
+    'contest_hook', 'contest_score', 'decode_mon', 'decode_struct', 'decode_text', 'descendants_wanted', 'dex_flags',
+    'egg_lines', 'encounter_hook', 'experience_at', 'experience_progress', 'export_clock', 'export_with_clock',
+    'families', 'flyer', 'follow_game_time', 'free_slots', 'has_ice', 'has_word', 'hatch_hook', 'hidden_power', 'hooks',
+    'host_elapsed', 'ice_solids', 'individual', 'is_roster', 'landmark_name', 'level_credit', 'lines', 'live_status',
+    'lock_clock', 'maps', 'mart_hooks', 'mask_hud', 'mask_roster', 'memory_reader', 'move', 'npc_trade_done',
+    'npc_trade_flags', 'npc_trade_qualifies', 'npc_trades', 'npc_trades_done', 'offspring', 'passable', 'pokerus',
+    'pretty', 'prizes', 'puzzle_button', 'puzzles', 'read_box_counts', 'read_box_structs', 'read_clock', 'read_daycare',
     'read_items', 'read_party_structs', 'read_player', 'read_pokedex', 'read_roamers', 'read_snapshot',
     'rebase_to_host', 'reset_event', 'resets', 'retrieval_cost', 'save', 'set_gs_ball', 'side_blocked', 'single_source',
     'slide', 'step_hook', 'stop_with_clock', 'symbols', 'tile_rows', 'travel_collision', 'version_of', 'write_byte',
