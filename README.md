@@ -299,6 +299,8 @@ Also in `pokesim_core.gen2`:
 
 - `battle_power(mon, data)` and `hidden_power(data, dvs)` rate a decoded Pokemon from the game tables.
 - `offspring`, `retrieval_cost`, `branch_parents`, `ancestors` and `level_credit` apply the Day Care and evolution-line rules.
+  `families`, `single_source`, `lines`, `breeding_stock`, `egg_lines`, `free_slots` and `descendants_wanted`
+  find the families only the Day Care can copy and whether another hatchling is wanted.
 - `live_status(game, collection, *, data=None)` builds the shared adventure status payload.
 - `ScreenText`, `has_word`, `mask_hud`, `mask_roster` and `is_roster` match whole words in screen text.
   `ScreenText` and `has_word` come from the generation-neutral `pokesim_core.textmatch`, which Gen 1
