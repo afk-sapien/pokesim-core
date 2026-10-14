@@ -30,7 +30,7 @@ def controls_locked(obs, gen):
     return obs.memory[W_STATUS_FLAGS5] & 0x80 != 0 or obs.memory[W_JOY_IGNORE] & 0xF0 == 0xF0
 
 
-def merge_lines(lines, shown):
+def merge_lines(lines, shown, *, final=False):
     """Append the lines ``shown`` in the text box to ``lines``, in place.
 
     Lines already at the end of ``lines`` are skipped, so a page that scrolls up a
@@ -41,7 +41,7 @@ def merge_lines(lines, shown):
         return
     for k in range(min(len(lines), len(shown)), 0, -1):
         tail, head = lines[-k:], shown[:k]
-        if tail[:-1] == head[:-1] and head[-1].startswith(tail[-1]):
+        if tail[:-1] == head[:-1] and (head[-1] == tail[-1] or not final and head[-1].startswith(tail[-1])):
             lines[-1] = head[-1]
             lines.extend(shown[k:])
             return
@@ -70,6 +70,7 @@ class AdvanceDialogue(Shortcut):
         self.patience = patience
         self.lines = []
         self.truncated = False
+        self._advanced = False
 
     # Reads -------------------------------------------------------------------
     def shown_lines(self, obs):
@@ -92,7 +93,10 @@ class AdvanceDialogue(Shortcut):
     def capture(self, obs):
         if self.truncated or obs.screen in ('overworld', 'transition'):
             return
-        merge_lines(self.lines, self.shown_lines(obs))
+        shown = self.shown_lines(obs)
+        merge_lines(self.lines, shown, final=self._advanced)
+        if shown:
+            self._advanced = False
         if len(self.lines) > MAX_LINES or sum(len(line) for line in self.lines) > MAX_CHARS:
             self.truncated = True
             del self.lines[MAX_LINES:]
@@ -132,6 +136,8 @@ class AdvanceDialogue(Shortcut):
             quiet = 0
             if obs.screen == 'dialogue' and self.ready():
                 idle = 0
+                # The lines on screen are finished once A turns the page.
+                self._advanced = True
                 yield 'a'
                 continue
             shown = tuple(obs.rows)

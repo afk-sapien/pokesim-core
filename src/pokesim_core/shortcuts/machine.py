@@ -385,11 +385,17 @@ class Shortcut:
                 if abort.cleanup and self.inputs:
                     self._flow = self._cleanup(abort.done)
                     continue
+                if self.inputs and abort.done.reason is not StopReason.PROMPT:
+                    # Inputs went out and nothing backed out, so the screen is not known to rest.
+                    return self._finish(replace(abort.done, settled=False))
                 return self._finish(abort.done)
             return action
 
     def _cleanup(self, done):
         settled = yield from self.settle(limit=80, answer_prompts=False)
+        if settled == 'prompt' and done.reason is None:
+            # Cleanup cannot back out of a YES/NO, so report the prompt the caller now faces.
+            return replace(done, reason=StopReason.PROMPT)
         return replace(done, settled=settled is not False)
 
     def _finish(self, done):

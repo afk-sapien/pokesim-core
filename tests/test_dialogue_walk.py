@@ -5,7 +5,7 @@ import json
 import pytest
 
 import pokesim_core.shortcuts as shortcuts
-from pokesim_core.controls import ControllerPort
+from pokesim_core.controls import ControllerPort, switch_pokemon, use_item
 from pokesim_core.gen1 import W_CUR_MAP, W_TILEMAP, W_X, W_Y
 from pokesim_core.shortcuts import (STOP_REASONS, AdvanceDialogue, StopReason, Walk, advance_dialogue, describe,
                                     result_schema, walk)
@@ -319,3 +319,52 @@ def test_catalog_filters_by_version():
     with pytest.raises(KeyError):
         describe('fly_anywhere')
     assert set(result_schema()['properties']['shortcut']['properties']['stop_reason']['enum']) == set(STOP_REASONS)
+
+
+def test_merge_lines_keeps_a_finished_line_that_prefixes_the_next_page():
+    lines = ['Welcome']
+    merge_lines(lines, ['Welcome back!'], final=True)
+    assert lines == ['Welcome', 'Welcome back!']
+    lines = ['Welcome']
+    merge_lines(lines, ['Welcome back!'])
+    assert lines == ['Welcome back!']
+
+
+def _abort_port(kind, after):
+    from types import SimpleNamespace
+    state = SimpleNamespace(kind=kind, frame=0, inputs=[])
+    memory = bytearray(65536)
+    memory[0xD057] = int(kind.startswith('battle') or kind == 'move_menu')
+
+    def send(button, hold, gap):
+        state.inputs.append(button)
+        state.frame += hold + gap
+        state.kind = after(state.kind, button)
+        return True
+    party = [dict(species=1, trainer_id=1, dvs=(0,) * 5, nick=n, hp=5, max_hp=9) for n in 'AB']
+    port = ControllerPort(memory, send, lambda label: True, lambda: {}, lambda: state.frame,
+                          read_party=lambda m: party, read_bag=lambda m: [(16, 1)], panel=lambda *a: state.kind)
+    return state, port
+
+
+@pytest.mark.parametrize('start, button, call', [
+    ('overworld', 'start', lambda port: use_item(port, 16, 0)),
+    ('move_menu', 'b', lambda port: switch_pokemon(port, 1)),
+])
+def test_abort_after_inputs_does_not_claim_the_screen_settled(start, button, call):
+    state, port = _abort_port(start, lambda kind, pressed: 'naming' if pressed == button else kind)
+    shortcut = sc(call(port))
+    assert state.inputs and shortcut['settled'] is False and shortcut['can_continue'] is False
+
+
+def test_abort_at_an_unanswered_prompt_reports_the_prompt():
+    from pokesim_core.controls import machine_options
+    from pokesim_core.shortcuts.machine import Abort, Shortcut, run
+
+    class PromptAbort(Shortcut):
+        def flow(self):
+            yield 'a'
+            raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False)
+    state, port = _abort_port('overworld', lambda kind, pressed: 'yes_no' if pressed == 'a' else kind)
+    shortcut = sc(run(port, PromptAbort(**machine_options(port))))
+    assert state.kind == 'yes_no' and shortcut['stop_reason'] == 'prompt'
