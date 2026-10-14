@@ -103,3 +103,48 @@ needs `constant`, `width`, `height`, `collision`, `block_collision` and `objects
   reports them while their map is loaded and hidden objects left out.
 - `flyer(snapshot)` is the party slot that can use Fly, or None. `OUTSIDE` is the map
   environments Fly works from.
+
+## ROM hooks
+
+`gen2.hooks` returns the (bank, address) to pass to `hook_register` for game code a consumer
+wants to watch. Each finder takes `memory` (banked reads) and `data`, checks the instructions
+at that address and raises ValueError when they differ, so a hook is never placed inside
+other code. What the hook does stays with the consumer.
+
+- `capture_hooks(memory, data)`: the two places a caught Pokemon joins the party or a box
+  (fixed addresses and signatures in `HOOKS`).
+- `encounter_hook`: where every wild battle checks for a shiny.
+- `contest_hook`: where a Bug-Catching Contest catch is kept. Contest catches skip the capture hooks.
+- `hatch_hook`: HatchEggs, which every Egg reaches.
+- `step_hook`: CountStep, once per completed step (link sessions too, so check `wLinkMode`).
+- `mart_hooks`: a dict with `opened` (BuyMenu), `priced` (unit price in `de`), `subtotal` and
+  `bought`. It is `{}` without BuyMenu and SelectQuantityToBuy, and has only the first two
+  without BuySell_DisplaySubtotal, BuyMenuLoop, hProduct and hMoneyTemp.
+
+ROM labels come from `data.symbols` first, then `hooks.LABELS`, which holds the ones these
+finders need from the pinned pret symbol files. A minimal `GameTables({"game": "crystal"})`
+is enough. `bcd(value)` packs 0 to 999999 as the game stores money and prices.
+
+## Setup writes
+
+`gen2.resets` mirrors the Gen 1 `resets` module for banked memory. These are trusted setup
+writes for a paused emulator, not agent commands. Which flags to change, and when, stays with
+the consumer.
+
+```python
+from pokesim_core.gen2 import resets
+
+resets.write_flag(memory, data, "EVENT_FOUGHT_LUGIA", False)  # True when the bit changed
+resets.write_byte(memory, data, "wTinTower1FSceneID", 0)
+changed = resets.reset_event(memory, data, [("EVENT_FOUGHT_LUGIA", False), ("EVENT_WHIRL_ISLAND_LUGIA_CHAMBER_LUGIA", False)])
+resets.box_gift(memory, data, 152, seed, box, position, nicknames=("LEAFY",), ot="POKESIM")
+resets.set_gs_ball(memory, data)  # Crystal only
+```
+
+`reset_event` checks every name and refuses conflicting values before it writes, reads each
+byte back and restores the bytes it wrote if one does not persist. It returns the names whose
+value changed. `box_gift` writes a level 5 Pokemon at `position`, which must be the box's
+current count, with the moves it knows by level 5, full PP and 70 happiness. `seed` fixes its
+trainer ID and DVs. The nickname is drawn from `nicknames` after the DVs, or is the species
+name when `nicknames` is None. It also sets the caught and seen Pokedex bits. It reads
+`learnset`, `growth` and `name` from `data.species` and `pp` from `data.moves`.
