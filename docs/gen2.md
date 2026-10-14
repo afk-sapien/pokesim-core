@@ -57,3 +57,22 @@ with no Pokedex number, name or types. The default keeps the species. A
 DVs when a wild Ditto has transformed. It is None when the symbol table has no
 enemy DVs.
 
+## Save-menu exports
+
+`gen2.save` and `gen1_save` produce a battery save the way a console would: a private clone
+of the run opens the Start menu, chooses SAVE and confirms, then a fresh emulator boots the
+file, chooses Continue and checks that the party, boxes, Pokédex, badges, money, bag, names
+and position match. A mismatch raises `ValueError` and nothing is returned. The live run is
+never changed and nothing is written beside the ROM.
+
+- `gen2.save.capture(emulator, data)` and `gen1_save.capture(emulator)` return a raw state,
+  refused unless the trainer is walking with a party outside battle and dialogue.
+- `gen2.save.export_with_clock(rom, state, data)` returns the 32 KiB save and its ten-byte
+  `.rtc` file. `export` returns the save alone. `clock_archive(save, rtc, name)` zips both.
+- `gen2.save.verify(rom, save, data, expected, *, rtc=None)` and `continue_save(rom, save,
+  data, *, rtc=None)` boot a save. `continue_save` returns the running emulator once the
+  trainer walks and leaves location checks to the caller.
+- `gen2.save.checkpoint_clock(rom, state)` is the clock file a raw state reads as.
+- `gen1_save.export(rom, state)` and `verify(rom, save, symbols, expected)` accept the
+  verified English Red, Blue and Yellow builds (`symbols_for(rom)`). Yellow runs on
+  `YellowEmulator`, so `progress(memory, symbols)` reads Red addresses on all three.

@@ -18,7 +18,7 @@ FPS = 4_194_304 / 70_224
 
 
 CLOCK_UNAVAILABLE = ('This operation requires a PyBoy RS build with real-time clock control '
-                     '(pyboy-rs 0.1.1 or newer). The installed build cannot control the cartridge clock.')
+                     '(pyboy-rs 0.1.2 or newer). The installed build cannot control the cartridge clock.')
 _CLOCK_METHODS = ('rtc_export', 'rtc_import', 'rtc_registers', 'set_rtc_registers', 'rtc_state',
                   'set_rtc_timezero', 'clock_now', 'lock_clock', 'unlock_clock', 'advance_clock',
                   'clock_lock_state', 'set_clock_lock_state')

@@ -48,3 +48,23 @@ identical lock applied, because the raw state cannot carry it. A checkpoint
 with no clock data (no key, or `None`) releases any lock without shifting the
 clock. Checkpoints of other cartridges carry no clock data. Execution recording
 and replay work with a locked clock and reject a live one.
+
+## Gen II clock helpers
+
+`gen2.clock` wraps the `Emulator` clock calls for Gold, Silver and Crystal. It needs the
+emulator extra. Every call reports a backend without clock control as `CoreCapabilityError`
+(the message is `CLOCK_UNAVAILABLE`), never a silent clock restart, because Gen II reads a
+clock earlier than its saved time as a reset.
+
+- `boot(rom, *, ram=None, rtc=None, sound=True)` opens a cartridge with snapshot reads.
+  `rom` is a path, bytes or a stream. `ram` and `rtc` are bytes or streams and are copied.
+- `lock_clock(emulator, locked=True, *, at=None, follow_frames=False, rebase=False)` freezes
+  or releases the clock. `rebase` also moves the zero point to `at`.
+- `follow_game_time(emulator, elapsed=None)` locks the clock to emulated frames at its reading
+  now (or at `elapsed` seconds), never a rounding step below it.
+- `rebase_to_host(emulator)` keeps the reading but moves the zero point so the host clock shows
+  the same time now. Call it before `save()` when the state will be opened unlocked (an export,
+  a cable side), or the copy reads the locked base as years of elapsed time.
+- `clock_elapsed`, `host_elapsed`, `clock_lock_state`, `export_clock` and
+  `stop_with_clock(emulator, ram_stream, rtc_stream)` read or persist the clock.
+- `FIXED_CLOCK_EPOCH` and `SECONDS_PER_FRAME` (4389/262144) are the constants runs use.
