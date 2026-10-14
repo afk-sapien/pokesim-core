@@ -11,7 +11,7 @@ from functools import lru_cache
 
 from .memory_map import symbols
 from .ram import BADGES, Memory, dex_flags, individual
-from .tables import GameTables
+from .tables import GameTables, npc_trades
 
 EGG = 0xFD
 PARTY_STRUCT = 48
@@ -222,3 +222,52 @@ def read_roamers(memory, version):
         if raw[0] in (243, 244, 245):
             roamers.append({'species': raw[0], 'level': raw[1], 'map': raw[2] * 256 + raw[3], 'hp': raw[4]})
     return tuple(roamers)
+
+
+def npc_trade_flags(memory, version):
+    """The ``wTradeFlags`` byte. Bit ``trade.index`` is set once that in-game trade has happened."""
+    return memory_reader(memory, version).byte('wTradeFlags')
+
+
+def npc_trade_done(memory, version, trade):
+    """Whether the in-game trade ``trade`` (an :class:`NpcTrade` or its index) has happened."""
+    index = trade if isinstance(trade, int) else trade.index
+    return bool(npc_trade_flags(memory, version) >> index & 1)
+
+
+def npc_trades_done(memory, version):
+    """The in-game trades of ``version`` that have happened, in bit order."""
+    flags = npc_trade_flags(memory, version)
+    return tuple(trade for trade in npc_trades(version) if flags >> trade.index & 1)
+
+
+def npc_trade_qualifies(mon, trade):
+    """Whether ``mon`` is a Pokémon the person accepts: the requested species, not an Egg,
+    and female when the trade asks for one.
+
+    ``mon`` is a :class:`pokesim_core.gen2.ram.Mon`, or a mapping with ``species``, ``egg``
+    and ``gender``. Core cannot tell gender without species tables, so a female-only trade
+    needs ``gender`` filled in.
+    """
+    field = mon.get if isinstance(mon, dict) else lambda name: getattr(mon, name, None)
+    return (field('species') == trade.request and not field('egg')
+            and (not trade.female or field('gender') == 'Female'))
+
+
+CONTEST_STATS = ('Attack', 'Defense', 'Speed', 'SpclAtk', 'SpclDef')
+
+
+def contest_score(memory, version, prefix='wContestMon'):
+    """The Bug-Catching Contest judge's score for the caught Pokémon, or ``prefix='wEnemyMon'``
+    for the wild one in battle. 0 when the slot is empty.
+
+    The judge (pret ContestScore) adds four times max HP, plus the other five stats,
+    plus a DV bonus, plus an eighth of current HP, plus one for a held item.
+    """
+    mem = memory_reader(memory, version)
+    if not mem.byte(prefix + 'Species'):
+        return 0
+    first, second = mem.read(prefix + 'DVs', 2)
+    bonus = ((second >> 4) & 2) // 2 + (second & 2) * 2 + ((first >> 4) & 2) * 4 + (first & 2) * 8
+    return (mem.word(prefix + 'MaxHP') * 4 + sum(mem.word(prefix + stat) for stat in CONTEST_STATS)
+            + bonus + mem.word(prefix + 'HP') // 8 + bool(mem.byte(prefix + 'Item')))

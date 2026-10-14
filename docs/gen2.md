@@ -42,6 +42,18 @@ Also in `pokesim_core.gen2`:
 - `ScreenText`, `has_word`, `mask_hud`, `mask_roster` and `is_roster` match whole words in screen text.
   `ScreenText` and `has_word` come from the generation-neutral `pokesim_core.textmatch`, which Gen 1
   screen readers can import too.
+- `npc_trades(game)` and `NPC_TRADES` list the in-game trades (an `NpcTrade` each, with its
+  `wTradeFlags` bit as `index`). `state.npc_trade_flags`, `npc_trade_done` and `npc_trades_done`
+  read which happened, and `npc_trade_qualifies(mon, trade)` checks species, Egg and, for a
+  female-only trade, the `gender` the caller supplies.
+- `prizes(game)` and `PRIZES` list the Game Corner prize Pokemon as (species, coins, city).
+  `FIELD_MOVES` holds the seven HM move IDs.
+- `state.contest_score(memory, version, prefix='wContestMon')` is the Bug-Catching Contest judge's
+  score for the caught Pokemon. `prefix='wEnemyMon'` scores the wild one in battle.
+- `gen2.puzzles` solves the Ruins of Alph picture boards. `puzzle_button(board, cursor, held)`
+  returns the next button for the 36 `wPuzzlePieces` bytes, and `puzzles.control(memory, version,
+  map_constant=None)` reads the open board and returns a button, `'wait'` while the board is
+  changing, or None when no board is open. Pieces are never dropped on an occupied cell.
 - `decode_mon`, `individual`, `calculated_stats`, `experience_at`, `experience_progress`, `dex_flags` and `decode_text` are the building blocks.
 
 Output is identical, field for field and in `repr`, to the PokeSim `pokesim.gen2`

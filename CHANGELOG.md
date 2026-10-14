@@ -79,6 +79,20 @@
   (`W_SPRITE_STATE_DATA2`, `SPRITE_STRUCT`, `SPRITE_MAP_Y`, `SPRITE_MAP_X`) and the bits
   `BIT_STRENGTH_ACTIVE`, `BIT_GAVE_SAFFRON_GUARDS_DRINK` and `BIT_SPINNING`.
   `gen1.sprite_tile` reads a sprite's map tile.
+- Gen 2 shortcuts `tune_radio` (`Radio`), `day_care` (`DayCare`) and `show_partner`
+  (`ShowPartner`). `tune_radio` tunes the Pokegear radio, by default to the Poke Flute
+  channel. `day_care` leaves a party Pokemon with either Day Care person or takes it back,
+  confirmed by species, trainer ID, DVs and nickname. `show_partner` shows a party Pokemon
+  until a given event flag turns on. All three are in `describe()`.
+- `shortcuts.gen2ui.menu_label`, `choose` and `close_pc` read and drive Gen 2 menus.
+- The Gold, Silver and Crystal naming keyboard: `naming.gen2_naming`, `gen2_name_step` and
+  `enter_name` on a Gen 2 port. Names may use capital letters, space and `-?!/.,`.
+- `gen2.npc_trades`, `NPC_TRADES` and `NpcTrade` (the in-game trades), `gen2.prizes` and
+  `PRIZES` (Game Corner prize Pokemon), `FIELD_MOVES`, and `state.npc_trade_flags`,
+  `npc_trade_done`, `npc_trades_done`, `npc_trade_qualifies` and `contest_score`.
+  `wTradeFlags`, the `wContestMon` fields, `wEnemyMonAttack`, `wEnemyMonSpclAtk` and the
+  naming keyboard's destination and length symbols join the Gen 2 memory maps.
+- `gen2.puzzles`: `puzzle_button` and `control` solve the Ruins of Alph picture boards.
 
 ### Fixed
 
@@ -93,6 +107,8 @@
   without a second cast.
 - Waiting for an item's effect on the overworld no longer presses A there, where it could
   talk to someone or offer SURF.
+- `enter_name` on a Gold, Silver or Crystal port drives the Gen 2 keyboard. It used to read
+  the Red and Blue screen layout there.
 
 ### Changed
 

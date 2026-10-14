@@ -65,6 +65,9 @@ answers it.
 | `withdraw_item(port, item, quantity)` | All six | The bag gained `quantity` from the item PC. |
 | `change_box(port, box)` | All six | `box` is the current box. The game saves as part of the change. Starts at the PC menu. |
 | `delete_move(port, slot, move_slot)` | Gold, Silver, Crystal | The Move Deleter made the Pokemon forget that move. Starts at the Move Deleter's greeting. |
+| `tune_radio(port, station=78, music=0x40)` | Gold, Silver, Crystal | The Pokegear radio is on knob position `station` and `wMapMusic` is `music` (None skips the music check), then the Pokegear is closed. The default is the Poke Flute channel. Starts in the overworld or the start menu and refuses without the radio card. |
+| `day_care(port, parent, slot=None)` | Gold, Silver, Crystal | Party `slot` is held in Day Care place `parent` (0 for the Day-Care Man, 1 for the Day-Care Lady), or with `slot=None` that parent is back in the party. Species, trainer ID, DVs and nickname must match, so a look-alike never counts. Starts at that person's greeting. Every YES/NO is answered YES. |
+| `show_partner(port, slot, event)` | Gold, Silver, Crystal | Event flag `event` (an index into `wEventFlags`) turned on after party `slot` was shown to a person who asks to see a Pokemon. Starts at the person's greeting. A flag already on refuses. |
 | `advance_dialogue(port)` | All six | Text was advanced to a choice (`stop_reason='choice'`, with `screen` and `choices`) or to its end (`'text_end'`). `lines` and `text` hold the conversation. Choices are never answered. |
 | `walk(port, direction, tiles=1)` | All six | The player moved `tiles` tiles toward `direction`. It stops early with `blocked`, `battle`, `map_change` or `dialogue` and reports `tiles_moved`, `start`, `end` and `facing`. A ledge hop counts two tiles. On a bicycle a tap can move further than one tile. |
 
@@ -78,6 +81,12 @@ so `current_screen` also names the bag, quantity box, item PC, Bill's PC lists,
 mart list and the battle switch prompt. `run` resolves menu choices into single
 buttons there and only calls `port.send`, never `port.choose`. Mail is not
 covered.
+
+`shortcuts.gen2ui` also holds the Gen 2 menu helpers the machines use, for a
+consumer that drives its own menus: `menu_label(row)` strips frame bars, cursors,
+item numbers and the TM pack image from one row, `choose(rows, label,
+exact=False)` returns one button toward a whole-word label in a vertical menu,
+and `close_pc(rows, text)` returns the button that leaves a Pokemon Center PC.
 
 ## Building a tool list
 
