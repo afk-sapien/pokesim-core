@@ -1368,3 +1368,21 @@ def test_fight_with_no_pp_left_uses_struggle():
         button)
     result = choose_move(game.port(), 0)
     assert done(result) and result['shortcut']['forced'] == 'struggle' and game.screen == 'battle_menu', result
+
+
+def without_egg_field(game):
+    def read_party(raw):
+        return [{key: value for key, value in member.items() if key != 'egg'}
+                for member in gen2ui.read_party(raw, game.version)]
+    return read_party
+
+
+def test_party_checks_accept_a_reader_without_the_egg_field():
+    game = Game2(party=[mon('ONE'), mon('TWO', moves=(15, 45, 70, 0))])
+    game.move_deleter()
+    game.sync()
+    result = delete_move(game.port(read_party=without_egg_field(game)), 1, 2)
+    assert done(result) and game.party[1]['moves'] == [15, 45, 0, 0], result
+    game = pc_game()
+    result = deposit_pokemon(game.port(read_party=without_egg_field(game)), 1)
+    assert done(result) and [m['nick'] for m in game.box] == ['ROCK', 'BIRD', 'TWO'], result

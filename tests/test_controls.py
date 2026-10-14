@@ -152,3 +152,27 @@ def test_enter_name_submits_once_and_observes_keyboard_close():
     port.send = send
     assert enter_name(port, 'ABC')['completed']
     assert state.inputs == ['start']
+
+
+@pytest.mark.parametrize('version', ['red', 'yellow'])
+def test_default_readers_follow_the_cartridge_layout(version):
+    from pokesim_core import gen1
+    from pokesim_core.controls import machine_options
+    from pokesim_core.shortcuts.actions import SwitchPokemon
+    from pokesim_core.yellow import red_layout
+    raw = bytearray(65536)
+    # Write a party and bag at Red addresses through the cartridge's own layout.
+    view = red_layout(raw, version)
+    view[gen1.W_PARTY_COUNT] = 1
+    view[gen1.W_PARTY_MONS] = 84
+    view[gen1.W_PARTY_MONS + 33] = 12
+    view[gen1.W_NUM_BAG_ITEMS] = 1
+    view[gen1.W_BAG_ITEMS] = 20
+    view[gen1.W_BAG_ITEMS + 1] = 3
+    port = ControllerPort(raw, None, None, None, None, version=version)
+    machine = SwitchPokemon(0, **machine_options(port))
+    obs = machine.observe(raw)
+    party = machine.party(obs)
+    assert [(member['species'], member['level']) for member in party] == [(84, 12)]
+    assert machine.bag(obs) == [(20, 3)]
+    assert party == gen1.read_party(raw, version=version)
