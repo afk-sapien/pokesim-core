@@ -308,6 +308,15 @@ Also in `pokesim_core.gen2`:
 Output is identical, field for field and in `repr`, to PokeSim's `pokesim.gen2`
 modules these were moved from.
 
+`Mon` also carries the Pokerus byte and the Crystal caught data word. `to_dict()`
+reports them as `pokerus` and, on Crystal, `caught` (named through
+`caught_details` and `landmark_name`), adds `power` and `accuracy` to each move
+and `egg_cycles` to an egg. `Mon.to_dict(egg_view=True)` and
+`Snapshot.to_dict(egg_view=True)` show an unhatched egg the way the game does,
+with no Pokedex number, name or types. The default keeps the species. A
+`Snapshot` has `enemy_shiny` for a wild opponent, read from the Transform backup
+DVs when a wild Ditto has transformed.
+
 ## Per-step memory snapshot
 
 ```python

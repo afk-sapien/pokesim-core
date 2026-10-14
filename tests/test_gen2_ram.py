@@ -17,7 +17,7 @@ SYMBOLS = {'wPartyCount': 1, 'wPartySpecies': 7, 'wPartyMons': 288, 'wPartyMonNi
            'wJohtoBadges': 1, 'wKantoBadges': 1, 'wMoney': 3, 'wCoins': 2, 'wEnemyMonSpecies': 1,
            'wEnemyMonLevel': 1, 'wEnemyMonHP': 2, 'wEnemyMonMaxHP': 2, 'wTrainerClass': 1, 'wBattleType': 1,
            'wGameTimeHours': 2, 'wGameTimeMinutes': 1, 'wGameTimeSeconds': 1, 'wHallOfFameCount': 1,
-           'wStepCount': 1, 'wHappinessStepCount': 1}
+           'wStepCount': 1, 'wHappinessStepCount': 1, 'wEnemyMonDVs': 2, 'wEnemyBackupDVs': 2, 'wEnemySubStatus5': 1}
 
 
 def synthetic_data():
@@ -174,3 +174,142 @@ def test_version_of_rejects_unknown_roms():
         pass
     else:
         raise AssertionError('unknown ROMs are rejected')
+
+
+# Ported from PokeSim's PC detail, shiny and Day Care tests.
+
+ROUTE_30_MAPS = {1: {'landmark': 4, 'environment': 'INDOOR', 'name': 'Route 30 Berry House'},
+                 2: {'landmark': 4, 'environment': 'ROUTE', 'name': 'Route 30'},
+                 3: {'landmark': 10, 'environment': 'CAVE', 'name': 'Union Cave B1F'}}
+
+
+def test_crystal_caught_data_names_events_gifts_and_unknown_places():
+    data = SimpleNamespace(maps=ROUTE_30_MAPS)
+    assert gen2.caught_details((3 << 14) | (7 << 8) | 4, data) == {'level': 7, 'time': 'Night', 'location': 'Route 30'}
+    assert gen2.caught_details((1 << 14) | (2 << 8) | 0x80 | 10, data)['location'] == 'Union Cave'
+    assert gen2.caught_details(0x7F, data) == {'level': None, 'time': None, 'location': 'Event'}
+    assert gen2.caught_details(0x7E, data)['location'] == 'Gift'
+    assert gen2.caught_details(0, data) == {'level': None, 'time': None, 'location': None}
+    assert gen2.landmark_name(data, 10) == 'Union Cave' and gen2.landmark_name(data, 99) is None
+    assert gen2.landmark_name(SimpleNamespace(), 4) is None
+
+
+def tables(game):
+    species = {str(i): {'name': f'Species {i}', 'stats': [50] * 6, 'types': [i % 17], 'gender_ratio': 127,
+                        'growth': 'MEDIUM_FAST'} for i in range(1, 252)}
+    moves = {'33': {'name': 'Tackle', 'pp': 35, 'type': 0, 'power': 35, 'accuracy': 95},
+             '237': {'name': 'Hidden Power', 'pp': 15, 'type': 0, 'power': 1, 'accuracy': 100}}
+    return gen2.GameTables({'game': game, 'species': species, 'moves': moves, 'types': {'NORMAL': 0},
+                            'maps': {str(key): value for key, value in ROUTE_30_MAPS.items()}})
+
+
+def raw_mon(species, level, *, pokerus=0, caught=0, friendship=70):
+    raw = bytearray(32)
+    raw[0], raw[2], raw[3], raw[31] = species, 237, 33, level
+    raw[6:8] = (4321).to_bytes(2, 'big')
+    raw[8:11] = (level ** 3).to_bytes(3, 'big')
+    raw[21], raw[22] = 0xDA, 0xBC
+    raw[23], raw[24] = 15, 35
+    raw[27], raw[28] = friendship, pokerus
+    raw[29:31] = caught.to_bytes(2, 'big')
+    return bytes(raw)
+
+
+def test_decoded_mons_carry_pokerus_caught_data_move_power_and_egg_cycles():
+    crystal, name = tables('crystal'), bytes([0x50] * 11)
+    partner = gen2.decode_mon(raw_mon(121, 30, pokerus=0x21, caught=(2 << 14) | (12 << 8) | 4), name, crystal,
+                              box=0, position=0)
+    assert (partner.pokerus, partner.caught) == (0x21, (2 << 14) | (12 << 8) | 4)
+    view = partner.to_dict()
+    assert view['pokerus'] == 'infected' and view['caught'] == {'level': 12, 'time': 'Day', 'location': 'Route 30'}
+    assert view['move_details'][0] == {'id': 237, 'name': 'Hidden Power', 'type': 'Normal', 'pp': 15, 'max_pp': 15,
+                                       'power': 1, 'accuracy': 100}
+    assert view['move_details'][1]['power'] == 35 and 'egg_cycles' not in view
+    cured = gen2.decode_mon(raw_mon(121, 30, pokerus=0x20), name, crystal).to_dict()
+    assert cured['pokerus'] == 'cured' and 'caught' not in cured
+    assert gen2.decode_mon(raw_mon(121, 30), name, crystal).to_dict()['pokerus'] is None
+    # Gold and Silver have no caught data, so the bytes are never read as such.
+    gold = gen2.decode_mon(raw_mon(121, 30, caught=(2 << 14) | (12 << 8) | 4), name, tables('gold')).to_dict()
+    assert 'caught' not in gold
+    egg = gen2.decode_mon(raw_mon(215, 5, friendship=20), name, crystal, egg=True, box=0, position=1).to_dict()
+    assert egg['egg_cycles'] == 20
+
+
+def test_the_egg_view_is_opt_in():
+    crystal, name = tables('crystal'), bytes([0x50] * 11)
+    egg = gen2.decode_mon(raw_mon(215, 5, friendship=20), name, crystal, egg=True)
+    # The default keeps Core 0.6.0 values: an egg reports the species inside it.
+    plain = egg.to_dict()
+    assert (plain['dex'], plain['name'], plain['types'], plain['type_names']) == (215, 'Species 215', [215 % 17], ['Normal'])
+    masked = egg.to_dict(egg_view=True)
+    assert (masked['dex'], masked['name'], masked['types'], masked['type_names']) == (None, 'Egg', [], [])
+    assert masked['species'] == 215 and masked['egg'] and masked['egg_cycles'] == 20
+    assert {key: value for key, value in masked.items() if key not in ('dex', 'name', 'types', 'type_names')} == {
+        key: value for key, value in plain.items() if key not in ('dex', 'name', 'types', 'type_names')}
+    hatched = gen2.decode_mon(raw_mon(215, 5), name, crystal)
+    assert hatched.to_dict(egg_view=True) == hatched.to_dict()
+
+
+def test_the_snapshot_egg_view_reaches_party_and_storage():
+    data, memory = synthetic_data(), BankedMemory()
+    ram.clear_region_cache()
+    fill(memory, data, random.Random(3))
+    bank, address = data.symbols['wPartyCount']
+    memory.banks[bank][address] = 2
+    bank, address = data.symbols['wPartySpecies']
+    memory.banks[bank][address + 1] = 0xFD
+    bank, address = data.symbols['sBox']
+    memory.banks[bank][address], memory.banks[bank][address + 1] = 1, 0xFD
+    memory.banks[bank][address + 22] = 9
+    memory.banks[bank][address + 22 + 31] = 5
+    snapshot = read_snapshot(memory, data)
+    assert snapshot.party[1].egg and any(mon.egg for mon in snapshot.stored)
+    plain, masked = snapshot.to_dict(), snapshot.to_dict(egg_view=True)
+    assert plain['party'][1]['dex'] == snapshot.party[1].species and masked['party'][1]['dex'] is None
+    assert [mon['name'] for mon in masked['storage']['pokemon'] if mon['egg']] == ['Egg']
+    assert masked['party'][0] == plain['party'][0]
+
+
+SHINY, PLAIN = b'\x2a\xaa', b'\xff\xff'
+
+
+def put(memory, data, name, value):
+    bank, address = data.symbols[name]
+    value = bytes([value]) if isinstance(value, int) else value
+    memory.banks[bank][address:address + len(value)] = value
+
+
+def battle(data, *, mode=1, dvs=SHINY):
+    memory = BankedMemory()
+    for name, value in (('wBattleMode', mode), ('wBattleType', 7), ('wEnemyMonSpecies', 132), ('wEnemyMonDVs', dvs)):
+        put(memory, data, name, value)
+    return memory
+
+
+def test_a_wild_shiny_is_reported_and_trainer_pokemon_are_not():
+    data = synthetic_data()
+    assert read_snapshot(battle(data), data, cache=False).enemy_shiny
+    assert read_snapshot(battle(data), data, cache=False).to_dict()['enemy_shiny'] is True
+    assert not read_snapshot(battle(data, dvs=PLAIN), data, cache=False).enemy_shiny
+    assert not read_snapshot(battle(data, mode=2), data, cache=False).enemy_shiny
+    assert not read_snapshot(battle(data, mode=0), data, cache=False).enemy_shiny
+
+
+def test_transformed_ditto_reports_its_own_dvs():
+    data = synthetic_data()
+    memory = battle(data, dvs=PLAIN)
+    put(memory, data, 'wEnemyBackupDVs', SHINY)
+    assert not read_snapshot(memory, data, cache=False).enemy_shiny
+    put(memory, data, 'wEnemySubStatus5', 8)
+    assert read_snapshot(memory, data, cache=False).enemy_shiny
+    # A shiny target seen through Transform does not make a plain Ditto shiny.
+    put(memory, data, 'wEnemyMonDVs', SHINY)
+    put(memory, data, 'wEnemyBackupDVs', PLAIN)
+    assert not read_snapshot(memory, data, cache=False).enemy_shiny
+    put(memory, data, 'wBattleMode', 2)
+    assert not read_snapshot(memory, data, cache=False).enemy_shiny
+
+
+def test_memory_maps_place_the_transform_backup_dvs():
+    assert memory_map.symbols('gold')['wEnemyBackupDVs'] == (0, 0xCBD0)
+    assert memory_map.symbols('crystal')['wEnemyBackupDVs'] == (0, 0xC6F2)
