@@ -60,6 +60,13 @@
   (`WALLS`, `side_blocked`), ice slides (`ICE`, `slide`, `move`, `has_ice`), the story walls
   of `travel_collision`, the event flag map changes (`CHANGES`, `DOORS`, `LEAGUE`,
   `event_changes`), `ice_solids`, `flyer` and `OUTSIDE`. The names are also on `gen2`.
+- `gen2.hooks` finds ROM code addresses for emulator hooks and verifies the instructions
+  there: `capture_hooks`, `encounter_hook`, `contest_hook`, `hatch_hook`, `step_hook` and
+  `mart_hooks`, each raising ValueError on a signature mismatch, plus `bcd`. ROM labels the
+  memory map does not carry fall back to `hooks.LABELS`.
+- `gen2.resets` holds trusted setup writes: `write`, `write_byte`, `write_flag`,
+  `reset_event` (a group of flags, checked before any write and rolled back on failure),
+  `box_gift` (a level 5 PC gift) and `set_gs_ball` (Crystal).
 
 ### Fixed
 
