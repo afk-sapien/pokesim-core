@@ -1014,7 +1014,7 @@ class DepositPokemon(PCShortcut):
             raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
         if len(party) == 1:
             raise Abort("You can't deposit the last Pokemon. No input sent.", cleanup=False)
-        if self.gen == 2 and not any(mon['hp'] and not mon['egg'] for i, mon in enumerate(party) if i != self.slot):
+        if self.gen == 2 and not any(mon['hp'] and not mon.get('egg') for i, mon in enumerate(party) if i != self.slot):
             raise Abort('No other Pokemon could battle after this deposit, so the game refuses. No input sent.',
                         cleanup=False)
         if self.gen == 2 and gen2ui.holds_mail(party[self.slot]):
@@ -1616,7 +1616,7 @@ class DeleteMove(GameShortcut):
         if self.slot >= len(party):
             raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
         member = party[self.slot]
-        if member['egg']:
+        if member.get('egg'):
             raise Abort('An Egg knows no moves. No input sent.', cleanup=False)
         moves = [move for move in member['moves'] if move]
         if self.move_slot >= len(moves):
