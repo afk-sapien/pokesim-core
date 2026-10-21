@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1
+
+### Changed
+
+- The `emulator` extra accepts Pillow 13, which fixes several security advisories in
+  Pillow 12. Nothing else changes.
+
 ## 0.7.0
 
 ### Added
