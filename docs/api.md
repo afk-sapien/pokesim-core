@@ -2,8 +2,7 @@
 
 The Python import is `pokesim_core`. The distribution and repository are
 `pokesim-core`. `__version__` identifies the package release and `API_VERSION`
-identifies the major data contract. It is 1 in every 0.1.x release and in 0.2.0, 0.3.0 and 0.4.0,
-and changes only for an incompatible change to documented field shapes.
+identifies the major data contract. It is 1 and changes only for an incompatible change to documented field shapes.
 
 ## ROM module
 
@@ -75,6 +74,29 @@ All trade helpers are pure and read-only.
   `gen1_individual_key`, `gen2_individual_key`, `verify_gen1_received`,
   `gen2_evolved_species`, `gen2_untraded_party` and `verify_gen2_received`.
   Failed checks raise `gen1_cable.CableError` with PokeSim's messages.
+- `gen1_cable.CableDriver` and `centers` drive a Red, Blue or Yellow trade (see
+  [emulator.md](emulator.md#gen-1-virtual-cable)). `gen2.cable` has `CableSide`,
+  `TimeCapsuleSide`, `CableDriver`, `MixedDriver` and `ABNORMAL` for Gold, Silver and
+  Crystal (see [gen2.md](gen2.md#cable-club)).
+- `identity.family_key(trainer, dvs, dex, families=None)` is a trade key: the
+  `pokemon_identity` signature, a hyphen and the evolution family root, the lowest Pokedex
+  number in the family (`FAMILY_ROOTS`, built from `FAMILIES`). It survives evolution in
+  both generations and the Time Capsule and tells apart two species that share a trainer
+  and DVs. `dex_of(mon)` reads `dex`, or a Red, Blue or Yellow species index through
+  `GEN1_DEX` (`GEN1_INDEX` is the inverse). `same(current, wanted)` and
+  `find(rows, wanted, field='trade_key')` also accept a bare signature with no family, and
+  `find` returns a row only when exactly one answers.
+
+## Sprites and formulas
+
+- `sprites.portraits(rom)` decodes all 151 Red, Blue and Yellow front portraits, as Pokedex
+  number to rows of colour indices 0 (lightest) to 3 (darkest). `front_sprite(rom, dex)`
+  decodes one and returns the rows, width and height in tiles. Yellow is detected from the
+  ROM. Gold, Silver and Crystal portraits are in [gen2.md](gen2.md).
+- `sprites.png(rows, palette=SHADES)` writes an RGBA PNG with the standard library.
+  `SHADES` makes index 0 transparent.
+- `formulas.experience_at(level, growth)` and `experience_progress(total, level, growth)`
+  are the experience curves of both generations, by the growth name without `GROWTH_`.
 
 ## Generation I module
 
@@ -115,6 +137,16 @@ Party dict keys are `species`, `hp`, `max_hp`, `level`, `nick`, `status`, `types
 `dvs`, `stat_exp`, and `trainer_id`. Pending counted slots remain present.
 Box data uses `individual_data` but box enumeration remains application-owned.
 
+`gen1` also names the overworld, menu and battle bytes consumers read, all Red
+addresses from pret/pokered: `W_FACING` (a key of `FACINGS`), `W_WALK_COUNTER`,
+`W_WHICH_POKEMON`, `W_MOVE_NUM`, `W_PLAYER_DISABLED_MOVE`, `W_WALK_BIKE_SURF_STATE`
+(0 walking, 1 biking, 2 surfing), `W_STATUS_FLAGS1` with `BIT_STRENGTH_ACTIVE` and
+`BIT_GAVE_SAFFRON_GUARDS_DRINK`, and `W_MOVEMENT_FLAGS` with `BIT_SPINNING` (arrow
+tiles). `W_SPRITE_STATE_DATA2`, `SPRITE_STRUCT`, `SPRITE_MAP_Y` and `SPRITE_MAP_X`
+locate sprite positions, and `sprite_tile(memory, sprite, *, version=None)` returns
+the (x, y) tile of sprite slot `sprite`: 0 is the player and 1 to 15 the map's objects.
+Read Yellow through `yellow.red_layout` as with the other addresses.
+
 ## Emulator module
 
 Importing the module is safe without the emulator extra. Constructing `GameBoy`
@@ -131,8 +163,8 @@ Real-time clock control on `Emulator` is additive: the `rtc_file` argument,
 `stop(..., rtc_file=)`, `has_rtc`, `export_rtc`, `import_rtc`, `rtc_registers`,
 `set_rtc_registers`, `rtc_state`, `set_rtc_timezero`, `lock_clock`, `unlock_clock`,
 `advance_clock`, `clock_locked`, `clock_now` and the optional `rtc_clock` checkpoint
-key; a locked clock exports its host-following value and a checkpoint without
-clock data releases a lock. Semantics are in the README section "Real-time clock".
+key. A locked clock exports its host-following value and a checkpoint without
+clock data releases a lock. Semantics are in [rtc.md](rtc.md).
 
 ## Versioning and upgrades
 
@@ -193,9 +225,20 @@ continue-only dialogue, never a choice. The default waits without confirming.
   steps.
 - `naming.name_step(rows, cursor, name, limit=10)` returns a `ButtonAction` or
   None outside the keyboard. It reads back partial text and corrects mismatches.
-- `naming.enter_name(port, name, limit=10, max_actions=256)` drives a supplied
-  uppercase ASCII name from an already open naming keyboard. Use limit 7 for
-  player and rival names. It does not accept nickname prompts or pick names.
+- `naming.enter_name(port, name, limit=10, max_actions=256, version=None)` drives
+  a supplied name from an already open naming keyboard. `version` defaults to
+  `port.version`. On Red, Blue and Yellow the name is uppercase ASCII. Use limit
+  7 there for player and rival names. On Gold, Silver and Crystal it is capital
+  letters, space and `-?!/.,`, and the keyboard's own limit applies (7 for the
+  player and rival, 10 otherwise). A name over it raises ValueError. It does not
+  accept nickname prompts or pick names.
+- `naming.gen2_naming(memory, version)` reads the open Gen 2 keyboard: `entered`
+  (read back from the name's destination), `length`, `limit`, `cursor` as
+  (column, row), `lowercase` and `subject` (`pokemon`, `player`, `rival` or
+  `other`). None when the keyboard is not on screen.
+  `naming.gen2_name_step(memory, version, name)` returns its next `ButtonAction`.
+  A letter that does not match is deleted with B, START moves to END and A on END
+  submits.
 - `naming.menu_button(current, target)` returns one linear menu direction or A.
 - `menus.menu_options(memory, screen, kind=None)` reads visible menu rows.
   Consumer observation filtering remains required.
@@ -211,14 +254,45 @@ also cover English Gold, Silver and Crystal.
 `pokesim_core.shortcuts` holds one class per action (`UseItem`, `ChooseMove`,
 `SwitchPokemon`, `RunAway`, `ReorderParty`, `FieldMove`, `TossItem`, `BuyItem`,
 `SellItem`, `DepositPokemon`, `WithdrawPokemon`, `ReleasePokemon`, `DepositItem`,
-`WithdrawItem`, and for Gen 2 `GiveItem` and `TakeItem`) and a function of the same name in snake case that runs it on a port.
+`WithdrawItem`, `ChangeBox`, `LearnMove`, `AdvanceDialogue`, `Walk`, and for Gen 2
+`GiveItem`, `TakeItem` and `DeleteMove`) and a function of the same name in snake case
+that runs it on a port.
 
 - `machine.step(memory, ui=None)` returns a button name, None to wait, or `Done`.
   `ui` may carry `screen` (overrides `current_screen`), `continue_ready` (bool) and
   `sp` (the CPU stack pointer, used to find the text wait routine). After a `Done`
   every further call returns the same `Done`.
-- `Done` has `outcome`, `completed`, `settled` and `details`. The port functions
-  return it as `{'outcome': ..., 'shortcut': {'kind', 'completed', 'settled', ...}}`.
+- `Done` has `outcome`, `completed`, `settled`, `details` and `reason` (a `StopReason`).
+  `done.stop_reason` fills in a reason when none was set and `done.can_continue` is
+  `settled`. The port functions return it as `{'outcome': ..., 'shortcut': {'kind',
+  'completed', 'settled', 'stop_reason', 'can_continue', ...}}`.
+- Stop reasons (`shortcuts.STOP_REASONS`): `completed` (the effect happened and the
+  screen settled), `prompt` (stopped at a game prompt for the caller), `unsettled` (the
+  effect happened but the screen did not settle), `refused` (refused before any input),
+  `game_refused` (the game refused the action), `no_effect` (no effect showed),
+  `no_response` (a menu did not respond), `budget` (`max_steps` or the controller
+  budget ran out), `stopped` (the screen stopped changing, or a script kept the
+  controls), `choice` and `text_end` (`advance_dialogue`), and `blocked`, `battle`,
+  `map_change` and `dialogue` (`walk`). `can_continue` is false only when the screen
+  did not settle.
+- `AdvanceDialogue(quiet=4, patience=120)` presses A only when the text-wait check
+  says the game waits to continue. It stops at any screen that waits for a menu
+  answer, or after `quiet` observations of the overworld with no script holding the
+  controls (Gen 1 `wJoyIgnore` or `wStatusFlags5` bit 7, Gen 2 `wScriptRunning`).
+  Details: `lines`, `text`, `truncated`, and at a choice `screen` and `choices`.
+- `Walk(direction, tiles=1, patience=4)` taps `direction` once per tile and reads the
+  map and coordinates (Gen 1 `wCurMap`, `wXCoord`, `wYCoord`, Gen 2 `wMapGroup`,
+  `wMapNumber`, `wXCoord`, `wYCoord`). A tap that only turns the player is followed by
+  another, and a dropped tap is retried once before the way counts as blocked. After a
+  map change it waits for the fade and the entry script. Details: `direction`,
+  `requested`, `tiles_moved`, `start`, `end` (each `{'map', 'x', 'y'}`, a Gen 2 map is
+  `[group, number]`) and `facing`.
+- `describe(name=None, version=None)` returns plain JSON data per command: `name`,
+  `machine`, `summary`, `generations`, `arguments` (a JSON Schema object), `options`
+  (`max_steps`, `nickname`), `start` (`screens`, `battle` as `any`, `required` or
+  `forbidden`, and an optional `note`, plus `battle_screens` for commands that also
+  run in battle) and `returns` (extra result keys and their types).
+  `result_schema()` describes the common result dict.
 - Constructor options: `version`, `read_party`, `read_bag`, `labels` and
   `max_steps` (default 600 steps).
 - `run(port, machine)` presses a button with `send(button, 8, 24)` then waits

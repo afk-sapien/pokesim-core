@@ -28,3 +28,21 @@ Reader tests check all 256 glyph values, unchanged public storage shapes,
 immutable cache results, byte-based invalidation and scalar memory fallbacks.
 The benchmark retains its observation allowlists, prompts, action budgets,
 operation IDs and scoring. No reset capability is exposed to benchmark agents.
+
+## Emulator integration
+
+Validated on 2026-10-05 with pyboy-rs as the emulator backend. The integration
+passed 711 pyboy-rs Python compatibility tests, the Core suite and the
+benchmark suite. Real Red-to-Red cable trades passed in both clock roles,
+including cartridge restart, checkpoint reload, movement and return-to-center
+checks. A cartridge export and benchmark pause and resume checks also passed
+using private temporary fixtures. Blue pairings need a separately supplied Blue
+ROM and fixture and are not covered by this run.
+
+The five-repeat, 4,800-frame gameplay comparison is in
+[the Core report](../benchmarks/2026-10-05-core.json). All 90 runs matched final
+hardware states and gameplay traces. Rendered runs also matched final pixels
+and audio. Core throughput was within about 2% of direct pyboy-rs bindings.
+With rendering and audio it delivered 39% to 64% more throughput than compiled
+PyBoy. These are single-core emulator measurements, not full agent throughput.
+The report records hashes, not private ROM or state data.

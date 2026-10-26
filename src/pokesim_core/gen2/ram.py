@@ -1,13 +1,17 @@
 """Bank-aware, read-only observation for Generation II cartridges.
 
-Ported from PokeSim's pokesim/gen2/ram.py. Field shapes, values and reprs match it exactly.
+Ported from PokeSim's pokesim/gen2/ram.py. Field shapes, values and reprs match it, except that
+PokeSim's egg view (an egg shown with no species) is opt-in here through ``to_dict(egg_view=True)``.
 ``data`` is any object shaped like :class:`pokesim_core.gen2.tables.GameTables`.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from math import isqrt
 
+from ..dvs import shiny_bytes
+from ..formulas import experience_at, experience_progress  # noqa: F401  (re-exported)
 from .screens import ScreenText, mask_hud
 
 BADGES = ('Zephyr', 'Hive', 'Plain', 'Fog', 'Mineral', 'Storm', 'Glacier', 'Rising',
@@ -67,25 +71,6 @@ def individual(raw):
     return dvs, training
 
 
-def experience_at(level, growth):
-    n = max(1, min(100, level))
-    if growth == 'FAST':
-        return 4 * n ** 3 // 5
-    if growth == 'SLOW':
-        return 5 * n ** 3 // 4
-    if growth == 'MEDIUM_SLOW':
-        return max(0, 6 * n ** 3 // 5 - 15 * n ** 2 + 100 * n - 140)
-    return n ** 3
-
-
-def experience_progress(total, level, growth):
-    start = experience_at(level, growth)
-    end = experience_at(min(100, level + 1), growth)
-    return {'total': total, 'level_start': start, 'next_level': end,
-            'remaining': max(0, end - total), 'max_level': level >= 100,
-            'percent': 100 if level >= 100 else round(max(0, min(100, (total - start) * 100 / max(1, end - start))), 1)}
-
-
 def calculated_stats(base, level, dvs, training):
     result = []
     for index, stat in enumerate(base):
@@ -119,6 +104,8 @@ class Mon:
     box: int | None = None
     position: int | None = None
     data: object = field(default=None, repr=False, compare=False)
+    pokerus: int = 0
+    caught: int = 0
 
     @property
     def name(self):
@@ -141,7 +128,8 @@ class Mon:
     def shiny(self):
         return self.dvs[2:] == (10, 10, 10) and bool(self.dvs[1] & 2)
 
-    def to_dict(self):
+    def to_dict(self, egg_view=False):
+        """The view of this Pokémon. ``egg_view`` hides the species of an unhatched egg, as the game does."""
         species = self.data.species.get(self.species, {})
         details = []
         for index, move in enumerate(self.moves):
@@ -149,7 +137,8 @@ class Mon:
                 entry = self.data.moves.get(move, {})
                 details.append({'id': move, 'name': entry.get('name', f'Move {move}'),
                                 'type': self.data.type_names.get(entry.get('type'), 'Normal'),
-                                'pp': self.pp[index], 'max_pp': self.max_pp[index]})
+                                'pp': self.pp[index], 'max_pp': self.max_pp[index],
+                                'power': entry.get('power'), 'accuracy': entry.get('accuracy')})
         condition = ('Egg' if self.egg else 'Fainted' if self.hp == 0 else 'Asleep' if self.status & 7 else
                      next((name for flag, name in ((8, 'Poisoned'), (16, 'Burned'), (32, 'Frozen'), (64, 'Paralyzed'))
                            if self.status & flag), 'Healthy'))
@@ -170,7 +159,51 @@ class Mon:
                   'status_label': condition, 'experience': experience_progress(self.experience, self.level, species.get('growth')),
                   'box': self.box + 1 if self.box is not None else None,
                   'position': self.position + 1 if self.position is not None else None}
+        strain, days = self.pokerus >> 4, self.pokerus & 15
+        result['pokerus'] = 'infected' if strain and days else 'cured' if strain else None
+        if getattr(self.data, 'game', None) == 'crystal' and self.caught:
+            result['caught'] = caught_details(self.caught, self.data)
+        if self.egg:
+            # Until it hatches, the friendship byte counts egg cycles; each takes 256 steps.
+            result['egg_cycles'] = self.friendship
+            if egg_view:
+                # The cartridge keeps the species inside an unhatched egg, but nothing in the game shows it.
+                # The view gets an egg with no Pokédex number, portrait or types. The species stays for identity checks.
+                result.update(dex=None, name='Egg', types=[], type_names=[])
         return result
+
+
+TIMES_OF_DAY = {1: 'Morning', 2: 'Day', 3: 'Night'}
+
+
+def landmark_name(data, landmark):
+    """A landmark takes the name of its town or route map, else its first map without the floor."""
+    names = getattr(data, '_landmark_names', None)
+    if names is None:
+        names = {}
+        maps = [entry for entry in getattr(data, 'maps', {}).values() if 'landmark' in entry]
+        for entry in sorted(maps, key=lambda entry: entry.get('environment') not in ('TOWN', 'ROUTE')):
+            names.setdefault(entry['landmark'], entry['name'])
+        suffix = re.compile(r' (B?\d+F|Outside|Violet Entrance|Entrance|Room \d+|Roof|Pokémon Center|[NS][EW])$',
+                            re.IGNORECASE)
+        for key, value in names.items():
+            while suffix.search(value):
+                value = suffix.sub('', value)
+            names[key] = value
+        try:
+            data._landmark_names = names
+        except AttributeError:
+            pass
+    return names.get(landmark)
+
+
+def caught_details(word, data):
+    """Crystal's caught data: time and level in the high byte, OT gender and landmark in the low."""
+    high, low = word >> 8, word & 255
+    landmark = low & 127
+    place = ('Event' if landmark == 0x7F else 'Gift' if landmark == 0x7E
+             else None if landmark == 0 else landmark_name(data, landmark))
+    return {'level': (high & 63) or None, 'time': TIMES_OF_DAY.get(high >> 6), 'location': place}
 
 
 def decode_mon(raw, name, data, *, egg=False, box=None, position=None):
@@ -190,7 +223,7 @@ def decode_mon(raw, name, data, *, egg=False, box=None, position=None):
     return Mon(species, data.text(name), level, hp, stats[0], status, raw[1], moves,
                tuple(value & 63 for value in raw[23:27]), max_pp, stats,
                int.from_bytes(raw[8:11], 'big'), dvs, training, int.from_bytes(raw[6:8], 'big'),
-               raw[27], egg, box, position, data)
+               raw[27], egg, box, position, data, raw[28], int.from_bytes(raw[29:31], 'big'))
 
 
 @dataclass(frozen=True)
@@ -233,6 +266,7 @@ class Snapshot:
     roamers: tuple[dict, ...] = ()
     step_count: int = 0
     happiness_cycle: int = 0
+    enemy_shiny: bool | None = False
 
     @property
     def started(self):
@@ -266,25 +300,27 @@ class Snapshot:
         index = self.data.events[name]
         return bool(self.event_flags[index // 8] & (1 << (index % 8)))
 
-    def to_dict(self):
+    def to_dict(self, egg_view=False):
+        """The view of the game state. ``egg_view`` is passed to every Pokémon's ``to_dict``."""
         return {'generation': 2, 'version': self.data.game, 'dex_total': 251, 'badge_total': 16,
                 'frame': self.frame, 'map': self.map, 'map_group': self.map >> 8, 'map_number': self.map & 255,
                 'map_name': self.map_name, 'x': self.x, 'y': self.y, 'player_name': self.player_name,
-                'rival_name': self.rival_name, 'badges': self.badge_list, 'party': [mon.to_dict() for mon in self.party],
+                'rival_name': self.rival_name, 'badges': self.badge_list, 'party': [mon.to_dict(egg_view) for mon in self.party],
                 'owned': len(self.owned), 'seen': len(self.seen), 'dex_owned': sorted(self.owned), 'dex_seen': sorted(self.seen),
                 'items': [{'id': item, 'qty': count, 'name': self.data.item_names.get(item, f'Item {item}')}
                           for item, count in self.items], 'money': self.money, 'coins': self.coins,
                 'in_battle': self.in_battle,
                 'enemy': self.data.species.get(self.enemy_species, {}).get('name') if self.in_battle else None,
-                'enemy_level': self.enemy_level, 'opponent': self.trainer_class if self.in_battle == 2 else None,
+                'enemy_level': self.enemy_level, 'enemy_shiny': self.enemy_shiny,
+                'opponent': self.trainer_class if self.in_battle == 2 else None,
                 'playtime': '%d:%02d:%02d' % self.playtime, 'playtime_seconds': self.playtime_seconds,
                 'hall_of_fame_count': self.hall_of_fame_count,
-                'daycare': {'parents': [mon.to_dict() if mon else None for mon in self.daycare],
+                'daycare': {'parents': [mon.to_dict(egg_view) if mon else None for mon in self.daycare],
                             'egg_ready': self.egg_ready, 'compatible': self.breeding_compatible},
                 'roamers': list(self.roamers),
                 'storage': {'active_box': self.active_box + 1, 'count': len(self.stored), 'capacity': 20,
                             'box_counts': self.box_counts, 'can_catch': self.can_catch,
-                            'pokemon': [mon.to_dict() for mon in self.stored]}}
+                            'pokemon': [mon.to_dict(egg_view) for mon in self.stored]}}
 
 
 # Decoded regions keyed strictly by their raw bytes and the static game data. Each region keeps
@@ -340,6 +376,21 @@ def _dex(raw):
 def _screen(raw, battle, data):
     rows = tile_rows(raw, data)
     return mask_hud(rows) if battle else rows
+
+
+def _enemy_shiny(mem, battle):
+    """Whether a wild opponent is shiny, or None when the symbol table cannot tell."""
+    if battle != 1:
+        return False
+    symbols = mem.data.symbols
+    # A wild Ditto that Transformed shows its target's DVs. Its own are kept in the backup.
+    # A custom symbol table without the Transform symbols falls back to the shown DVs.
+    if ('wEnemySubStatus5' in symbols and 'wEnemyBackupDVs' in symbols
+            and mem.byte('wEnemySubStatus5') & 8):
+        return shiny_bytes(mem.read('wEnemyBackupDVs', 2))
+    if 'wEnemyMonDVs' not in symbols:
+        return None
+    return shiny_bytes(mem.read('wEnemyMonDVs', 2))
 
 
 def read_snapshot(memory, data, frame=0, *, cache=True):
@@ -406,4 +457,5 @@ def read_snapshot(memory, data, frame=0, *, cache=True):
                     mem.byte('wHallOfFameCount'), mem.read('wEventFlags', 256), screen_tiles, tuple(objects), valid, data,
                     daycare=daycare, egg_ready=bool(mem.byte('wDayCareMan') & 64),
                     breeding_compatible=bool(mem.byte('wDayCareMan') & 32), roamers=tuple(roamers),
-                    step_count=mem.byte('wStepCount'), happiness_cycle=mem.byte('wHappinessStepCount'))
+                    step_count=mem.byte('wStepCount'), happiness_cycle=mem.byte('wHappinessStepCount'),
+                    enemy_shiny=_enemy_shiny(mem, battle))

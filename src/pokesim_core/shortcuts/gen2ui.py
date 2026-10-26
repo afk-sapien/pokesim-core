@@ -8,11 +8,13 @@ box, or at the fixed places each menu draws it.
 from __future__ import annotations
 
 from functools import lru_cache
+import re
 
 from ..gen2.charmap import charmap
 from ..gen2.memory_map import symbols as core_symbols
 from ..gen2.ram import Memory
 from ..gen2.tables import GameTables
+from ..textmatch import has_word
 from .screens import normalize
 
 # Menu and battle symbols the shortcuts read, as (Gold and Silver, Crystal) addresses from the pret
@@ -122,15 +124,20 @@ def text_box(view):
     Bill's PC prints in a one-line box on rows 15 to 17. The mart money box or a
     YES/NO box can overlap a corner, so rows without both side bars are skipped.
     """
+    return ' '.join(text_box_lines(view))
+
+
+def text_box_lines(view):
+    """The non-blank lines of the bottom text box, as ``text_box`` finds it, or [] with no box."""
     if view.tile(0, 17) != BOX_BL:
-        return ''
+        return []
     top = next((y for y in (12, 14, 15) if view.tile(0, y) in (BOX_TL, BOX_V)
                 and view.tile(19, y) in (BOX_TR, BOX_BR)), None)
     if top is None:
-        return ''
+        return []
     rows = [y for y in range(top + 1, 17) if view.tile(0, y) == BOX_V and view.tile(19, y) == BOX_V]
     lines = [' '.join(tile_text(view, 1, 19, y).split()) for y in rows]
-    return ' '.join(line for line in lines if line)
+    return [line for line in lines if line]
 
 
 def cursors(view, tile=CURSOR):
@@ -348,3 +355,43 @@ def ready(view):
 
 def fly_destination(view):
     return ' '.join(tile_text(view, 2, 18, 1).split())
+
+
+def menu_label(row):
+    """The label of one menu row (a ``rows_of`` string): frame bars, a leading kana
+    column, the pack image beside TM and HM rows, item numbers and cursors removed."""
+    if row.count('│') >= 2:
+        row = row.rsplit('│', 2)[-2]
+    if any('\u3040' <= char <= '\u30ff' for char in row[:5]):
+        row = row[5:]
+    # The pack image occupies columns 0 through 4 beside TM and HM rows.
+    if re.match(r'(?:H\d|\d{2})[\s▶▷]', row[5:]):
+        row = row[5:]
+    return re.sub(r'^[\s│▷▶]*(?:H?\d+[\s▷▶]*)?', '', row).strip(' │')
+
+
+def choose(rows, label, *, exact=False):
+    """One button toward ``label`` in a vertical menu: 'a' on it, 'down' or 'up' toward it.
+
+    ``rows`` are ``rows_of`` strings. ``label`` matches a whole word, ignoring case, or the
+    whole row label when ``exact``. None when the label or the ▶ cursor is not on screen.
+    """
+    wanted = label.casefold()
+    target = next((i for i, row in enumerate(rows)
+                   if (menu_label(row).casefold() == wanted if exact else has_word(row.casefold(), wanted))), None)
+    cursor = next((i for i, row in enumerate(rows) if '▶' in row), None)
+    if target is None or cursor is None:
+        return None
+    return 'a' if target == cursor else 'down' if target > cursor else 'up'
+
+
+def close_pc(rows, text):
+    """The button that leaves a Pokémon Center PC whose list (BILL's PC ... TURN OFF) is on screen.
+
+    ``text`` is the screen text. The list stays drawn under messages such as "BILL's PC
+    accessed." and those hold the cursor until they are dismissed. Moving toward TURN OFF
+    works only while the list asks "Access whose PC?". Otherwise B dismisses the message.
+    """
+    if 'whose PC' in text:
+        return choose(rows, 'TURN OFF') or 'b'
+    return 'b'

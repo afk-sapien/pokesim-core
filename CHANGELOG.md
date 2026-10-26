@@ -1,5 +1,147 @@
 # Changelog
 
+## 0.7.1
+
+### Changed
+
+- The `emulator` extra accepts Pillow 13, which fixes several security advisories in
+  Pillow 12. Nothing else changes.
+
+## 0.7.0
+
+### Added
+
+- `gen1_cable.CableDriver` drives a Red, Blue or Yellow Cable Club trade with
+  controller input, and the new `centers` module has `CENTERS`, `location`, `screen`
+  and `safe_center` for the Centers a session starts from. The caller passes route
+  finding in as `walk`. `CableEndpoint` gains `party_slot` and `label`.
+- `gen2.cable` has `CableSide`, `TimeCapsuleSide`, `CableDriver` and `MixedDriver` for
+  Gold, Silver and Crystal trades and Time Capsule trades with Red, Blue or Yellow.
+- `advance_dialogue` (`AdvanceDialogue`) advances printed text on all six games and
+  returns the whole conversation in `lines` and `text`. It presses A only when Core's
+  text-wait check says the game waits to continue, and it stops at the first choice or
+  menu (YES/NO, multiple choice, the battle menu) with `screen` and `choices`, or once the
+  text box closes and the player has control again. It never answers a choice.
+- `walk` (`Walk`) walks up to `tiles` tiles in one direction on all six games. A tap that
+  only turns the player is followed by another. It stops early when the player cannot
+  move, when a battle starts, when the map changes, or when text or a menu opens. The
+  result gives `tiles_moved`, `start`, `end` and `facing`. There is no route finding.
+- Every result's `shortcut` dict now has `stop_reason` and `can_continue`.
+  `stop_reason` is one of `shortcuts.STOP_REASONS` (the `StopReason` enum): `completed`,
+  `prompt`, `unsettled`, `refused`, `game_refused`, `no_effect`, `no_response`, `budget`,
+  `stopped`, `choice`, `text_end`, `blocked`, `battle`, `map_change` or `dialogue`.
+  `can_continue` says whether another command can start without inspecting the screen
+  first. `Done` gained the matching `reason` field and properties.
+- `shortcuts.describe(name=None, version=None)` describes every command as plain JSON
+  data: its arguments as a JSON Schema object, the common options, the start
+  preconditions (screens, and whether a battle is required or ruled out), the games it
+  runs on and the result keys it adds. `shortcuts.result_schema()` describes the result
+  dict every command returns. Which commands to offer stays the consumer's choice.
+- Top-level `textmatch` module with `has_word` and `ScreenText`, the whole-word keyword
+  search for decoded screen text. A nickname such as PROTOTYPE or MOSQUITO no longer
+  reads as TYPE or QUIT. It is generation neutral, and `gen2.screens` re-exports the
+  same objects, so existing `gen2.has_word` and `gen2.ScreenText` imports keep working.
+- Gen 2 `Mon` gains `pokerus` and `caught` (the raw Pokerus byte and Crystal caught data
+  word). `Mon.to_dict()` adds `pokerus` ('infected', 'cured' or None), `caught` on Crystal,
+  `power` and `accuracy` on each move, and `egg_cycles` on an egg.
+- `gen2.caught_details`, `gen2.landmark_name` and `gen2.TIMES_OF_DAY` name Crystal caught
+  data: level, time of day and the landmark, Event or Gift.
+- `Snapshot.enemy_shiny` reports a shiny wild opponent. A wild Ditto that transformed is
+  judged by its own DVs from `wEnemyBackupDVs`, which joins the Gen 2 memory maps.
+  A custom symbol table without the Transform symbols falls back to `wEnemyMonDVs`,
+  and one without `wEnemyMonDVs` gives None.
+- `Mon.to_dict(egg_view=True)` and `Snapshot.to_dict(egg_view=True)` hide the species of
+  an unhatched egg (`dex=None`, `name='Egg'`, no types), as PokeSim shows it. The default
+  is unchanged, so existing values stay the same.
+- Gen II breeding helpers: `families`, `single_source`, `lines`, `breeding_stock`,
+  `egg_lines`, `free_slots` and `descendants_wanted`, plus the `DITTO` and `TYROGUE`
+  constants at package level. They find the gift and static families that only the
+  Day Care can copy and keep their last parent home.
+- `gen2.clock` holds the Gold, Silver and Crystal clock helpers from PokeSim: `boot`,
+  `lock_clock`, `follow_game_time`, `rebase_to_host`, `clock_elapsed`, `host_elapsed`,
+  `clock_lock_state`, `export_clock` and `stop_with_clock`. A backend without clock
+  control raises `CoreCapabilityError`. The common names are also on `gen2`.
+- `gen2.save` exports a verified battery save and its `.rtc` file through the game's own
+  Save menu (`capture`, `export`, `export_with_clock`, `verify`, `clock_archive`,
+  `checkpoint_clock`, `continue_save`). `continue_save` returns once the trainer walks and
+  no longer checks for the Pokémon Center upstairs, which stays with the caller.
+- `gen1_save` does the same for Red, Blue and Yellow (`capture`, `export`, `verify`,
+  `progress`, `symbols_for`). Progress is compared as raw party, box, Pokédex, money and
+  name bytes, so it needs no species tables.
+- `gen2.maps` holds the Gen II map physics from PokeSim: the live collision decoder
+  (`collision(memory, data, snapshot)`, `decode_blocks`), `passable`, one-sided walls
+  (`WALLS`, `side_blocked`), ice slides (`ICE`, `slide`, `move`, `has_ice`), the story walls
+  of `travel_collision`, the event flag map changes (`CHANGES`, `DOORS`, `LEAGUE`,
+  `event_changes`), `ice_solids`, `flyer` and `OUTSIDE`. The names are also on `gen2`.
+- `gen2.hooks` finds ROM code addresses for emulator hooks and verifies the instructions
+  there: `capture_hooks`, `encounter_hook`, `contest_hook`, `hatch_hook`, `step_hook` and
+  `mart_hooks`, each raising ValueError on a signature mismatch, plus `bcd`. ROM labels the
+  memory map does not carry fall back to `hooks.LABELS`.
+- `gen2.resets` holds trusted setup writes: `write`, `write_byte`, `write_flag`,
+  `reset_event` (a group of flags, checked before any write and rolled back on failure),
+  `box_gift` (a level 5 PC gift) and `set_gs_ball` (Crystal).
+- `gen1` names more Red addresses from pret/pokered: `W_FACING` and `FACINGS`,
+  `W_WALK_COUNTER`, `W_WHICH_POKEMON`, `W_MOVE_NUM`, `W_PLAYER_DISABLED_MOVE`,
+  `W_WALK_BIKE_SURF_STATE`, `W_MOVEMENT_FLAGS`, the sprite position layout
+  (`W_SPRITE_STATE_DATA2`, `SPRITE_STRUCT`, `SPRITE_MAP_Y`, `SPRITE_MAP_X`) and the bits
+  `BIT_STRENGTH_ACTIVE`, `BIT_GAVE_SAFFRON_GUARDS_DRINK` and `BIT_SPINNING`.
+  `gen1.sprite_tile` reads a sprite's map tile.
+- Gen 2 shortcuts `tune_radio` (`Radio`), `day_care` (`DayCare`) and `show_partner`
+  (`ShowPartner`). `tune_radio` tunes the Pokegear radio, by default to the Poke Flute
+  channel. `day_care` leaves a party Pokemon with either Day Care person or takes it back,
+  confirmed by species, trainer ID, DVs and nickname. `show_partner` shows a party Pokemon
+  until a given event flag turns on. All three are in `describe()`.
+- `shortcuts.gen2ui.menu_label`, `choose` and `close_pc` read and drive Gen 2 menus.
+- The Gold, Silver and Crystal naming keyboard: `naming.gen2_naming`, `gen2_name_step` and
+  `enter_name` on a Gen 2 port. Names may use capital letters, space and `-?!/.,`.
+- `gen2.npc_trades`, `NPC_TRADES` and `NpcTrade` (the in-game trades), `gen2.prizes` and
+  `PRIZES` (Game Corner prize Pokemon), `FIELD_MOVES`, and `state.npc_trade_flags`,
+  `npc_trade_done`, `npc_trades_done`, `npc_trade_qualifies` and `contest_score`.
+  `wTradeFlags`, the `wContestMon` fields, `wEnemyMonAttack`, `wEnemyMonSpclAtk` and the
+  naming keyboard's destination and length symbols join the Gen 2 memory maps.
+- `gen2.puzzles`: `puzzle_button` and `control` solve the Ruins of Alph picture boards.
+- `sprites` decodes the 151 Red, Blue and Yellow front portraits from the cartridge
+  (`front_sprite`, `portraits`, `decode`, `sprite_bank`, `base_stats`), and `gen2.sprites`
+  the 251 Gold, Silver and Crystal portraits (`picture`, `portrait`, `palette`,
+  `front_pointer`, `dimensions`, `decompress`, `offset`). Pictures are rows of colour
+  indices. `sprites.png(pixels, palette=SHADES)` writes one as an RGBA PNG with the
+  standard library, so no imaging library is needed.
+- `formulas` holds the experience curves both generations share: `experience_at` and
+  `experience_progress`. `gen2.experience_at` and `gen2.experience_progress` are the same
+  functions.
+- `identity` gains trade keys that survive evolution and the Time Capsule:
+  `family_key(trainer, dvs, dex, families=None)`, `family`, `dex_of`, `same`, `find`,
+  `legacy` and `is_legacy`, with the `FAMILIES`, `FAMILY_ROOTS`, `GEN1_DEX` and
+  `GEN1_INDEX` tables.
+
+### Fixed
+
+- Shortcuts on Yellow read the party and bag at Yellow addresses. `use_item`,
+  `switch_pokemon` and the other shortcuts used the Red and Blue readers on raw Yellow
+  memory, which is shifted by one byte.
+- `delete_move` and Gen 2 `deposit_pokemon` no longer raise `KeyError` when a custom
+  `read_party` leaves out the `egg` field.
+- `use_item` with a fishing rod waits on the overworld while the line is cast. Gen 2 closes
+  the pack before "Not even a nibble!" or "Oh! A bite!" prints, so every rod used to stop with
+  "returned without a confirmed effect". A cast that never prints a message still stops
+  without a second cast.
+- Waiting for an item's effect on the overworld no longer presses A there, where it could
+  talk to someone or offer SURF.
+- `enter_name` on a Gold, Silver or Crystal port drives the Gen 2 keyboard. It used to read
+  the Red and Blue screen layout there.
+
+### Changed
+
+- `gen2.offspring` builds each species table's pre-evolution map once instead of
+  scanning the table for every pair. The result is unchanged, including the first
+  pre-evolution in species order when two species evolve into the same one.
+- The emulator extra requires PyBoy RS 0.1.2 or newer (`pyboy-rs>=0.1.2,<0.2`). Its clock
+  `set` is exact, a halted clock stays frozen, and loading a state restores the latched
+  registers. CI installs the v0.1.2 release wheel.
+- The shortcuts read Gen 1 addresses from `gen1` instead of their own copies.
+  `shortcuts.actions.W_WALK_BIKE_SURF` is now `W_WALK_BIKE_SURF_STATE`, and
+  `shortcuts.walk.W_PLAYER_FACING` is the same value as `gen1.W_FACING`.
+
 ## 0.6.0
 
 ### Added

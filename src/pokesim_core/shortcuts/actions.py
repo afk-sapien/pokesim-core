@@ -6,11 +6,13 @@ Party slots, move slots and box positions are zero based.
 """
 from __future__ import annotations
 
+from ..gen1 import (BIT_STRENGTH_ACTIVE, W_BADGES, W_CUR_MAP, W_CURRENT_BOX, W_STATUS_FLAGS1, W_WALK_BIKE_SURF_STATE,
+                    W_WHICH_POKEMON)
 from ..gen1_ui import read_battler, read_screen
 from . import gen2ui
 from .items import (GEN1_FIELD_MOVES, GEN1_HM_MOVES, GEN2_FIELD_MOVES, GEN2_HM_MOVES, gen2_pocket, generation,
                     item_kind, item_names, key_item, tm_number)
-from .machine import NO_RESPONSE, Abort, Choose, Done, Shortcut
+from .machine import NO_RESPONSE, Abort, Choose, Done, Shortcut, StopReason
 from .screens import fly_destination, menu_rows, normalize
 
 BICYCLE, POKE_FLUTE, ITEMFINDER, COIN_CASE = 0x06, 0x49, 0x47, 0x45
@@ -19,11 +21,7 @@ GEN2_BICYCLE, GEN2_ITEMFINDER = 0x07, 0x37
 GEN2_POCKET_NUMBER = {'items': 0, 'balls': 1, 'key': 2, 'tms_hms': 3}
 # wPlayerState values while surfing (Gen 2).
 GEN2_SURFING = (4, 8)
-W_WALK_BIKE_SURF = 0xD700
-W_STATUS_FLAGS1 = 0xD728
 W_MAP_PAL_OFFSET = 0xD35D
-W_CUR_MAP = 0xD35E
-W_BADGES = 0xD356
 W_PLAYER_SELECTED_MOVE = 0xCCDC
 W_PLAYER_MON_NUMBER = 0xCC2F
 W_ITEM_QUANTITY = 0xCF96
@@ -135,8 +133,9 @@ class GameShortcut(Shortcut):
 
     def no_effect(self):
         if self.refusal:
-            raise Abort(f'The game refused: {self.refusal}')
-        raise Abort('Requested selection returned without a confirmed effect. No second use attempted.')
+            raise Abort(f'The game refused: {self.refusal}', reason=StopReason.GAME_REFUSED)
+        raise Abort('Requested selection returned without a confirmed effect. No second use attempted.',
+                    reason=StopReason.NO_EFFECT)
 
     def commit_wait(self, stay, limit=120, patience=12):
         """After the committing press, pass text and prompts until the effect is seen.
@@ -155,9 +154,10 @@ class GameShortcut(Shortcut):
                 if answer is None and self.details.get('pending') == 'nickname':
                     # The game asks for a nickname only after a catch.
                     raise Abort(self.success_outcome() + ' Stopped at the nickname prompt for the caller to answer.',
-                                cleanup=False, completed=True, **self.details)
+                                cleanup=False, completed=True, reason=StopReason.PROMPT, **self.details)
                 if answer is None:
-                    raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False)
+                    raise Abort('Stopped at a game prompt the shortcut does not answer.', completed=False,
+                                reason=StopReason.PROMPT)
                 yield Choose(answer)
             elif screen == 'move_list' and isinstance(self.learn_choice(), int):
                 yield from self.pick_move(self.learn_choice(), learn=True)
@@ -165,10 +165,11 @@ class GameShortcut(Shortcut):
                 idle += 1
                 if self.refusal or idle > patience:
                     self.no_effect()
-                yield 'a' if self.obs.ready else None
+                # On the overworld an A press would talk, read a sign or offer SURF.
+                yield 'a' if self.obs.ready and screen != 'overworld' else None
             else:
                 self.no_effect()
-        raise Abort('Menu did not respond. Stopped without repeating the requested effect.')
+        raise Abort(NO_RESPONSE)
 
     def open_bag(self, item=None):
         """Open the bag. In Gen 2, also turn to the pocket that holds ``item``."""
@@ -255,7 +256,7 @@ class GameShortcut(Shortcut):
                 yield 'down'
             else:
                 yield 'up' if here < quantity else 'down'
-        raise Abort('Menu did not respond. Stopped without repeating the requested effect.')
+        raise Abort(NO_RESPONSE)
 
     def resolve_item(self, item):
         if isinstance(item, int):
@@ -276,7 +277,7 @@ class GameShortcut(Shortcut):
 
 
 class UseItem(GameShortcut):
-    """Use one item from the bag. See README for every supported kind."""
+    """Use one item from the bag. See docs/shortcuts.md for every supported kind."""
 
     kind = 'use_item'
     label = 'use_item'
@@ -410,13 +411,23 @@ class UseItem(GameShortcut):
 
     def no_effect(self):
         if self.forget_move == 'keep' and 'DIDNOTLEARN' in normalize(' '.join(self.recent)):
-            raise Abort('Kept the old moves as requested. The machine was not used.')
+            raise Abort('Kept the old moves as requested. The machine was not used.', reason=StopReason.NO_EFFECT)
         super().no_effect()
+
+    def cast_wait(self):
+        """Screens a targetless item rests on before its effect shows, and how long it may rest.
+
+        A rod closes the bag and casts on the overworld. Its message prints only after the cast,
+        about two seconds later on Gen 2.
+        """
+        if self.item_info.kind == 'fishing':
+            return {'stay': ('bag', 'item_action', 'overworld'), 'patience': 90}
+        return {'stay': ('bag', 'item_action')}
 
     def walk_state(self, obs):
         if self.gen == 2:
             return obs.memory.byte('wPlayerState')
-        return obs.memory[W_WALK_BIKE_SURF]
+        return obs.memory[W_WALK_BIKE_SURF_STATE]
 
     def flow(self):
         if self.gen == 2:
@@ -435,7 +446,7 @@ class UseItem(GameShortcut):
                 self.committed = kind.target == 'none'
                 yield from self.choose('USE')
         if kind.target == 'none':
-            yield from self.commit_wait(stay=('bag', 'item_action'))
+            yield from self.commit_wait(**self.cast_wait())
             return
         if kind.kind in ('tm', 'hm'):
             for _ in range(40):
@@ -471,7 +482,7 @@ class UseItem(GameShortcut):
         self.committed = kind.target == 'none'
         yield from self.choose('USE')
         if kind.target == 'none':
-            yield from self.commit_wait(stay=('bag', 'item_action'))
+            yield from self.commit_wait(**self.cast_wait())
             return
         for _ in range(40):
             screen = self.obs.screen
@@ -767,7 +778,7 @@ class FieldMove(GameShortcut):
             self.before = {'state': obs.memory.byte('wPlayerState'), 'bike': obs.memory.byte('wBikeFlags'),
                            'map': self.map_id(obs)}
             return
-        self.before = {'surf': obs.memory[W_WALK_BIKE_SURF], 'strength': obs.memory[W_STATUS_FLAGS1] & 1,
+        self.before = {'surf': obs.memory[W_WALK_BIKE_SURF_STATE], 'strength': obs.memory[W_STATUS_FLAGS1] & 1 << BIT_STRENGTH_ACTIVE,
                        'map': obs.memory[W_CUR_MAP], 'pal': obs.memory[W_MAP_PAL_OFFSET]}
 
     def effect(self, obs):
@@ -786,9 +797,9 @@ class FieldMove(GameShortcut):
         if self.move == 'CUT':
             return 'HACKEDAWAY' in words
         if self.move == 'SURF':
-            return memory[W_WALK_BIKE_SURF] == 2 and self.before['surf'] != 2
+            return memory[W_WALK_BIKE_SURF_STATE] == 2 and self.before['surf'] != 2
         if self.move == 'STRENGTH':
-            return bool(memory[W_STATUS_FLAGS1] & 1) and not self.before['strength']
+            return bool(memory[W_STATUS_FLAGS1] & 1 << BIT_STRENGTH_ACTIVE) and not self.before['strength']
         if self.move == 'FLASH':
             return 'BLINDINGFLASH' in words
         return memory[W_CUR_MAP] != self.before['map'] and obs.screen == 'overworld'
@@ -1031,7 +1042,7 @@ class DepositPokemon(PCShortcut):
             raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
         if len(party) == 1:
             raise Abort("You can't deposit the last Pokemon. No input sent.", cleanup=False)
-        if self.gen == 2 and not any(mon['hp'] and not mon['egg'] for i, mon in enumerate(party) if i != self.slot):
+        if self.gen == 2 and not any(mon['hp'] and not mon.get('egg') for i, mon in enumerate(party) if i != self.slot):
             raise Abort('No other Pokemon could battle after this deposit, so the game refuses. No input sent.',
                         cleanup=False)
         if self.gen == 2 and gen2ui.holds_mail(party[self.slot]):
@@ -1404,9 +1415,6 @@ class TakeItem(HeldItemShortcut):
         yield from self.commit_wait(stay=('party', 'party_action', 'menu'))
 
 
-
-W_WHICH_POKEMON = 0xCF92
-W_CURRENT_BOX = 0xD5A0
 # Markers of the level-up and TM learn prompts.
 LEARN_MARKERS = ('TRYINGTOLEARN', 'DELETEANOLDER', 'ANOLDERMOVE', 'MAKEROOMFOR', 'CANTLEARNMORE',
                  'ABANDONLEARNING', 'STOPLEARNING', 'WHICHMOVESHOULD', 'SHOULDBEFORGOTTEN')
@@ -1633,7 +1641,7 @@ class DeleteMove(GameShortcut):
         if self.slot >= len(party):
             raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
         member = party[self.slot]
-        if member['egg']:
+        if member.get('egg'):
             raise Abort('An Egg knows no moves. No input sent.', cleanup=False)
         moves = [move for move in member['moves'] if move]
         if self.move_slot >= len(moves):
@@ -1690,6 +1698,254 @@ class DeleteMove(GameShortcut):
                 yield None
         raise Abort(NO_RESPONSE)
 
+# wPokegearFlags bits (Gen 2).
+POKEGEAR_RADIO_CARD = 0x02
+POKEGEAR_OBTAINED = 0x80
+# The Poké Flute channel: wRadioTuningKnob position and the wMapMusic it plays.
+POKE_FLUTE_STATION, POKE_FLUTE_MUSIC = 78, 0x40
+RADIO_CARD = 3
+
+
+class Radio(GameShortcut):
+    """Gen 2: tune the Pokégear radio to ``station`` (a wRadioTuningKnob position) and listen.
+
+    Starts in the overworld or the start menu and returns to the overworld. The default is
+    the Poké Flute channel, which wakes a sleeping Pokémon next to the player. ``music`` is
+    the wMapMusic value that proves the station plays, or None to accept the tuned knob.
+    """
+
+    kind = 'tune_radio'
+    label = 'tune_radio'
+    default_steps = 300
+
+    def __init__(self, station=POKE_FLUTE_STATION, music=POKE_FLUTE_MUSIC, **options):
+        if type(station) is not int or not 0 <= station <= 255:
+            raise ValueError('station must be a tuning knob position from 0 through 255')
+        if music is not None and (type(music) is not int or not 0 <= music <= 255):
+            raise ValueError('music must be a music ID from 0 through 255 or None')
+        super().__init__(**options)
+        if self.gen != 2:
+            raise ValueError('tune_radio is a Gen 2 shortcut (the Pokégear radio)')
+        self.station, self.music = station, music
+        self.tuned = False
+
+    def result_fields(self):
+        return {'station': self.station}
+
+    def check(self, obs):
+        if obs.battle:
+            raise Abort('Not available in battle. No input sent.', cleanup=False)
+        self.need_screen('overworld', 'pause', what='the overworld or the start menu')
+        flags = obs.memory.byte('wPokegearFlags')
+        if flags & (POKEGEAR_OBTAINED | POKEGEAR_RADIO_CARD) != POKEGEAR_OBTAINED | POKEGEAR_RADIO_CARD:
+            raise Abort('The Pokégear has no radio card. No input sent.', cleanup=False)
+
+    def effect(self, obs):
+        return self.tuned and (self.music is None or obs.memory.byte('wMapMusic') == self.music)
+
+    def success_outcome(self):
+        return 'The radio played the requested station.'
+
+    def after_effect(self):
+        # The Pokégear is no menu the settle loop knows, so B backs out to the overworld.
+        for _ in range(12):
+            if self.obs.screen == 'overworld':
+                settled = yield from self.settle(limit=40)
+                return self.success(settled)
+            yield 'b' if self.obs.screen != 'dialogue' else 'a'
+        return self.success(False)
+
+    def flow(self):
+        yield from self.open_pause()
+        yield Choose('POKéGEAR')
+        # wPokegearCard shares its address with other menus, so it is read only once the start menu is gone.
+        if not (yield from self.until(lambda obs: obs.screen != 'pause', limit=20, press_text=False)):
+            raise Abort('The Pokégear did not open. Stopped.')
+        for _ in range(8):
+            if self.obs.memory.byte('wPokegearCard') == RADIO_CARD:
+                break
+            yield 'right'
+            yield None
+        else:
+            raise Abort('The radio card did not open. Stopped.')
+        for _ in range(260):
+            knob = self.obs.memory.byte('wRadioTuningKnob')
+            if knob == self.station:
+                break
+            yield 'up' if knob < self.station else 'down'
+        else:
+            raise Abort(NO_RESPONSE)
+        self.tuned = True
+        # Listen. The music changes once the station's opening plays.
+        for _ in range(60):
+            yield None
+        self.no_effect()
+
+
+class DayCare(GameShortcut):
+    """Gen 2: leave party ``slot`` (0 based) at the Day Care, or take ``parent`` back with ``slot=None``.
+
+    ``parent`` is 0 for the wBreedMon1 place (the Day-Care Man) and 1 for wBreedMon2 (the
+    Day-Care Lady). Start at that person's greeting or first YES/NO, after talking to them.
+    Every YES/NO is answered YES. Both directions are confirmed by species, trainer ID, DVs
+    and nickname, so a look-alike from the same trainer never counts.
+    """
+
+    kind = 'day_care'
+    label = 'day_care'
+
+    def __init__(self, parent, slot=None, **options):
+        _slot(parent, 'Day Care parent', 2)
+        if slot is not None:
+            _slot(slot, 'Party slot', 6)
+        super().__init__(**options)
+        if self.gen != 2:
+            raise ValueError('day_care is a Gen 2 shortcut')
+        self.parent, self.slot = parent, slot
+        self.target_id, self.party_size = None, 0
+
+    def result_fields(self):
+        fields = {'parent': self.parent, 'action': 'withdraw' if self.slot is None else 'deposit'}
+        if self.slot is not None:
+            fields['party_slot'] = self.slot + 1
+        return fields
+
+    def held(self, obs):
+        from ..gen2.state import read_daycare
+        held = read_daycare(obs.raw, self.version)['parents'][self.parent]
+        return None if held is None else (held['species'], held['trainer_id'], tuple(held['dvs']), held['nickname'])
+
+    def check(self, obs):
+        if obs.battle:
+            raise Abort('Not available in battle. No input sent.', cleanup=False)
+        if obs.screen not in ('dialogue', 'yes_no'):
+            raise Abort("day_care starts at the Day Care person's greeting. No input sent.", cleanup=False)
+        held = self.held(obs)
+        party = self.party(obs)
+        if self.slot is None:
+            if held is None:
+                raise Abort('That Day Care place is empty. No input sent.', cleanup=False)
+            if len(party) >= 6:
+                raise Abort('The party is full. No input sent.', cleanup=False)
+            self.target_id, self.party_size = held, len(party)
+            return
+        if held is not None:
+            raise Abort('That Day Care place is taken. No input sent.', cleanup=False)
+        if self.slot >= len(party):
+            raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
+        if party[self.slot].get('egg'):
+            raise Abort('An Egg cannot stay at the Day Care. No input sent.', cleanup=False)
+        self.target_id = identity(party[self.slot])
+
+    def effect(self, obs):
+        held = self.held(obs)
+        if self.slot is None:
+            party = self.party(obs)
+            return (held is None and len(party) > self.party_size
+                    and sum(identity(mon) == self.target_id for mon in party[self.party_size:]) == 1)
+        return held == self.target_id
+
+    def success_outcome(self):
+        if self.slot is None:
+            return 'The Day Care returned the Pokemon.'
+        return 'The Day Care took the Pokemon.'
+
+    def prompt_answer(self, obs):
+        return 'YES'
+
+    def flow(self):
+        idle = 0
+        for _ in range(240):
+            screen = self.obs.screen
+            if self.refusal:
+                self.no_effect()
+            if screen == 'yes_no':
+                yield Choose('YES')
+            elif screen == 'party' and self.slot is not None:
+                self.guard_party(self.slot, self.target_id)
+                yield from self.pick_party(self.slot)
+            elif screen in ('dialogue', 'transition', 'unknown'):
+                yield from self.text_or_wait()
+            elif screen == 'overworld':
+                # The person said goodbye without the requested change.
+                self.no_effect()
+            else:
+                idle += 1
+                if idle > 12:
+                    self.no_effect()
+                yield None
+        raise Abort(NO_RESPONSE)
+
+
+class ShowPartner(GameShortcut):
+    """Gen 2: show party ``slot`` (0 based) to a person who asks to see a Pokémon.
+
+    Start at the person's greeting or first YES/NO, after talking to them. Success is the
+    event flag ``event`` (an index into wEventFlags) turning on. Every YES/NO is answered YES.
+    """
+
+    kind = 'show_partner'
+    label = 'show_partner'
+
+    def __init__(self, slot, event, **options):
+        _slot(slot, 'Party slot', 6)
+        if type(event) is not int or not 0 <= event < 2048:
+            raise ValueError('event must be an event flag index from 0 through 2047')
+        super().__init__(**options)
+        if self.gen != 2:
+            raise ValueError('show_partner is a Gen 2 shortcut')
+        self.slot, self.event = slot, event
+        self.target_id = None
+
+    def result_fields(self):
+        return {'party_slot': self.slot + 1, 'event': self.event}
+
+    def flag(self, obs):
+        return bool(obs.memory.byte('wEventFlags', self.event // 8) >> (self.event % 8) & 1)
+
+    def check(self, obs):
+        if obs.battle:
+            raise Abort('Not available in battle. No input sent.', cleanup=False)
+        if obs.screen not in ('dialogue', 'yes_no'):
+            raise Abort("show_partner starts at the person's greeting. No input sent.", cleanup=False)
+        if self.flag(obs):
+            raise Abort('That event flag is already set. No input sent.', cleanup=False)
+        party = self.party(obs)
+        if self.slot >= len(party):
+            raise Abort('Party slot is unavailable. No input sent.', cleanup=False)
+        self.target_id = identity(party[self.slot])
+
+    def effect(self, obs):
+        return self.flag(obs)
+
+    def success_outcome(self):
+        return 'The person saw the Pokemon.'
+
+    def prompt_answer(self, obs):
+        return 'YES'
+
+    def flow(self):
+        idle = 0
+        for _ in range(240):
+            screen = self.obs.screen
+            if screen == 'yes_no':
+                yield Choose('YES')
+            elif screen == 'party':
+                self.guard_party(self.slot, self.target_id)
+                yield from self.pick_party(self.slot)
+            elif screen in ('dialogue', 'transition', 'unknown'):
+                yield from self.text_or_wait()
+            elif screen == 'overworld':
+                self.no_effect()
+            else:
+                idle += 1
+                if idle > 12:
+                    self.no_effect()
+                yield None
+        raise Abort(NO_RESPONSE)
+
+
 __all__ = ['UseItem', 'SwitchPokemon', 'ReorderParty', 'ChooseMove', 'RunAway', 'FieldMove', 'TossItem',
            'BuyItem', 'SellItem', 'DepositPokemon', 'WithdrawPokemon', 'ReleasePokemon', 'DepositItem',
-           'WithdrawItem', 'GiveItem', 'TakeItem', 'LearnMove', 'ChangeBox', 'DeleteMove', 'Done', 'tm_number']
+           'WithdrawItem', 'GiveItem', 'TakeItem', 'LearnMove', 'ChangeBox', 'DeleteMove', 'Radio', 'DayCare',
+           'ShowPartner', 'Done', 'tm_number']

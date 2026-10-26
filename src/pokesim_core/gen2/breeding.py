@@ -2,7 +2,12 @@
 
 Ported from PokeSim's pokesim/gen2/breeding.py and tracking.py. Each function reads
 decoded Mon objects (or anything with the same fields) and consumer game tables.
+The cached helpers key on ``data`` itself, so it must be hashable (by identity, as a
+plain class or :class:`GameTables` is).
 """
+from collections import Counter
+from functools import lru_cache
+
 from .ram import calculated_stats, experience_at
 
 DITTO = 132
@@ -29,10 +34,10 @@ def offspring(data, first, second):
         mother = first if first.gender == 'Female' else second
     else:
         return set()
+    previous = _pre_evolutions(data)
     species = mother.species
     for _ in range(2):
-        species = next((sid for sid, row in data.species.items()
-                        if any(evo['species'] == species for evo in row['evolutions'])), species)
+        species = previous.get(species, species)
     return {29, 32} if species == 29 else {species}
 
 
@@ -76,3 +81,110 @@ def ancestors(data, species):
 def level_credit(data, species):
     """The species a level-up of ``species`` counts toward: itself, or its whole line when it is final."""
     return {species} if data.species[species]['evolutions'] else ancestors(data, species)
+
+
+def _pre_evolutions(data):
+    """Each species' pre-evolution, the first in species order as a scan of the table would find it.
+
+    A breeding search asks once for every pair of Pokémon the player owns, so the map is built once
+    per species table rather than by scanning the whole table for every pair.
+    """
+    cached = getattr(data, '_pre_evolutions', None)
+    if cached is not None and cached[0] is data.species:
+        return cached[1]
+    previous = {}
+    for sid, row in data.species.items():
+        for evo in row['evolutions']:
+            previous.setdefault(evo['species'], sid)
+    try:
+        data._pre_evolutions = (data.species, previous)
+    except AttributeError:
+        pass
+    return previous
+
+
+@lru_cache(maxsize=8)
+def families(data):
+    """Every species mapped to its whole evolution family, babies included."""
+    parents = {evo['species']: sid for sid, row in data.species.items() for evo in row['evolutions']}
+    result = {}
+    for species in data.species:
+        root = species
+        while root in parents:
+            root = parents[root]
+        result.setdefault(root, set()).add(species)
+    return {species: frozenset(members) for members in result.values() for species in members}
+
+
+@lru_cache(maxsize=8)
+def single_source(data):
+    """Families this cartridge never offers in the wild, keyed by member.
+
+    Bill's Eevee, Togepi, Kiyo's Tyrogue, Sudowoodo, Snorlax, Lapras and Pokémon that arrived by cable
+    appear once per save. The Day Care is the only way to make another copy, so a family whose members
+    can still breed is worth keeping a parent of. ``data.encounters`` rows name each wild ``species``.
+    """
+    wild = {row['species'] for row in data.encounters}
+    return {species: family for species, family in families(data).items()
+            if not family & wild and any('NONE' not in data.species[sid]['egg_groups'] for sid in family)}
+
+
+def lines(data, baby):
+    """Each later stage of ``baby`` with the species along its way and the methods that reach it.
+
+    Rows are ``(species, path, methods)`` where ``path`` includes ``baby`` and ``species``.
+    """
+    result, stack = [], [(baby, frozenset({baby}), frozenset())]
+    while stack:
+        species, path, methods = stack.pop()
+        for evo in data.species[species]['evolutions']:
+            row = (evo['species'], path | {evo['species']}, methods | {evo['method']})
+            result.append(row)
+            stack.append(row)
+    return result
+
+
+def breeding_stock(data, species):
+    """Species whose only held copy should stay home as a Day Care parent.
+
+    ``species`` lists every held Pokémon that is not an egg. The last Ditto pairs with anything, and the
+    last member of a family with no wild source is the only way to breed that family again.
+    """
+    held, single = Counter(species), single_source(data)
+    keep = {DITTO} if held[DITTO] == 1 else set()
+    for sid, count in held.items():
+        if count == 1 and sid in single and sum(held[member] for member in single[sid]) == 1:
+            keep.add(sid)
+    return keep
+
+
+def egg_lines(data, snapshot):
+    """Every species in the family of an egg held in the party or the PC.
+
+    An egg only hatches while it travels in the party. One left in a box keeps its line unhatched, so
+    breeding that line again would only collect another egg for the PC.
+    """
+    family = families(data)
+    return frozenset(species for mon in snapshot.party + snapshot.stored if mon.egg
+                     for species in family.get(mon.species, {mon.species}))
+
+
+def free_slots(snapshot):
+    """Empty PC box slots across ``snapshot.box_counts``, or 99 when the counts are unknown."""
+    counts = getattr(snapshot, 'box_counts', None)
+    return 99 if counts is None else sum(max(0, 20 - count) for count in counts)
+
+
+def descendants_wanted(data, snapshot, demand, baby):
+    """Whether demand for a later stage of a single source family needs another ``baby`` hatched.
+
+    ``demand`` maps species to the copies wanted, for example by another adventure over the cable.
+    Espeon, Umbreon or a Hitmon can only come from breeding an Eevee or a Tyrogue and raising it.
+    Stone evolutions are left out because a cartridge has few of each stone.
+    """
+    if baby not in single_source(data):
+        return False
+    held = snapshot.party + snapshot.stored
+    return any(demand.get(target) and 'item' not in methods
+               and sum(mon.species in path for mon in held) <= demand[target]
+               for target, path, methods in lines(data, baby))
