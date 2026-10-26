@@ -766,3 +766,87 @@ def test_learn_move_at_level_up_replaces_or_keeps():
     game.choices[('yes_no', 'NO')] = abandon
     result = learn_move(game.port(), 'keep')
     assert done(result) and game.party[0]['moves'] == [33, 45, 10, 98] and game.kind == 'battle_menu', result
+
+
+def test_player_pc_acknowledgment_over_visible_menu_without_readiness():
+    game = pc_game([mon('ONE')], 0)
+    game.memory[0xD53A:0xD53D] = bytes([1, 0x14, 1])
+    game.top = 1
+    game.choices[('pc', "ASH's PC")] = lambda: game.show('Accessed my PC.')
+    acknowledgments = iter(['Accessed Item Storage System.', None])
+
+    def acknowledge():
+        text = next(acknowledgments)
+        game.show(text) if text else game.go('players_pc')
+
+    game.a['pc'] = acknowledge
+    game.choices[('players_pc', 'WITHDRAW ITEM')] = 'pc_items'
+    game.a['pc_items'] = lambda: game.go('quantity')
+    game.a['quantity'] = lambda: (game.add(0x14, 1), game.go('players_pc'))
+    port = game.port()
+    port.continue_ready = lambda: None
+    result = withdraw_item(port, 0x14, 1)
+    assert done(result)
+    assert game.bag == [(0x14, 1)]
+    assert game.inputs[:4] == ["ASH's PC", 'a', 'a', 'WITHDRAW ITEM']
+
+
+
+def test_choose_move_accepts_brief_forced_turn_without_pressing_fight_again():
+    game = battle_game()
+    game.choices[('battle_menu', 'FIGHT')] = lambda: game.say("Enemy CLOYSTER's attack continues!", then='battle_menu')
+    original = game.send
+    def send(button, hold, gap):
+        result = original(button, hold, gap)
+        if button is None and game.kind == 'dialogue':
+            game.go('battle_menu')
+        return result
+    game.send = send
+    result = choose_move(game.port(), 0)
+    assert done(result), result
+    assert result['shortcut']['forced'] == 'locked'
+    assert game.inputs.count('FIGHT') == 1
+    assert game.kind == 'battle_menu'
+
+
+def test_choose_move_does_not_call_ignored_fight_a_completed_turn():
+    game = battle_game()
+    game.choices[('battle_menu', 'FIGHT')] = lambda: None
+    result = choose_move(game.port(), 0)
+    assert not result['shortcut']['completed']
+    assert 'FIGHT did not open' in result['outcome']
+
+
+def test_choose_move_waits_for_late_move_list_after_brief_text():
+    game = battle_game()
+    game.choices[('battle_menu', 'FIGHT')] = lambda: game.say('Waiting', then='move_menu')
+    original = game.send
+    def send(button, hold, gap):
+        result = original(button, hold, gap)
+        if button is None and game.kind == 'dialogue' and game.then == 'move_menu':
+            game.go('move_menu')
+            game.memory[0xCC26] = 1
+        return result
+    game.send = send
+    def pick():
+        game.memory[0xCCDC] = game.memory[0xD01C]
+        game.say('ONE used TACKLE!', then='battle_menu')
+    game.a['move_menu'] = pick
+    result = choose_move(game.port(), 0)
+    assert done(result), result
+    assert 'forced' not in result['shortcut']
+    assert game.inputs.count('FIGHT') == 1
+
+
+
+def test_choose_move_recognizes_forced_damage_inside_blocking_label_selection():
+    game = battle_game()
+    game.memory[0xD015:0xD017] = bytes([0, 40])
+    def fight():
+        game.memory[0xD015:0xD017] = bytes([0, 23])
+        game.go('battle_menu')
+    game.choices[('battle_menu', 'FIGHT')] = fight
+    result = choose_move(game.port(), 0)
+    assert done(result), result
+    assert result['shortcut']['forced'] == 'locked'
+    assert game.inputs.count('FIGHT') == 1

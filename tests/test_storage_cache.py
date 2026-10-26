@@ -57,3 +57,13 @@ def test_cached_glyph_modes_match_previous_decoders_for_every_tile():
     expected = ''.join('>' if t == 0xED else '?' if t == 0xE6 else decode_text(bytes([t])).replace('?', ' ') or ' ' for t in raw)
     assert actual == expected
     assert ''.join(screen_rows(raw, raw_text=True)) == ''.join(decode_text(bytes([t])) or ' ' for t in raw)
+
+
+@pytest.mark.parametrize('bank', [None, 1])
+def test_empty_memory_block_never_accesses_native_memory(bank):
+    class NativeMemory:
+        def __getitem__(self, key):
+            raise AssertionError('Native backend rejects empty slices')
+        def snapshot_window(self, *args):
+            raise AssertionError('Empty reads do not need a bank window')
+    assert memory_bytes(NativeMemory(), bank, 0xDA80, 0) == b''

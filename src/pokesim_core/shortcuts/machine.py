@@ -596,6 +596,7 @@ def runner_ui(port, memory):
 def run(port, machine, **extra):
     """Drive ``machine`` to completion through ``port`` and return the blocking result dict."""
     memory = port.memory
+    start = port.frame()
     while True:
         if port.stopped():
             done = machine._finish(Done(STOP_OUTCOME, False, False, dict(machine.details)))
@@ -622,7 +623,14 @@ def run(port, machine, **extra):
         if not ok:
             done = machine._finish(Done(STOP_OUTCOME, False, False, dict(machine.details)))
             break
-    return done.as_result(machine.kind, **{**machine.result_fields(), **extra})
+    from ..control_results import control_status
+    result = done.as_result(machine.kind, **{**machine.result_fields(), **extra})
+    reason = ('stopped' if port.stopped() else 'budget' if done.outcome == STOP_OUTCOME
+              else 'complete' if done.completed and done.settled
+              else 'unsettled' if done.completed else 'refused')
+    result['control'] = control_status(machine.kind, reason, completed=done.completed,
+                                       settled=done.settled, frames=port.frame() - start, inputs=machine.inputs)
+    return result
 
 
 def drive(machine, emulator, *, max_inputs=None, hold=8, gap=24, wait=30):
