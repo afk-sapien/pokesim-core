@@ -1,4 +1,5 @@
 """Verified English retail adapter metadata. No reference checkout is needed at runtime."""
+from .rom import rom_offset
 
 ADAPTER_ID = "english-rb-core-cable-v1"
 SOURCE_REVISION = "705ec4ddc2f0e5a1265170b33f101141c5892960"
@@ -138,11 +139,6 @@ BUILDS[YELLOW_SHA1] = {
 def build(sha1):
     """The link build for a cartridge SHA-1, or None for a cartridge without Gen 1 link metadata."""
     return BUILDS.get(sha1)
-
-
-def rom_offset(bank, address):
-    """File offset of a banked ROM address."""
-    return address if bank == 0 else bank * 0x4000 + address % 0x4000
 
 
 def verify_signatures(rom, sha1):

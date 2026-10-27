@@ -26,6 +26,11 @@ class RomInfo:
     verified: bool
 
 
+def rom_offset(bank, address):
+    """File offset of a banked ROM address. Bank 0 is the fixed home bank."""
+    return address if bank == 0 else bank * 0x4000 + address % 0x4000
+
+
 def _hashes(path):
     sha1 = hashlib.sha1()
     sha256 = hashlib.sha256()

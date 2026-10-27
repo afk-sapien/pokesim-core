@@ -11,10 +11,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..rom import rom_offset
 
-def rom_offset(bank, address):
-    """File offset of a banked address. Bank 0 is the fixed home bank."""
-    return address if bank == 0 else bank * 0x4000 + (address - 0x4000)
+__all__ = ['LAYOUTS', 'Layout', 'layout', 'rom_offset']
 
 
 @dataclass(frozen=True)
