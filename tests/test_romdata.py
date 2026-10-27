@@ -221,6 +221,78 @@ def test_load_needs_a_known_cartridge_or_version():
         romdata.load(rom, version='green')
 
 
+@pytest.fixture
+def red_rom(monkeypatch):
+    rom, found = gen1_cartridge()
+    monkeypatch.setitem(romdata.LAYOUTS, 'red', found)
+    return rom
+
+
+@pytest.fixture
+def gold_rom(monkeypatch):
+    rom, found = gen2_cartridge()
+    monkeypatch.setitem(romdata.LAYOUTS, 'gold', found)
+    return rom
+
+
+@pytest.mark.parametrize('game', ['red', 'gold'])
+def test_patch_without_overrides_returns_the_rom(game, request):
+    rom = request.getfixturevalue(f'{game}_rom')
+    assert romdata.patch_rom(rom, version=game) == rom
+    assert romdata.patch_rom(rom, {}, version=game) == rom
+
+
+@pytest.mark.parametrize('game, overrides', [
+    ('red', {'species_map': {1: 2, 2: 1}}),
+    ('red', {'encounters': {'grass:0': 'grass:2', 'water:1': {'rate': 9}}, 'starters': [2],
+             'trainers': {'1:2': {'party': [{'level': 40, 'species': 2}, {'level': 41, 'species': 2}]}}}),
+    ('gold', {'species_map': {1: 2, 2: 1}, 'tm_moves': list(range(60, 0, -1))}),
+    ('gold', {'encounters': {'johto_grass:258': {'rates': [5, 6, 7]}},
+              'trainers': {'1:1': {'party': [{'level': 9, 'species': 2, 'item': 1, 'moves': [1, 2, 3, 4]}]}}}),
+])
+def test_patch_reads_back_as_the_effective_data(game, overrides, request):
+    rom = request.getfixturevalue(f'{game}_rom')
+    patched = romdata.patch_rom(rom, overrides, version=game)
+    assert patched != rom
+    assert len(patched) == len(rom)
+    expected = romdata.effective_data(rom, overrides, version=game)
+    assert romdata.load(patched, version=game).canonical() == expected.canonical()
+    assert int.from_bytes(patched[0x14E:0x150], 'big') == (sum(patched) - patched[0x14E] - patched[0x14F]) & 0xFFFF
+
+
+def test_patch_leaves_the_input_unchanged(red_rom):
+    rom = bytearray(red_rom)
+    romdata.patch_rom(rom, {'starters': [2]}, version='red')
+    assert bytes(rom) == red_rom
+
+
+@pytest.mark.parametrize('game, overrides, message', [
+    ('red', {'trainers': {'1:1': {'party': [{'level': 5, 'species': 1}]}}}, 'is 3 bytes, the ROM holds 4'),
+    ('red', {'trainers': {'3:1': {'party': [{'level': 11, 'species': 2}]}}}, 'levels cannot change'),
+    ('red', {'learnsets': {1: []}}, 'cannot write learnsets'),
+    ('gold', {'trainers': {'1:2': {'name': 'Z'}}}, 'cannot change a trainer name'),
+    ('gold', {'trainers': {'3:1': {'party': [{'level': 30, 'species': 2}]}}}, 'need exactly'),
+    ('gold', {'encounters': {'johto_water:259': {'slots': [[1, 1]]}}}, 'needs 3 slots'),
+])
+def test_patch_refuses_changes_that_do_not_fit(game, overrides, message, request):
+    rom = request.getfixturevalue(f'{game}_rom')
+    with pytest.raises(ValueError, match=message):
+        romdata.patch_rom(rom, overrides, version=game)
+
+
+def test_maps_sharing_a_table_must_agree(red_rom):
+    rom = bytearray(red_rom)
+    found = romdata.LAYOUTS['red']
+    wild = found.wild[0][1]
+    rom[wild + 4:wild + 6] = rom[wild:wild + 2]
+    data = romdata.load(rom, version='red')
+    assert data.encounters['grass:2']['slots'] == data.encounters['grass:0']['slots']
+    patched = romdata.patch_rom(rom, {'species_map': {1: 2}}, version='red')
+    assert romdata.load(patched, version='red').encounters['grass:2']['slots'][0] == [3, 2]
+    with pytest.raises(ValueError, match='shares its ROM table'):
+        romdata.patch_rom(rom, {'encounters': {'grass:2': {'rate': 1}}}, version='red')
+
+
 def test_layouts_cover_every_supported_version():
     assert sorted(romdata.LAYOUTS) == ['blue', 'crystal', 'gold', 'red', 'silver', 'yellow']
     assert romdata.rom_offset(0x0E, 0x43DE) == 0x383DE

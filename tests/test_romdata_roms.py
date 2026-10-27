@@ -8,10 +8,12 @@ Collected only when POKESIM_CORE_ROMS (red.gb, blue.gb, yellow.gb) or POKESIM_CO
 import hashlib
 import os
 from pathlib import Path
+import random
 
 import pytest
 
 from pokesim_core import romdata
+from pokesim_core.cartridges import read_header
 
 DIGESTS = {
     'red': '6f1325b59eeeacb2ec8ddef1009f509d0a811e9787c8990e0c76bab38eff3fe1',
@@ -82,3 +84,27 @@ def test_a_modified_cartridge_reads_with_an_explicit_version(version):
     modified = romdata.load(rom, version=version)
     assert modified.starters[0] == replacement
     assert modified.with_overrides({'starters': data.starters}).canonical() == data.canonical()
+
+
+@pytest.mark.parametrize('version', sorted(DIGESTS))
+def test_patch_without_overrides_is_byte_identical(version):
+    rom = _rom(version)
+    assert romdata.patch_rom(rom) == rom
+
+
+@pytest.mark.parametrize('version', sorted(DIGESTS))
+def test_patched_cartridge_reads_back_as_the_effective_data(version):
+    rom = _rom(version)
+    data = romdata.load(rom)
+    species = sorted(data.species)
+    shuffled = species[:]
+    random.Random(version).shuffle(shuffled)
+    first = next(key for key, trainer in data.trainers.items() if len(trainer['party']) > 1)
+    party = [dict(mon, species=shuffled[0]) for mon in data.trainers[first]['party']]
+    overrides = {'species_map': dict(zip(species, shuffled)), 'starters': shuffled[-len(data.starters):],
+                 'trainers': {first: {'party': party}}}
+    patched = romdata.patch_rom(rom, overrides)
+    header = read_header(patched)
+    assert header.header_checksum_ok and header.global_checksum_ok
+    assert romdata.load(patched, version=version).canonical() == romdata.effective_data(rom, overrides).canonical()
+    assert romdata.patch_rom(patched, version=version) == patched

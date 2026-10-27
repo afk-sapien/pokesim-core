@@ -76,7 +76,8 @@ with GameBoy("/path/to/pokemon-red.gb") as game:
   tables (`gen1_battle_power`, `dvs`, `timecapsule`)
 - Game data read from the caller's cartridge, with an override map for
   randomizers: species, learnsets, TM and HM learners, wild encounters,
-  trainer parties and starters (`romdata`)
+  trainer parties and starters, plus a patcher that writes overrides into a
+  copy of the ROM (`romdata`)
 - Menu shortcuts for all six games: items, moves, switching, running, PC, mart,
   field moves, dialogue and walking (`shortcuts`)
 - Controller helpers (`controls`, `naming`) and trusted setup resets

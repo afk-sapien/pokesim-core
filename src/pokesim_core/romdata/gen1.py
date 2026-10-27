@@ -61,8 +61,8 @@ def slots(rom, offset):
     return [[rom[offset + 2 * slot], rom[offset + 2 * slot + 1]] for slot in range(SLOTS)]
 
 
-def encounters(rom, pointers):
-    tables = {}
+def encounter_sites(rom, pointers):
+    """(key, offset of the rate byte, table) for each wild table, in ROM order."""
     for map_id in range(256):
         address = word(rom, pointers + 2 * map_id)
         if address == 0xFFFF:
@@ -70,16 +70,33 @@ def encounters(rom, pointers):
         offset = banked(pointers, address)
         for kind in ('grass', 'water'):
             rate = rom[offset]
-            offset += 1
             if rate:
-                tables[f'{kind}:{map_id}'] = {'kind': kind, 'map': map_id, 'rate': rate, 'slots': slots(rom, offset)}
+                yield f'{kind}:{map_id}', offset, {'kind': kind, 'map': map_id, 'rate': rate,
+                                                   'slots': slots(rom, offset + 1)}
                 offset += 2 * SLOTS
-    return tables
+            offset += 1
 
 
-def parties(rom, offset, end):
-    found = []
+def encounters(rom, pointers):
+    return {key: table for key, _, table in encounter_sites(rom, pointers)}
+
+
+def encode_encounter(table):
+    if not 1 <= table['rate'] <= 255:
+        raise ValueError(f'{table["kind"]}:{table["map"]}: the rate must stay between 1 and 255')
+    return bytes([table['rate'], *(value for slot in _sized(table['slots'], SLOTS) for value in slot)])
+
+
+def _sized(slots, count):
+    if len(slots) != count:
+        raise ValueError(f'An encounter table needs {count} slots, got {len(slots)}')
+    return slots
+
+
+def party_sites(rom, offset, end):
+    """(offset, party) for each party from ``offset`` up to ``end``."""
     while offset < end:
+        start = offset
         if rom[offset] == 0xFF:
             offset += 1
             party = []
@@ -94,8 +111,23 @@ def parties(rom, offset, end):
                 party.append({'level': level, 'species': rom[offset]})
                 offset += 1
         offset += 1
-        found.append(party)
-    return found
+        yield start, party
+
+
+def parties(rom, offset, end):
+    return [party for _, party in party_sites(rom, offset, end)]
+
+
+def encode_party(trainer, first):
+    """Party bytes in the format the ROM uses now. ``first`` is the party's first ROM byte."""
+    party = trainer['party']
+    if not party:
+        raise ValueError('A trainer party needs at least one Pokemon')
+    if first == 0xFF:
+        return bytes([0xFF, *(value for mon in party for value in (mon['level'], mon['species'])), 0])
+    if {mon['level'] for mon in party} != {first}:
+        raise ValueError('This party stores one level for every Pokemon, so levels cannot change')
+    return bytes([first, *(mon['species'] for mon in party), 0])
 
 
 def class_spans(rom, layout):
@@ -113,12 +145,15 @@ def class_spans(rom, layout):
         yield index + 1, start, end
 
 
-def trainers(rom, layout):
-    found = {}
+def trainer_sites(rom, layout):
+    """(key, offset, trainer) for each trainer, in ROM order."""
     for cls, start, end in class_spans(rom, layout):
-        for number, party in enumerate(parties(rom, start, end), 1):
-            found[f'{cls}:{number}'] = {'class': cls, 'index': number, 'party': party}
-    return found
+        for number, (offset, party) in enumerate(party_sites(rom, start, end), 1):
+            yield f'{cls}:{number}', offset, {'class': cls, 'index': number, 'party': party}
+
+
+def trainers(rom, layout):
+    return {key: trainer for key, _, trainer in trainer_sites(rom, layout)}
 
 
 def read(rom, layout):

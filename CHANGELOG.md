@@ -10,6 +10,11 @@
   cartridge. Core ships only the addresses. `GameData.with_overrides` applies a
   randomizer's override map and returns the effective data. With no overrides it is
   byte-identical to the ROM reading.
+- `romdata.effective_data(rom, overrides)` loads and applies overrides in one call.
+  `romdata.patch_rom(rom, overrides)` writes starters, wild encounters, trainer
+  parties and the TM and HM list into a copy of the ROM and fixes up the global
+  checksum. With no overrides it returns the ROM byte-identical.
+- `rom.rom_offset(bank, address)` is the one banked ROM offset helper.
 
 ## 0.7.1
 
