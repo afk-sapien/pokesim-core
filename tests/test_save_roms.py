@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from pokesim_core import gen1_save
-from pokesim_core.gen2 import clock, read_clock, read_snapshot, save
+from pokecore import gen1_save
+from pokecore.gen2 import clock, read_clock, read_snapshot, save
 from rom_games import give_gen1_mon, give_gen2_mon, new_gen1_game, new_gen2_game, tables
 
 pytest.importorskip('pyboy_rs')

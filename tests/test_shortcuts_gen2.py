@@ -11,15 +11,15 @@ from functools import lru_cache
 
 import pytest
 
-from pokesim_core.controls import ControllerPort
-from pokesim_core.gen2.charmap import charmap
-from pokesim_core.shortcuts import (ChooseMove, buy_item, change_box, choose_move, current_screen, day_care,
+from pokecore.controls import ControllerPort
+from pokecore.gen2.charmap import charmap
+from pokecore.shortcuts import (ChooseMove, buy_item, change_box, choose_move, current_screen, day_care,
                                     delete_move, deposit_item, deposit_pokemon, give_item, learn_move, list_box,
                                     list_items, list_moves, list_party, release_pokemon, reorder_party, run_away,
                                     sell_item, show_partner, switch_pokemon, take_item, toss_item, tune_radio,
                                     use_field_move, use_item, withdraw_item, withdraw_pokemon)
-from pokesim_core.shortcuts import gen2ui
-from pokesim_core.shortcuts.items import GEN2_FIELD_MOVES, gen2_pocket, gen2_tm_item, item_kind, key_item
+from pokecore.shortcuts import gen2ui
+from pokecore.shortcuts.items import GEN2_FIELD_MOVES, gen2_pocket, gen2_tm_item, item_kind, key_item
 
 POTION, SUPER_POTION, ESCAPE_ROPE, BERRY, ETHER = 0x12, 0x11, 0x13, 0xAD, 0x3F
 SUPER_ROD = 0x3D
@@ -1380,7 +1380,7 @@ def test_queries_and_screens_read_gen2_memory():
 
 
 def test_list_items_reads_every_pocket(monkeypatch):
-    from pokesim_core.shortcuts import queries
+    from pokecore.shortcuts import queries
     monkeypatch.setattr(queries, 'item_names', lambda memory, version: {POTION: 'POTION'})
     game = Game2(items=[(POTION, 2)], balls=[(POKE_BALL, 1)], key=[BICYCLE], tms=[(TM01, 1)])
     items = list_items(game.memory, 'crystal')

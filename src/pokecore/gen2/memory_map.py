@@ -419,7 +419,7 @@ def symbols(version):
 
 
 def version_of(rom):
-    """The Gen II version of a ROM (bytes), identified by :func:`pokesim_core.cartridges.identify`.
+    """The Gen II version of a ROM (bytes), identified by :func:`pokecore.cartridges.identify`.
 
     Raises ValueError for an unknown ROM or one from another generation.
     """

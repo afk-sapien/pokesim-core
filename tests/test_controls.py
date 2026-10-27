@@ -2,9 +2,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core.controls import ControllerPort, switch_pokemon, use_item
-from pokesim_core.naming import name_step, menu_button, enter_name
-from pokesim_core.gen1 import W_TILEMAP
+from pokecore.controls import ControllerPort, switch_pokemon, use_item
+from pokecore.naming import name_step, menu_button, enter_name
+from pokecore.gen1 import W_TILEMAP
 
 
 def mon(nick='ONE'):
@@ -156,10 +156,10 @@ def test_enter_name_submits_once_and_observes_keyboard_close():
 
 @pytest.mark.parametrize('version', ['red', 'yellow'])
 def test_default_readers_follow_the_cartridge_layout(version):
-    from pokesim_core import gen1
-    from pokesim_core.controls import machine_options
-    from pokesim_core.shortcuts.actions import SwitchPokemon
-    from pokesim_core.yellow import red_layout
+    from pokecore import gen1
+    from pokecore.controls import machine_options
+    from pokecore.shortcuts.actions import SwitchPokemon
+    from pokecore.yellow import red_layout
     raw = bytearray(65536)
     # Write a party and bag at Red addresses through the cartridge's own layout.
     view = red_layout(raw, version)

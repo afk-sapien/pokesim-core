@@ -2,9 +2,9 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from pokesim_core.storage import decode_box, memory_bytes
-from pokesim_core.gen1 import decode_text
-from pokesim_core.gen1_ui import read_storage, screen_rows
+from pokecore.storage import decode_box, memory_bytes
+from pokecore.gen1 import decode_text
+from pokecore.gen1_ui import read_storage, screen_rows
 
 
 def test_cache_records_are_immutable_and_new_bytes_invalidate():

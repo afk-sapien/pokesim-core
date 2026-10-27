@@ -3,10 +3,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core import centers
-from pokesim_core.centers import CENTERS, location, safe_center
-from pokesim_core.gen1 import W_CUR_MAP, W_TILEMAP, W_X, W_Y
-from pokesim_core.gen1_cable import CableDriver, CableError
+from pokecore import centers
+from pokecore.centers import CENTERS, location, safe_center
+from pokecore.gen1 import W_CUR_MAP, W_TILEMAP, W_X, W_Y
+from pokecore.gen1_cable import CableDriver, CableError
 
 
 def memory():

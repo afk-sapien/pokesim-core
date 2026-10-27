@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from pokesim_core import gen2
-from pokesim_core.gen2 import maps
-from pokesim_core.gen2.ram import Memory
+from pokecore import gen2
+from pokecore.gen2 import maps
+from pokecore.gen2.ram import Memory
 
 pytest.importorskip('pyboy_rs')
 
@@ -54,7 +54,7 @@ def press(emulator, button, wait=40):
 
 def to_bedroom(version):
     """A new game standing in the bedroom, with the default clock and the first preset names."""
-    from pokesim_core.emulator import Emulator
+    from pokecore.emulator import Emulator
     rom = Path(os.environ['POKESIM_CORE_GEN2_ROMS']) / f'{version}.gbc'
     if not rom.exists():
         pytest.skip(f'{rom.name} is not in POKESIM_CORE_GEN2_ROMS')

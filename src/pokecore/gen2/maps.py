@@ -2,7 +2,7 @@
 
 Collision grids are one byte per walking tile, row by row, as the consumer's ``data.maps``
 entries hold them (``collision``, ``block_collision``, ``width``, ``height``). ``data`` is the
-consumer's game tables, as for :func:`pokesim_core.gen2.read_snapshot`. Route planning stays
+consumer's game tables, as for :func:`pokecore.gen2.read_snapshot`. Route planning stays
 with the consumer: these helpers only say what the game itself would let the player do.
 """
 from __future__ import annotations

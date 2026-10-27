@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core.gen2 import (DESTINATIONS, FIELD_MOVES, NPC_TRADES, PRIZES, memory_map, npc_trades, prizes,
+from pokecore.gen2 import (DESTINATIONS, FIELD_MOVES, NPC_TRADES, PRIZES, memory_map, npc_trades, prizes,
                                puzzle_button, puzzles, state)
 
 

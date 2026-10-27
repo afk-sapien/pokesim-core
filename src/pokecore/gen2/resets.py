@@ -1,6 +1,6 @@
 """Explicit trusted Gold, Silver and Crystal setup writes, separate from read-only decoders.
 
-These mirror :mod:`pokesim_core.resets` for Gen II's banked memory. They are not controller
+These mirror :mod:`pokecore.resets` for Gen II's banked memory. They are not controller
 actions, so do not expose them as agent commands. The consumer decides which flags to change,
 when and why, and verifies the result. Call only while the emulator is paused or under its
 exclusive simulation lock. ``memory`` is written as ``memory[bank, address] = byte``.

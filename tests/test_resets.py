@@ -1,7 +1,7 @@
 import pytest
 
-from pokesim_core.gen1 import W_CUR_MAP, W_IS_IN_BATTLE, W_TILEMAP
-from pokesim_core.resets import Flag, update_flags, reset_encounter, reset_events
+from pokecore.gen1 import W_CUR_MAP, W_IS_IN_BATTLE, W_TILEMAP
+from pokecore.resets import Flag, update_flags, reset_encounter, reset_events
 
 
 def memory():

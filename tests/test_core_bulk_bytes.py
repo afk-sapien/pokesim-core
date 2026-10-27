@@ -1,7 +1,7 @@
 """Bulk reads remain detached, bounded, and consistent after execution and load."""
 import pytest
 
-from pokesim_core.emulator import Emulator, demo_rom
+from pokecore.emulator import Emulator, demo_rom
 
 
 def test_bulk_bytes_follow_writes_execution_and_restore():

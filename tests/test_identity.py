@@ -3,9 +3,9 @@
 Ported from PokeSim's tests/test_trade_identity.py and tests/test_sprites.py fixtures. The species
 tables are checked against the cartridges in test_sprites_roms.py.
 """
-from pokesim_core import formulas, identity
-from pokesim_core.gen2 import ram
-from pokesim_core.identity import dex_of, family, family_key, find, legacy, pokemon_identity, same
+from pokecore import formulas, identity
+from pokecore.gen2 import ram
+from pokecore.identity import dex_of, family, family_key, find, legacy, pokemon_identity, same
 
 TRAINER, DVS = 4321, [7, 9, 3, 12, 6]
 # Red, Blue and Yellow species indexes.

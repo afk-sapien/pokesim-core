@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from pokesim_core.compatibility import compare_result, run_suite
+from pokecore.compatibility import compare_result, run_suite
 
 
 @pytest.mark.parametrize('body,status', [

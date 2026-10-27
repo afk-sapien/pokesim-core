@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from pokesim_core import gen2
-from pokesim_core.gen2 import state
-from pokesim_core.memory_snapshot import snapshot_emulator
+from pokecore import gen2
+from pokecore.gen2 import state
+from pokecore.memory_snapshot import snapshot_emulator
 
 ROMS = Path(os.environ.get('POKESIM_CORE_GEN2_ROMS', '.'))
 READERS = (state.read_party_structs, state.read_box_structs, state.read_box_counts, state.read_items,
@@ -22,7 +22,7 @@ READERS = (state.read_party_structs, state.read_box_structs, state.read_box_coun
 
 def machines(version):
     pytest.importorskip('pyboy_rs')
-    from pokesim_core.emulator import Emulator
+    from pokecore.emulator import Emulator
     rom = ROMS / f'{version}.gbc'
     if not rom.exists():
         pytest.skip(f'{rom.name} is not in POKESIM_CORE_GEN2_ROMS')

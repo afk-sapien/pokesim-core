@@ -2,7 +2,7 @@
 
 The cartridge writes its own save through the Save menu on a clone of the run, so the file
 is exactly what a console would hold. ``data`` is the consumer's game tables, as for
-:func:`pokesim_core.gen2.read_snapshot`. ROMs are paths or bytes. Nothing is written beside them.
+:func:`pokecore.gen2.read_snapshot`. ROMs are paths or bytes. Nothing is written beside them.
 """
 from __future__ import annotations
 

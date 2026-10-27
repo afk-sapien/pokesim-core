@@ -1,4 +1,4 @@
-from pokesim_core.gen1_ui import read_battler, read_screen, read_sprites, read_storage
+from pokecore.gen1_ui import read_battler, read_screen, read_sprites, read_storage
 
 
 def test_battler_reads_active_hp_and_pp_without_writes():

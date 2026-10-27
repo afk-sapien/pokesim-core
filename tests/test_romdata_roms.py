@@ -12,8 +12,8 @@ import random
 
 import pytest
 
-from pokesim_core import randomizer, romdata
-from pokesim_core.cartridges import read_header
+from pokecore import randomizer, romdata
+from pokecore.cartridges import read_header
 
 DIGESTS = {
     'red': '6f1325b59eeeacb2ec8ddef1009f509d0a811e9787c8990e0c76bab38eff3fe1',

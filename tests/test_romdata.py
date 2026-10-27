@@ -1,8 +1,8 @@
 """ROM-read game data and the randomizer override layer, on small synthetic cartridges."""
 import pytest
 
-from pokesim_core import romdata
-from pokesim_core.romdata import Layout, gen1, gen2
+from pokecore import romdata
+from pokecore.romdata import Layout, gen1, gen2
 
 
 class Rom:

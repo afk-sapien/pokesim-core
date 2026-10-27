@@ -20,7 +20,7 @@ BUTTONS = ("right", "down", "left", "up", "a", "a", "b", "a")
 
 def worker(args):
     if args.backend == "core":
-        from pokesim_core.emulator import Emulator
+        from pokecore.emulator import Emulator
     elif args.backend == "rust":
         from pyboy_rs import PyBoy as Emulator
     else:
@@ -75,7 +75,7 @@ def main():
         return
     if not args.output:
         parser.error("--output is required")
-    from pokesim_core.emulator_state import runtime_provenance
+    from pokecore.emulator_state import runtime_provenance
     from importlib.metadata import version
     jobs = [(state, mode, backend, repeat) for state in args.states for mode in ("batch", "audio")
             for backend in ("core", "rust", "pyboy") for repeat in range(args.repeats)]

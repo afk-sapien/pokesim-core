@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from pokesim_core import gen1_save
-from pokesim_core.controls import ControllerPort
-from pokesim_core.gen2.state import memory_reader
-from pokesim_core.naming import enter_name, gen2_naming
+from pokecore import gen1_save
+from pokecore.controls import ControllerPort
+from pokecore.gen2.state import memory_reader
+from pokecore.naming import enter_name, gen2_naming
 from rom_games import tables
 
 pytest.importorskip('pyboy_rs')
@@ -15,8 +15,8 @@ pytest.importorskip('pyboy_rs')
 
 @pytest.mark.parametrize('version', ['crystal'])
 def test_player_name_entry_types_symbols_and_submits(version):
-    from pokesim_core.gen2.clock import boot, follow_game_time
-    from pokesim_core.gen2.ram import Memory
+    from pokecore.gen2.clock import boot, follow_game_time
+    from pokecore.gen2.ram import Memory
     rom = Path(os.environ['POKESIM_CORE_GEN2_ROMS']) / f'{version}.gbc'
     if not rom.exists():
         pytest.skip(f'{rom.name} is not in POKESIM_CORE_GEN2_ROMS')

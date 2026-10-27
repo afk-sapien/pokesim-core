@@ -4,7 +4,7 @@ The Gen 2 policy classifies screens by searching the 20x18 tilemap text. A
 nickname such as CANCEL, PROTOTYPE or MOSQUITO shows up in the battle HUD and
 the party roster, so plain substring search would read it as a menu label.
 Two defences apply. HUD name fields are blanked here, and keyword search uses
-letter boundaries (from :mod:`pokesim_core.textmatch`) so a keyword only
+letter boundaries (from :mod:`pokecore.textmatch`) so a keyword only
 matches as a whole word.
 """
 from ..textmatch import ScreenText as ScreenText, has_word as has_word

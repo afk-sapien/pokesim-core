@@ -24,7 +24,7 @@ Issues = "https://github.com/afk-sapien/pokesim-core/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-pokesim_core = ["py.typed"]
+pokecore = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

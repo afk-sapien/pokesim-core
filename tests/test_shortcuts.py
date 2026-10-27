@@ -7,15 +7,15 @@ resting screen with the effect observed, or that a refusal sends nothing.
 """
 import pytest
 
-from pokesim_core.controls import ControllerPort
-from pokesim_core.gen1 import W_TILEMAP
-from pokesim_core.shortcuts import (RunAway, buy_item, change_box, choose_move, deposit_item,
+from pokecore.controls import ControllerPort
+from pokecore.gen1 import W_TILEMAP
+from pokecore.shortcuts import (RunAway, buy_item, change_box, choose_move, deposit_item,
                                     deposit_pokemon, item_kind, learn_move, list_items, list_moves, list_party,
                                     release_pokemon, reorder_party, run_away, sell_item, switch_pokemon,
                                     tm_number, toss_item, use_field_move, use_item, withdraw_item,
                                     withdraw_pokemon)
-from pokesim_core.shortcuts.screens import _quantity, menu_rows, text_lines
-from pokesim_core.gen1_ui import read_screen
+from pokecore.shortcuts.screens import _quantity, menu_rows, text_lines
+from pokecore.gen1_ui import read_screen
 
 CHARS = {' ': 0x7F, 'é': 0xBA, '!': 0xE7, '.': 0xE8, "'": 0xE0, '?': 0xE6, ',': 0xF4, '×': 0xF1, '$': 0xF0}
 CONTRACTIONS = {"'s": 0xBD, "'t": 0xBE, "'l": 0xBC, "'d": 0xBB}

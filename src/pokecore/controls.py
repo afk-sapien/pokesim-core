@@ -5,7 +5,7 @@ send or choose, preserving the consumer's frame budget, recording and locking.
 Party slots are zero based. These helpers never decide which Pokemon to train.
 
 ``use_item`` and ``switch_pokemon`` are blocking wrappers over the resumable
-machines in :mod:`pokesim_core.shortcuts`, which hold every other shortcut.
+machines in :mod:`pokecore.shortcuts`, which hold every other shortcut.
 """
 from dataclasses import dataclass, field
 from collections.abc import Callable, Mapping

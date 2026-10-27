@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import pytest
 
-from pokesim_core.gen2 import memory_map, state
+from pokecore.gen2 import memory_map, state
 
 
 class BankedMemory:

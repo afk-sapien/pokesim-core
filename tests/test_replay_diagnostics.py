@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import pytest
 
-from pokesim_core.emulator import Emulator, ReplayDivergence, demo_rom
+from pokecore.emulator import Emulator, ReplayDivergence, demo_rom
 
 pytest.importorskip('pyboy_rs')
 

@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core.controls import ControllerPort
-from pokesim_core.state_actions import open_menu, select_visible_option, wait_until
+from pokecore.controls import ControllerPort
+from pokecore.state_actions import open_menu, select_visible_option, wait_until
 
 
 def fixture(kind='overworld'):

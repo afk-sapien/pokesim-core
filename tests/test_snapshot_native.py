@@ -3,8 +3,8 @@ import random
 
 import pytest
 
-from pokesim_core import snapshot
-from pokesim_core.identity import pokemon_identity
+from pokecore import snapshot
+from pokecore.identity import pokemon_identity
 
 
 @pytest.mark.parametrize('seed', range(160))

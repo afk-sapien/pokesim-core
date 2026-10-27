@@ -4,9 +4,9 @@ import random
 from collections import defaultdict
 from types import SimpleNamespace
 
-from pokesim_core import gen2
-from pokesim_core.gen2 import charmap, memory_map, ram
-from pokesim_core.gen2.ram import read_snapshot
+from pokecore import gen2
+from pokecore.gen2 import charmap, memory_map, ram
+from pokecore.gen2.ram import read_snapshot
 
 # A synthetic Gen II layout: every symbol read_snapshot reads, placed in fake banked memory.
 SYMBOLS = {'wPartyCount': 1, 'wPartySpecies': 7, 'wPartyMons': 288, 'wPartyMonNicknames': 66, 'wCurBox': 1,

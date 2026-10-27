@@ -1,7 +1,7 @@
 """Gen II Battle Power is rated from consumer game tables. These tables are synthetic."""
 from types import SimpleNamespace
 
-from pokesim_core.gen2 import (ancestors, battle_power, branch_parents, hidden_power, level_credit, live_status,
+from pokecore.gen2 import (ancestors, battle_power, branch_parents, hidden_power, level_credit, live_status,
                                offspring, retrieval_cost)
 
 TYPES = {'NORMAL': 0, 'FIGHTING': 1, 'FLYING': 2, 'POISON': 3, 'GROUND': 4, 'ROCK': 5, 'BUG': 7,

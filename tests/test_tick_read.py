@@ -1,6 +1,6 @@
 import pytest
 
-from pokesim_core.emulator import Emulator, demo_rom
+from pokecore.emulator import Emulator, demo_rom
 
 
 @pytest.mark.parametrize('render,sound', [(False, False), (True, False), (True, True)])

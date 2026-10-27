@@ -1,7 +1,7 @@
 """Read Gold, Silver and Crystal game data from the cartridge.
 
 Species are keyed by dex number, which Gen II also uses in memory. Map IDs are
-``group * 256 + number``, as in :mod:`pokesim_core.gen2.tables`.
+``group * 256 + number``, as in :mod:`pokecore.gen2.tables`.
 """
 from __future__ import annotations
 

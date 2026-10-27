@@ -2,7 +2,8 @@
 
 Needs no emulator. Run it in an environment that has only pokesim-core installed.
 The list is the set of imports PokeBench makes from Core, plus the GameBoy compatibility
-shims that its engine relies on. Extend it when a consumer adds an import.
+shims that its engine relies on. Extend it when a consumer adds an import. It imports the
+old ``pokesim_core`` name on purpose, so the ``pokecore`` alias stays covered.
 """
 import importlib
 import inspect

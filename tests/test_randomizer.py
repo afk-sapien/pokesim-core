@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from pokesim_core import randomizer
-from pokesim_core.randomizer import Options
-from pokesim_core.romdata import GameData, FIELDS
+from pokecore import randomizer
+from pokecore.randomizer import Options
+from pokecore.romdata import GameData, FIELDS
 
 SURF = 53
 

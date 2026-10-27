@@ -3,7 +3,7 @@ import itertools
 import random
 from types import SimpleNamespace
 
-from pokesim_core.gen2 import (DITTO, breeding_stock, descendants_wanted, egg_lines, families, free_slots, lines,
+from pokecore.gen2 import (DITTO, breeding_stock, descendants_wanted, egg_lines, families, free_slots, lines,
                                offspring, single_source)
 
 

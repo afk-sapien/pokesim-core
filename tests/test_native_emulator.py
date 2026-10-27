@@ -3,8 +3,8 @@ import io
 
 import pytest
 
-from pokesim_core.emulator import Emulator, Memory, Registers, demo_rom
-from pokesim_core.emulator_state import checkpoint_metadata, validate_runtime
+from pokecore.emulator import Emulator, Memory, Registers, demo_rom
+from pokecore.emulator_state import checkpoint_metadata, validate_runtime
 
 pytest.importorskip("pyboy_rs")
 
@@ -101,7 +101,7 @@ def test_legacy_import_is_distinct_from_exact_resume():
 
 
 def test_migrated_outputs_record_actual_runtime_and_source_lineage():
-    from pokesim_core.emulator_state import retag_checkpoint, same_runtime_or_recorded_migration
+    from pokecore.emulator_state import retag_checkpoint, same_runtime_or_recorded_migration
     source = {"pyboy_version": "2.7.0", "frame": 100}
     output = retag_checkpoint(source)
     assert output["pyboy_version"] == "2.7.0"

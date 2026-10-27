@@ -3,9 +3,9 @@ import zlib
 
 import pytest
 
-from pokesim_core import sprites
-from pokesim_core.gen2 import sprites as gen2_sprites
-from pokesim_core.sprites import MEW_INTERNAL, png, sprite_bank
+from pokecore import sprites
+from pokecore.gen2 import sprites as gen2_sprites
+from pokecore.sprites import MEW_INTERNAL, png, sprite_bank
 
 
 def test_pictures_live_in_the_bank_their_internal_index_selects():

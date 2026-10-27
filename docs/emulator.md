@@ -67,8 +67,8 @@ Do not expose them directly to an agent. This library is not a sandbox.
 ## Per-step memory snapshot
 
 ```python
-from pokesim_core.emulator import Emulator
-from pokesim_core.memory_snapshot import snapshot_emulator
+from pokecore.emulator import Emulator
+from pokecore.memory_snapshot import snapshot_emulator
 
 game = snapshot_emulator(Emulator)("/path/to/crystal.gbc", sound_emulated=False)
 ```
@@ -144,7 +144,7 @@ installed and Python otherwise. Set it to `python` for the reference decoder or
 `rust` to require the extension. Invalid modes, an incompatible native API and
 native decoder errors fail explicitly.
 
-- `pokesim_core.snapshot.read_fields(memory, move_data=None)` returns fresh
+- `pokecore.snapshot.read_fields(memory, move_data=None)` returns fresh
   snapshot fields, including party dictionaries. It never advances the emulator
   or reads banked storage. Call it on the emulator's owning thread between
   steps.
@@ -154,5 +154,5 @@ native decoder errors fail explicitly.
   frame counts and media refresh, and collects bytes after the final frame.
   Invalid ranges fail before advancing. Bindings without it fall back to
   separate operations.
-- `pokesim_core.identity.pokemon_identity(trainer_id, dvs)` computes Pokemon
+- `pokecore.identity.pokemon_identity(trainer_id, dvs)` computes Pokemon
   signatures with a bounded cache of immutable integer inputs.

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Changed
+
+- The package is now imported as `pokecore`. `import pokesim_core` still works. It
+  raises a DeprecationWarning and returns the same module objects, so
+  `pokesim_core.gen1 is pokecore.gen1`. The distribution name `pokesim-core`, the
+  wheel file names, the native `pokesim_core_native` crate and the `POKESIM_CORE_*`
+  environment variables are unchanged. Run the compatibility harness as
+  `python -m pokecore.compatibility`. The old `-m` name no longer runs it.
+
 ### Added
 
 - `romdata.load(rom, version=None)` reads species, evolutions, learnsets, TM and

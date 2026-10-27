@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from pokesim_core import identity, sprites
-from pokesim_core.gen2 import sprites as gen2_sprites
+from pokecore import identity, sprites
+from pokecore.gen2 import sprites as gen2_sprites
 
 DIGESTS = {
     'red': '0ad28e77fe18a2f9a8f717ad836f198ad3c228d8adaf0d6fb96c83833ca985dd',

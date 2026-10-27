@@ -1,6 +1,6 @@
 # Gold, Silver and Crystal
 
-`pokesim_core.gen2` decodes Gen II memory read-only. It ships the per-version
+`pokecore.gen2` decodes Gen II memory read-only. It ships the per-version
 memory map (`gen2.memory_map.symbols(version)`, from the pinned pret symbol
 files, with Crystal's moved WRAM and the Crystal-only symbols in `CRYSTAL_ONLY`)
 and the English character maps (`gen2.charmap.charmap(version)`).
@@ -11,7 +11,7 @@ Table-free readers need only a version name and any memory that supports banked
 reads `memory[bank, start:stop]`:
 
 ```python
-from pokesim_core.gen2 import state
+from pokecore.gen2 import state
 
 party = state.read_party_structs(memory, "crystal")  # DVs, shiny, held item, friendship, Pokerus, caught data
 boxes = state.read_box_structs(memory, "crystal", box=0)  # one PC box, eggs included
@@ -32,7 +32,7 @@ the charmap default to Core's own. With `cache=True`, decoded regions (party,
 each box, Pokedex, Day Care, screen) are reused while their bytes and `data`
 are unchanged. `gen2.clear_region_cache()` drops them.
 
-Also in `pokesim_core.gen2`:
+Also in `pokecore.gen2`:
 
 - `battle_power(mon, data)` and `hidden_power(data, dvs)` rate a decoded Pokemon from the game tables.
 - `offspring`, `retrieval_cost`, `branch_parents`, `ancestors` and `level_credit` apply the Day Care and evolution-line rules.
@@ -40,7 +40,7 @@ Also in `pokesim_core.gen2`:
   find the families only the Day Care can copy and whether another hatchling is wanted.
 - `live_status(game, collection, *, data=None)` builds the shared adventure status payload.
 - `ScreenText`, `has_word`, `mask_hud`, `mask_roster` and `is_roster` match whole words in screen text.
-  `ScreenText` and `has_word` come from the generation-neutral `pokesim_core.textmatch`, which Gen 1
+  `ScreenText` and `has_word` come from the generation-neutral `pokecore.textmatch`, which Gen 1
   screen readers can import too.
 - `npc_trades(game)` and `NPC_TRADES` list the in-game trades (an `NpcTrade` each, with its
   `wTradeFlags` bit as `index`). `state.npc_trade_flags`, `npc_trade_done` and `npc_trades_done`
@@ -81,7 +81,7 @@ tables come from `sprites.LABELS` and every read checks the base data's Pokedex 
   the species' palette. The margin is index 0.
 - `palette(rom, version, dex, *, shiny=False)` is four RGBA colours. Index 0 is transparent.
 - `front_pointer`, `pic_bank`, `dimensions`, `decompress` and `offset` are the steps.
-- `pokesim_core.sprites.png(rows, palette)` writes a PNG with the standard library.
+- `pokecore.sprites.png(rows, palette)` writes a PNG with the standard library.
 
 ## Save-menu exports
 
@@ -182,7 +182,7 @@ writes for a paused emulator, not agent commands. Which flags to change, and whe
 the consumer.
 
 ```python
-from pokesim_core.gen2 import resets
+from pokecore.gen2 import resets
 
 resets.write_flag(memory, data, "EVENT_FOUGHT_LUGIA", False)  # True when the bit changed
 resets.write_byte(memory, data, "wTinTower1FSceneID", 0)
