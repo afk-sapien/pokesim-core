@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0
+
+### Changed
+
+- The distribution is now `pokecore`, so the release files are
+  `pokecore-0.9.0-py3-none-any.whl` and `pokecore-0.9.0.tar.gz`. Install it as
+  `pokecore[emulator] @ <wheel URL>`. Uninstall `pokesim-core` first, because both
+  distributions ship the `pokecore` package. The repository, the native
+  `pokesim-core-native` crate and the `POKESIM_CORE_*` environment variables are
+  unchanged.
+
+### Removed
+
+- The deprecated `pokesim_core` import alias. Import `pokecore` instead.
+
 ## 0.8.0
 
 ### Changed

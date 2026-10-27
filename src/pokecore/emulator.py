@@ -195,7 +195,7 @@ class Emulator:
         try:
             from pyboy_rs import PyBoy
         except ImportError as error:
-            raise ImportError("Install pokesim-core with the emulator extra to use the Rust emulator") from error
+            raise ImportError("Install pokecore with the emulator extra to use the Rust emulator") from error
         self._closed = False
         raw = rom.read() if hasattr(rom, "read") else Path(rom).read_bytes()
         self.rom_sha256 = hashlib.sha256(raw).hexdigest()

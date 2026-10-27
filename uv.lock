@@ -128,8 +128,8 @@ wheels = [
 ]
 
 [[package]]
-name = "pokesim-core"
-version = "0.8.0"
+name = "pokecore"
+version = "0.9.0"
 source = { editable = "." }
 
 [package.optional-dependencies]

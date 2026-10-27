@@ -3,8 +3,8 @@ requires = ["setuptools>=77,<85"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pokesim-core"
-version = "0.8.0"
+name = "pokecore"
+version = "0.9.0"
 description = "Shared read-only decoding and emulator primitives for Pokemon Red, Blue, Yellow, Gold, Silver and Crystal"
 readme = "README.md"
 requires-python = ">=3.11"

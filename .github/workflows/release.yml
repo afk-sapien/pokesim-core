@@ -57,15 +57,15 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
           set -euo pipefail
-          printf '%s\n' "pokesim_core-$VERSION-py3-none-any.whl" "pokesim_core-$VERSION.tar.gz" > expected.txt
+          printf '%s\n' "pokecore-$VERSION-py3-none-any.whl" "pokecore-$VERSION.tar.gz" > expected.txt
           ls dist | sort > built.txt
           diff <(sort expected.txt) built.txt || { echo "::error::unexpected build output"; exit 1; }
           for file in dist/*; do
             python3 -m venv "clean-$(basename "$file")"
             "clean-$(basename "$file")/bin/python" -m pip install -q "$file"
-            "clean-$(basename "$file")/bin/python" -c "import pokecore, pokesim_core, sys; assert pokecore.__version__ == pokesim_core.__version__ == sys.argv[1], pokecore.__version__" "$VERSION"
+            "clean-$(basename "$file")/bin/python" -c "import pokecore, sys; assert pokecore.__version__ == sys.argv[1], pokecore.__version__" "$VERSION"
           done
-          (cd dist && sha256sum pokesim_core-* > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
+          (cd dist && sha256sum pokecore-* > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
           mv notes.md dist/notes.md
           { echo '### SHA-256'; echo '```'; cat dist/SHA256SUMS.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
