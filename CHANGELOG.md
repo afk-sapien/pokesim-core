@@ -15,6 +15,11 @@
   parties and the TM and HM list into a copy of the ROM and fixes up the global
   checksum. With no overrides it returns the ROM byte-identical.
 - `rom.rom_offset(bank, address)` is the one banked ROM offset helper.
+- `randomizer.randomize(data, seed, Options(...))` returns a deterministic override
+  map that shuffles wild encounters and starters, and trainer parties on request,
+  keeping levels. Draws that leave a required HM without a catchable wild learner
+  are redrawn. `encode_share_code` and `decode_share_code` handle
+  `PSR1-<GAME>-<OPTS>-<seed>` codes.
 
 ## 0.7.1
 

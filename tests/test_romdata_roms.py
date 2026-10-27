@@ -12,7 +12,7 @@ import random
 
 import pytest
 
-from pokesim_core import romdata
+from pokesim_core import randomizer, romdata
 from pokesim_core.cartridges import read_header
 
 DIGESTS = {
@@ -108,3 +108,26 @@ def test_patched_cartridge_reads_back_as_the_effective_data(version):
     assert header.header_checksum_ok and header.global_checksum_ok
     assert romdata.load(patched, version=version).canonical() == romdata.effective_data(rom, overrides).canonical()
     assert romdata.patch_rom(patched, version=version) == patched
+
+
+@pytest.mark.parametrize('version', sorted(DIGESTS))
+def test_every_hm_gate_names_real_tables(version):
+    data = romdata.load(_rom(version))
+    gates = randomizer.hm_gates(version)
+    assert gates and not randomizer.missing_hm_learners(data)
+    missing = {key for _, keys in gates for key in keys if key not in data.encounters}
+    # Only Yellow has the Gen I water tables outside Routes 19 to 21.
+    expected = {'water:17', 'water:23', 'water:24', 'water:161', 'water:162'} if version in ('red', 'blue') else set()
+    assert missing == expected
+
+
+@pytest.mark.parametrize('version', sorted(DIGESTS))
+def test_randomized_cartridge_patches_and_reads_back(version):
+    rom = _rom(version)
+    data = romdata.load(rom)
+    overrides = randomizer.randomize(data, 2024, randomizer.Options(trainers=True))
+    assert overrides == randomizer.randomize(data, 2024, randomizer.Options(trainers=True))
+    effective = data.with_overrides(overrides)
+    assert not randomizer.missing_hm_learners(effective)
+    patched = romdata.patch_rom(rom, overrides)
+    assert romdata.load(patched, version=version).canonical() == effective.canonical()

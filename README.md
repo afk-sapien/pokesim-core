@@ -78,6 +78,7 @@ with GameBoy("/path/to/pokemon-red.gb") as game:
   randomizers: species, learnsets, TM and HM learners, wild encounters,
   trainer parties and starters, plus a patcher that writes overrides into a
   copy of the ROM (`romdata`)
+- A seeded randomizer with HM softlock checks and share codes (`randomizer`)
 - Menu shortcuts for all six games: items, moves, switching, running, PC, mart,
   field moves, dialogue and walking (`shortcuts`)
 - Controller helpers (`controls`, `naming`) and trusted setup resets

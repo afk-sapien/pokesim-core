@@ -74,6 +74,34 @@ ships only the per-version addresses in `romdata.LAYOUTS`, never the tables.
   fixed up after a change. With no overrides the ROM comes back byte-identical.
   `load(patched, version=...)` reads back the effective data.
 
+## Randomizer
+
+`randomizer` turns a seed into a `romdata` override map. It is pure and
+deterministic: the same `GameData`, seed and options always give the same map.
+
+- `Options(wild=True, starters=True, trainers=False)` chooses what to randomize.
+  Trainer parties are opt-in. At least one must be set.
+- `randomize(rom_data, seed, options=None, gates=None)` draws one shuffle of every
+  species per seed and applies it to the chosen parts. Levels never change, so
+  `romdata.patch_rom` can write the result. The seed is a whole number from 0 to
+  2**64 - 1. Bad seeds raise `ValueError`.
+- When wild encounters are randomized, a draw is kept only if every HM the story
+  requires has a wild learner catchable before the game asks for it. Otherwise it
+  draws again, up to `MAX_DRAWS`, then raises `RuntimeError`. Only wild slots
+  count. Starters, gifts, trades and fishing never do.
+- `HM_GATES` and `hm_gates(version)` list each gate as `(hm, encounter keys)`,
+  with HM numbers counted after the 50 TMs (HM01 is 51). Gen I gates Cut, Surf
+  and Strength. Gen II gates Cut, Surf, Strength and Waterfall. Fly, Flash and
+  Whirlpool are not required to finish the story and are not checked. A key the
+  cartridge has no table for is skipped. `gates=` replaces them for one call.
+- `missing_hm_learners(data, gates=None)` returns the HMs with no catchable
+  learner in `data`.
+- `encode_share_code(version, seed, options)` returns `PSR1-<GAME>-<OPTS>-<seed>`,
+  for example `PSR1-CRYSTAL-WST-42`. OPTS are `W`, `S` and `T` in that order.
+  `decode_share_code(code)` returns `(version, seed, options)` and raises
+  `ValueError` for anything but a canonical code, ignoring case and surrounding
+  space.
+
 ## Yellow
 
 Yellow runs the Red engine with WRAM from 0xCF1B to 0xDEE1 one byte lower and a
