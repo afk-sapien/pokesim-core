@@ -7,7 +7,8 @@ or randomized ROM of a supported version reads the same way when ``version`` is 
 
 :meth:`GameData.with_overrides` returns the effective data after an override map, without
 touching the ROM. With no overrides the effective data is the ROM data, byte for byte in
-:meth:`GameData.canonical`.
+:meth:`GameData.canonical`. :func:`effective_data` loads and applies overrides in one
+call, and :func:`patch_rom` writes them into a copy of the ROM.
 
 Species IDs are the values the game stores in memory: the Gen I internal index, or the
 Gen II dex number. TM and HM numbers in ``tmhm`` are 1-based, with HMs (and Crystal's
@@ -21,8 +22,10 @@ import json
 from ..cartridges import identify
 from . import gen1, gen2
 from .layouts import LAYOUTS, Layout, layout, rom_offset
+from .patch import effective_data, patch_rom
 
-__all__ = ['GameData', 'LAYOUTS', 'Layout', 'OVERRIDE_KEYS', 'load', 'layout', 'rom_offset']
+__all__ = ['GameData', 'LAYOUTS', 'Layout', 'OVERRIDE_KEYS', 'effective_data', 'load', 'layout', 'patch_rom',
+           'rom_offset']
 
 FIELDS = ('species', 'evolutions', 'learnsets', 'tm_moves', 'encounters', 'trainers', 'starters')
 OVERRIDE_KEYS = ('species_map', 'species', 'evolutions', 'learnsets', 'tm_moves', 'encounters', 'trainers',

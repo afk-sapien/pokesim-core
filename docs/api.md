@@ -63,6 +63,16 @@ ships only the per-version addresses in `romdata.LAYOUTS`, never the tables.
   Explicit entries win over `species_map`. Unknown keys, unknown species and
   wrong lengths raise `ValueError`. With no overrides, `canonical()` is
   byte-identical to the ROM reading.
+- `effective_data(rom, overrides=None, version=None)` is `load` followed by
+  `with_overrides`, for planners.
+- `patch_rom(rom, overrides=None, version=None)` returns a patched copy of the ROM
+  bytes. It writes starters at every starter site, wild encounter tables, trainer
+  parties and the TM and HM move list, each in place. Changes that would resize a
+  table (a different party size, a new Gen I fixed party level, a trainer name)
+  raise `ValueError`, as do `species`, `evolutions` and `learnsets` overrides. Maps
+  that share one ROM table must end up with the same table. The global checksum is
+  fixed up after a change. With no overrides the ROM comes back byte-identical.
+  `load(patched, version=...)` reads back the effective data.
 
 ## Yellow
 

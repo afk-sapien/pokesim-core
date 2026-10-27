@@ -51,13 +51,15 @@ def pairs(rom, offset, count):
     return [[rom[offset + 2 * slot], rom[offset + 2 * slot + 1]] for slot in range(count)]
 
 
-def encounters(rom, layout):
-    tables = {}
+def encounter_sites(rom, layout):
+    """(key, offset of the first rate byte, table) for each wild table, in ROM order."""
+    seen = set()
     for kind, offset in layout.wild:
         grass = kind.endswith('grass')
         while rom[offset] != 0xFF:
             map_id = rom[offset] * 256 + rom[offset + 1]
             offset += 2
+            start = offset
             if grass:
                 table = {'rates': list(rom[offset:offset + 3]),
                          'slots': {time: pairs(rom, offset + 3 + 2 * GRASS_SLOTS * n, GRASS_SLOTS)
@@ -67,19 +69,40 @@ def encounters(rom, layout):
                 table = {'rate': rom[offset], 'slots': pairs(rom, offset + 1, WATER_SLOTS)}
                 offset += 1 + 2 * WATER_SLOTS
             key = f'{kind}:{map_id}'
-            if key in tables:
+            if key in seen:
                 raise ValueError(f'Two {kind} tables for map {map_id}')
-            tables[key] = {'kind': kind, 'map': map_id, **table}
-    return tables
+            seen.add(key)
+            yield key, start, {'kind': kind, 'map': map_id, **table}
 
 
-def parties(rom, offset, end, version):
-    found = []
+def encounters(rom, layout):
+    return {key: table for key, _, table in encounter_sites(rom, layout)}
+
+
+def _flat(slots, count):
+    if len(slots) != count:
+        raise ValueError(f'An encounter table needs {count} slots per time of day, got {len(slots)}')
+    return [value for slot in slots for value in slot]
+
+
+def encode_encounter(table):
+    if 'rates' in table:
+        if set(table['slots']) != set(TIMES):
+            raise ValueError(f'A grass table needs slots for {", ".join(TIMES)}')
+        return bytes([*table['rates'], *(value for time in TIMES
+                                         for value in _flat(table['slots'][time], GRASS_SLOTS))])
+    return bytes([table['rate'], *_flat(table['slots'], WATER_SLOTS)])
+
+
+def party_sites(rom, offset, end, version):
+    """(offset, trainer) for each trainer from ``offset`` up to ``end``. The offset is the party's
+    first byte, after the name and type."""
     while offset < end:
         name_end = rom.index(0x50, offset)
         name = decode_text(rom[offset:name_end + 1], version)
         kind = rom[name_end + 1]
         offset = name_end + 2
+        start = offset
         party = []
         while rom[offset] != 0xFF:
             mon = {'level': rom[offset], 'species': rom[offset + 1]}
@@ -92,16 +115,40 @@ def parties(rom, offset, end, version):
                 offset += 4
             party.append(mon)
         offset += 1
-        found.append({'name': name, 'type': kind, 'party': party})
-    return found
+        yield start, {'name': name, 'type': kind, 'party': party}
+
+
+def parties(rom, offset, end, version):
+    return [trainer for _, trainer in party_sites(rom, offset, end, version)]
+
+
+def encode_party(trainer, first=None):
+    """Party bytes for ``trainer``, whose type byte decides which fields each Pokemon carries.
+
+    ``first`` is unused. It matches :func:`.gen1.encode_party`.
+    """
+    kind = trainer['type']
+    fields = ['level', 'species'] + ['item'] * bool(kind & ITEM) + ['moves'] * bool(kind & MOVES)
+    if not trainer['party']:
+        raise ValueError('A trainer party needs at least one Pokemon')
+    raw = []
+    for mon in trainer['party']:
+        if sorted(mon) != sorted(fields) or len(mon.get('moves', [0] * 4)) != 4:
+            raise ValueError(f'Trainer type {kind} Pokemon need exactly {fields}, with four moves')
+        for field in fields:
+            raw.extend(mon[field] if field == 'moves' else [mon[field]])
+    return bytes([*raw, 0xFF])
+
+
+def trainer_sites(rom, layout):
+    """(key, offset, trainer) for each trainer, in ROM order."""
+    for cls, start, end in class_spans(rom, layout):
+        for number, (offset, trainer) in enumerate(party_sites(rom, start, end, layout.version), 1):
+            yield f'{cls}:{number}', offset, {'class': cls, 'index': number, **trainer}
 
 
 def trainers(rom, layout):
-    found = {}
-    for cls, start, end in class_spans(rom, layout):
-        for number, trainer in enumerate(parties(rom, start, end, layout.version), 1):
-            found[f'{cls}:{number}'] = {'class': cls, 'index': number, **trainer}
-    return found
+    return {key: trainer for key, _, trainer in trainer_sites(rom, layout)}
 
 
 def read(rom, layout):
