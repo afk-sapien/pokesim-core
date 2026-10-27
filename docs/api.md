@@ -32,6 +32,38 @@ error wording match PokeSim's `pokesim/cartridges.py`.
   `REFUSED` names Crystal Rev 0 and the Australian Crystal.
 - `SLOTS`, `SLOT_TITLES`, `SLOT_GENERATIONS` and `validate_starter` describe the shelf.
 
+## ROM game data
+
+`romdata` reads game tables from the caller's own cartridge at load time. Core
+ships only the per-version addresses in `romdata.LAYOUTS`, never the tables.
+
+- `load(rom, version=None)` returns `GameData`. Without `version` the ROM must be
+  a verified clean cartridge. With `version` it reads a modified ROM of that
+  version, which must keep the same layout.
+- `GameData` has `version`, `generation`, `species`, `evolutions`, `learnsets`,
+  `tm_moves`, `encounters`, `trainers`, `starters` and `overrides`.
+  `as_dict()` copies the tables. `canonical()` returns sorted, compact JSON bytes
+  for exact comparison. `starter_sites()` lists every ROM offset that holds each
+  starter's species.
+- Species IDs are what the game stores in memory: the Gen I internal index (each
+  record also carries `dex`) or the Gen II dex number. `tmhm` numbers are 1-based
+  positions in `tm_moves`, with HMs (and Crystal's tutor moves) after the TMs.
+- Encounter keys are `grass:<map>` and `water:<map>` on Gen I, and
+  `<region>_<grass|water>:<group * 256 + number>` on Gen II, where region is
+  `johto`, `kanto` or `swarm`. Gen II grass tables hold `rates` and `slots` for
+  `morn`, `day` and `nite`. Every slot is `[level, species]`.
+- Trainer keys are `<class>:<index>`, both 1-based. Gen II trainers also hold
+  `name` and `type`, and their party members hold `item` and `moves` when the
+  type says so. A class with no parties has no keys.
+- `with_overrides(overrides)` returns the effective `GameData` and leaves the
+  original unchanged. Keys are `species_map`, `species`, `evolutions`,
+  `learnsets`, `tm_moves`, `encounters`, `trainers` and `starters`.
+  `species_map` rewrites starters, wild slots and trainer parties. An encounter
+  override is a field dict or another table key of the same kind to swap in.
+  Explicit entries win over `species_map`. Unknown keys, unknown species and
+  wrong lengths raise `ValueError`. With no overrides, `canonical()` is
+  byte-identical to the ROM reading.
+
 ## Yellow
 
 Yellow runs the Red engine with WRAM from 0xCF1B to 0xDEE1 one byte lower and a

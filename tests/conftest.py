@@ -7,4 +7,4 @@ collect_ignore = [] if os.environ.get('POKESIM_CORE_GEN2_ROMS') else ['test_gen2
 # Save-menu exports, cable endpoints, portraits and species tables also run on Red, Blue and
 # Yellow from POKESIM_CORE_ROMS.
 if not (os.environ.get('POKESIM_CORE_GEN2_ROMS') or os.environ.get('POKESIM_CORE_ROMS')):
-    collect_ignore += ['test_save_roms.py', 'test_cable_roms.py', 'test_sprites_roms.py']
+    collect_ignore += ['test_save_roms.py', 'test_cable_roms.py', 'test_sprites_roms.py', 'test_romdata_roms.py']

@@ -74,6 +74,9 @@ with GameBoy("/path/to/pokemon-red.gb") as game:
   snapshots (`gen2`)
 - Battle power, DV odds and Time Capsule conversion, using the caller's game
   tables (`gen1_battle_power`, `dvs`, `timecapsule`)
+- Game data read from the caller's cartridge, with an override map for
+  randomizers: species, learnsets, TM and HM learners, wild encounters,
+  trainer parties and starters (`romdata`)
 - Menu shortcuts for all six games: items, moves, switching, running, PC, mart,
   field moves, dialogue and walking (`shortcuts`)
 - Controller helpers (`controls`, `naming`) and trusted setup resets
