@@ -129,7 +129,7 @@ wheels = [
 
 [[package]]
 name = "pokesim-core"
-version = "0.3.0"
+version = "0.8.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
@@ -139,15 +139,30 @@ dev = [
 ]
 emulator = [
     { name = "pillow" },
+    { name = "pyboy-rs" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "pillow", marker = "extra == 'emulator'", specifier = ">=10,<13" },
+    { name = "pillow", marker = "extra == 'emulator'", specifier = ">=10,<14" },
+    { name = "pyboy-rs", marker = "extra == 'emulator'", specifier = ">=0.1.2,<0.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8,<10" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11,<1" },
 ]
 provides-extras = ["emulator", "dev"]
+
+[[package]]
+name = "pyboy-rs"
+version = "0.1.2"
+source = { registry = "https://github.com/afk-sapien/pyboy-rs/releases/expanded_assets/v0.1.2" }
+sdist = { url = "https://github.com/afk-sapien/pyboy-rs/releases/download/v0.1.2/pyboy_rs-0.1.2.tar.gz" }
+wheels = [
+    { url = "https://github.com/afk-sapien/pyboy-rs/releases/download/v0.1.2/pyboy_rs-0.1.2-cp311-abi3-macosx_10_12_x86_64.whl" },
+    { url = "https://github.com/afk-sapien/pyboy-rs/releases/download/v0.1.2/pyboy_rs-0.1.2-cp311-abi3-macosx_11_0_arm64.whl" },
+    { url = "https://github.com/afk-sapien/pyboy-rs/releases/download/v0.1.2/pyboy_rs-0.1.2-cp311-abi3-win_amd64.whl" },
+    { url = "https://github.com/afk-sapien/pyboy-rs/releases/download/v0.1.2/pyboy_rs-0.1.2-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl" },
+    { url = "https://github.com/afk-sapien/pyboy-rs/releases/download/v0.1.2/pyboy_rs-0.1.2-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl" },
+]
 
 [[package]]
 name = "pygments"
