@@ -666,14 +666,21 @@ class ChooseMove(GameShortcut):
 
     def flow(self):
         if self.obs.screen == 'battle_menu':
+            before_battler = self.battler(self.obs) if self.gen == 1 else None
             yield from self.choose('FIGHT')
             away = 0
+            saw_turn_text = False
             for _ in range(40):
                 if self.obs.screen == 'move_menu':
                     break
                 # Battle text off the battle menu means FIGHT started the turn by itself.
                 away = away + 1 if self.obs.screen != 'battle_menu' and self.obs.text.strip() else 0
-                if away >= self.FORCED_AFTER:
+                saw_turn_text = saw_turn_text or away > 0
+                # A short automatic turn may return before four observations.
+                # A blocking label selector may consume the entire brief turn.
+                battler_changed = before_battler is not None and self.battler(self.obs) != before_battler
+                returned_from_turn = (saw_turn_text or battler_changed) and self.obs.screen == 'battle_menu'
+                if away >= self.FORCED_AFTER or returned_from_turn:
                     self.committed = True
                     self.details['forced'] = 'struggle' if self.no_pp else 'locked'
                     settled = yield from self.settle()
@@ -992,7 +999,17 @@ class PCShortcut(GameShortcut):
         if len(labels) <= self.submenu_row:
             raise Abort('PC menu is not readable. No input sent.', cleanup=False)
         yield Choose(labels[self.submenu_row])
-        if not (yield from self.until_screen(self.submenu, limit=40)):
+        for _ in range(40):
+            if self.obs.screen == self.submenu:
+                return
+            # Gen 1 leaves the PC menu visible behind this acknowledgment.
+            # A port without stack readiness therefore still classifies it as PC.
+            if (self.gen == 1 and self.obs.screen == 'pc'
+                    and normalize(self.obs.text) in ('ACCESSEDMYPC', 'ACCESSEDITEMSTORAGESYSTEM')):
+                yield 'a'
+            else:
+                yield from self.text_or_wait()
+        if self.obs.screen != self.submenu:
             raise Abort('The PC did not open. Stopped.')
 
     def check(self, obs):

@@ -10,6 +10,8 @@ def memory_bytes(memory, bank, start, size):
 
     A snapshot memory (see memory_snapshot) serves banked blocks from its per-step copy.
     """
+    if size == 0:
+        return b''
     if bank is not None:
         window = getattr(memory, 'snapshot_window', None)
         if window is not None:
