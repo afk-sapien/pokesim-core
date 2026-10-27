@@ -3,7 +3,7 @@
 :func:`randomize` draws one species map per seed, a shuffle of every species the
 cartridge holds, and applies it to the parts :class:`Options` selects: wild encounter
 slots, starters and (opt-in) trainer parties. Levels never change, so
-:func:`pokesim_core.romdata.patch_rom` can write the result in place.
+:func:`pokecore.romdata.patch_rom` can write the result in place.
 
 A draw is kept only when every HM the story requires has a wild learner catchable before
 the point where the game asks for it (:data:`HM_GATES`). Otherwise the same generator

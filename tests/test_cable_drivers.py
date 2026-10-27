@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core.gen1 import W_CUR_MAP, W_TILEMAP
-from pokesim_core.gen1_cable import CableError
-from pokesim_core.gen2 import cable
+from pokecore.gen1 import W_CUR_MAP, W_TILEMAP
+from pokecore.gen1_cable import CableError
+from pokecore.gen2 import cable
 
 CENTER, CLUB = 20, 21
 DATA = SimpleNamespace(map_ids={'POKECENTER_2F': CENTER},

@@ -1,6 +1,6 @@
 # Menu shortcuts
 
-`pokesim_core.shortcuts` drives the game's own menus on Red, Blue, Yellow,
+`pokecore.shortcuts` drives the game's own menus on Red, Blue, Yellow,
 Gold, Silver and Crystal. Each action is a resumable machine:
 `machine.step(memory, ui)` returns one button, `None` (wait) or a final `Done`.
 It never writes memory. `run(port, machine)` loops it over a `ControllerPort`,
@@ -10,7 +10,7 @@ Class names, `ui` keys and every stop reason are in
 [api.md](api.md#menu-shortcuts).
 
 ```python
-from pokesim_core import shortcuts
+from pokecore import shortcuts
 
 shortcuts.use_item(port, 0x10, 0)                 # Full Restore on party slot 0
 shortcuts.use_field_move(port, 'FLY', 1, 'Celadon City')

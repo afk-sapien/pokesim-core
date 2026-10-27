@@ -2,10 +2,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core.capabilities import capabilities, capability
-from pokesim_core.controls import ControllerPort
-from pokesim_core.dialogue import Transcript, collect_dialogue
-from pokesim_core.movement import walk_tiles
+from pokecore.capabilities import capabilities, capability
+from pokecore.controls import ControllerPort
+from pokecore.dialogue import Transcript, collect_dialogue
+from pokecore.movement import walk_tiles
 
 
 def controller(kind='overworld'):

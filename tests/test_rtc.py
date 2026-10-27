@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core.emulator import Emulator
-from pokesim_core.errors import CoreCapabilityError
+from pokecore.emulator import Emulator
+from pokecore.errors import CoreCapabilityError
 
 WRAM = 0xC000
 

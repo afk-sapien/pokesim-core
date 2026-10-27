@@ -1,7 +1,8 @@
 # API compatibility
 
-The Python import is `pokesim_core`. The distribution and repository are
-`pokesim-core`. `__version__` identifies the package release and `API_VERSION`
+The Python import is `pokecore`. The distribution and repository stay
+`pokesim-core`. `import pokesim_core` still works as a deprecated alias that warns
+and returns the same module objects. `__version__` identifies the package release and `API_VERSION`
 identifies the major data contract. It is 1 and changes only for an incompatible change to documented field shapes.
 
 ## ROM module
@@ -249,7 +250,7 @@ but neither automatically takes an unreviewed upstream update.
 
 ## DV probability reference
 
-`pokesim_core.dvs.dv_probabilities(dvs)` accepts HP, Attack, Defense, Speed,
+`pokecore.dvs.dv_probabilities(dvs)` accepts HP, Attack, Defense, Speed,
 Special as a list or tuple. It returns `None` for missing, malformed, or
 inconsistent HP data. Valid results contain `total`, `outcomes`, `at_least`,
 `better`, `at_least_probability`, and `better_probability`.
@@ -321,7 +322,7 @@ also cover English Gold, Silver and Crystal.
 
 ## Menu shortcuts
 
-`pokesim_core.shortcuts` holds one class per action (`UseItem`, `ChooseMove`,
+`pokecore.shortcuts` holds one class per action (`UseItem`, `ChooseMove`,
 `SwitchPokemon`, `RunAway`, `ReorderParty`, `FieldMove`, `TossItem`, `BuyItem`,
 `SellItem`, `DepositPokemon`, `WithdrawPokemon`, `ReleasePokemon`, `DepositItem`,
 `WithdrawItem`, `ChangeBox`, `LearnMove`, `AdvanceDialogue`, `Walk`, and for Gen 2

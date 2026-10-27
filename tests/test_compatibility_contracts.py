@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core.gen1_cable import CableEndpoint, CableError
-from pokesim_core.compatibility import compare_result, run_suite
+from pokecore.gen1_cable import CableEndpoint, CableError
+from pokecore.compatibility import compare_result, run_suite
 
 
 class Memory:

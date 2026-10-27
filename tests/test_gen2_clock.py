@@ -4,9 +4,9 @@ import zipfile
 
 import pytest
 
-from pokesim_core.errors import CoreCapabilityError
-from pokesim_core.gen2 import clock, save
-from pokesim_core.gen2.clock import export_clock, lock_clock, stop_with_clock
+from pokecore.errors import CoreCapabilityError
+from pokecore.gen2 import clock, save
+from pokecore.gen2.clock import export_clock, lock_clock, stop_with_clock
 
 
 class FakeClock:
@@ -195,6 +195,6 @@ def test_clock_archive_holds_both_files_with_fixed_timestamps():
 
 
 def test_gen1_save_export_refuses_other_cartridges():
-    from pokesim_core import gen1_save
+    from pokecore import gen1_save
     with pytest.raises(ValueError, match='Red, Blue, or Yellow'):
         gen1_save.export(b'not a cartridge', b'')

@@ -2,7 +2,7 @@
 
 Ported from PokeSim's pokesim/gen2/ram.py. Field shapes, values and reprs match it, except that
 PokeSim's egg view (an egg shown with no species) is opt-in here through ``to_dict(egg_view=True)``.
-``data`` is any object shaped like :class:`pokesim_core.gen2.tables.GameTables`.
+``data`` is any object shaped like :class:`pokecore.gen2.tables.GameTables`.
 """
 from __future__ import annotations
 

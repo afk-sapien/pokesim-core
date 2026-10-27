@@ -35,8 +35,8 @@ pip install "pokesim-core[emulator] @ https://github.com/afk-sapien/pokesim-core
 Decode without an emulator:
 
 ```python
-from pokesim_core.gen1 import read_bag, read_party, read_progress
-from pokesim_core.rom import inspect_rom
+from pokecore.gen1 import read_bag, read_party, read_progress
+from pokecore.rom import inspect_rom
 
 identity = inspect_rom("/path/to/pokemon-red.gb")
 print(identity.game, identity.sha256, identity.verified)
@@ -50,8 +50,8 @@ progress = read_progress(memory)
 Run an isolated emulator:
 
 ```python
-from pokesim_core.emulator import GameBoy
-from pokesim_core.gen1 import read_party
+from pokecore.emulator import GameBoy
+from pokecore.gen1 import read_party
 
 with GameBoy("/path/to/pokemon-red.gb") as game:
     game.tick(1800)

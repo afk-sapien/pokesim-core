@@ -1,6 +1,6 @@
 import pytest
 
-from pokesim_core import gen1
+from pokecore import gen1
 
 
 class ReadOnlyMemory:
@@ -150,7 +150,7 @@ def test_sprite_tile_reads_the_map_block_position():
 
 
 def test_named_addresses_read_yellow_through_the_red_layout():
-    from pokesim_core.yellow import red_layout
+    from pokecore.yellow import red_layout
     raw = bytearray(65536)
     raw[0xCFC4], raw[0xD6FF], raw[0xD735] = 3, 2, 0x80
     view = red_layout(raw, 'yellow')

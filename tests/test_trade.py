@@ -1,8 +1,8 @@
 
 import pytest
 
-from pokesim_core import gen1_link_metadata, gen2_link_metadata, timecapsule as tc, trade
-from pokesim_core.gen1_cable import CableError
+from pokecore import gen1_link_metadata, gen2_link_metadata, timecapsule as tc, trade
+from pokecore.gen1_cable import CableError
 
 # Synthetic tables in the documented shapes. They are not cartridge data.
 GEN1_SPECIES = {0x99: {'dex': 1, 'stats': [45, 49, 49, 45, 65]},

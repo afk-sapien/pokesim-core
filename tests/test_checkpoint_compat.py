@@ -7,10 +7,10 @@ from types import SimpleNamespace
 
 import pytest
 
-import pokesim_core.emulator_state as state
-from pokesim_core.checkpoint_audio import enable_checkpoint_sound
-from pokesim_core.emulator import Emulator, clock_control_supported
-from pokesim_core.errors import CoreCapabilityError
+import pokecore.emulator_state as state
+from pokecore.checkpoint_audio import enable_checkpoint_sound
+from pokecore.emulator import Emulator, clock_control_supported
+from pokecore.errors import CoreCapabilityError
 
 from test_rtc import ClockBackend, NoRtcBackend, machine, rtc_file
 
@@ -118,7 +118,7 @@ def test_locked_checkpoint_on_a_backend_without_clock_control_is_refused(require
         emulator.lock_clock(at=1000.0)
         checkpoint = emulator.checkpoint()
         before = emulator.checkpoint()
-        monkeypatch.setattr("pokesim_core.emulator.clock_control_supported", lambda backend=None: False)
+        monkeypatch.setattr("pokecore.emulator.clock_control_supported", lambda backend=None: False)
         with pytest.raises(CoreCapabilityError, match="real-time clock"):
             emulator.restore_checkpoint(checkpoint)
         monkeypatch.undo()

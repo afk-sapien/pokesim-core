@@ -1,7 +1,7 @@
 """Decode Gold, Silver and Crystal front portraits from the owner's cartridge.
 
 Pictures come back as rows of colour indices 0 (lightest) to 3 (darkest) with the species'
-own RGBA palette, in which index 0 is transparent. :func:`pokesim_core.sprites.png` writes
+own RGBA palette, in which index 0 is transparent. :func:`pokecore.sprites.png` writes
 either as a PNG with the standard library alone.
 
 The ROM tables are found through :data:`LABELS`, from the pinned pret symbol files. Each

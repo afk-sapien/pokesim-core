@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core import gen2
-from pokesim_core.gen2 import hooks, resets
-from pokesim_core.gen2.ram import decode_mon, experience_at
+from pokecore import gen2
+from pokecore.gen2 import hooks, resets
+from pokecore.gen2.ram import decode_mon, experience_at
 
 FOUGHT, SHOWN, GS = 'EVENT_FOUGHT_LUGIA', 'EVENT_WHIRL_ISLAND_LUGIA_CHAMBER_LUGIA', 'EVENT_GOT_GS_BALL'
 CHIKORITA = {'name': 'Chikorita', 'growth': 'MEDIUM_SLOW', 'stats': [45, 49, 65, 45, 49, 65],

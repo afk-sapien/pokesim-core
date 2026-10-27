@@ -1,6 +1,6 @@
 import pytest
 
-from pokesim_core.state_actions import open_menu, select_visible_option, wait_until
+from pokecore.state_actions import open_menu, select_visible_option, wait_until
 from test_state_actions import fixture
 
 

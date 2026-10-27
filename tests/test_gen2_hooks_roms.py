@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from pokesim_core import gen2
-from pokesim_core.gen2 import hooks, resets
+from pokecore import gen2
+from pokecore.gen2 import hooks, resets
 
 pytest.importorskip('pyboy_rs')
 
@@ -24,7 +24,7 @@ CHIKORITA = {'name': 'Chikorita', 'growth': 'MEDIUM_SLOW', 'stats': [45, 49, 65,
 
 def boot(version):
     """A live machine with a blank battery, past the boot code."""
-    from pokesim_core.emulator import Emulator
+    from pokecore.emulator import Emulator
     rom = Path(os.environ['POKESIM_CORE_GEN2_ROMS']) / f'{version}.gbc'
     if not rom.exists():
         pytest.skip(f'{rom.name} is not in POKESIM_CORE_GEN2_ROMS')

@@ -3,12 +3,12 @@ from the title screen to the first overworld and then sets up what it needs in W
 """
 import re
 
-from pokesim_core import gen1_save
-from pokesim_core.gen1_ui import read_screen
-from pokesim_core.gen2 import GameTables
-from pokesim_core.gen2.clock import boot
-from pokesim_core.gen2.ram import Memory
-from pokesim_core.shortcuts.screens import current_screen
+from pokecore import gen1_save
+from pokecore.gen1_ui import read_screen
+from pokecore.gen2 import GameTables
+from pokecore.gen2.clock import boot
+from pokecore.gen2.ram import Memory
+from pokecore.shortcuts.screens import current_screen
 
 # The player's bedroom, where every Gen II game starts after the clock and the name.
 BEDROOM = 24 * 256 + 7
@@ -59,7 +59,7 @@ def new_gen2_game(rom, version, *, hour=10, minute=0):
 
     Returns the emulator standing in the bedroom with its clock locked to emulated frames.
     """
-    from pokesim_core.gen2.clock import follow_game_time
+    from pokecore.gen2.clock import follow_game_time
     emulator = boot(rom, sound=False)
     follow_game_time(emulator)
     mem = Memory(emulator.memory, tables(version))
@@ -87,7 +87,7 @@ def new_gen2_game(rom, version, *, hour=10, minute=0):
 
 def new_gen1_game(rom):
     """Boot a Red, Blue or Yellow cartridge and play to the first overworld with preset names."""
-    from pokesim_core.yellow import open_emulator
+    from pokecore.yellow import open_emulator
     import io
     emulator = open_emulator(io.BytesIO(rom), ram_file=io.BytesIO(bytes(32768)), window='null',
                              sound_emulated=False, log_level='ERROR')
@@ -115,7 +115,7 @@ def _write(memory, address, values):
 
 def give_gen2_mon(emulator, version, species=152, level=5):
     """Put one Pokémon in an empty Gen II party, as trusted test setup. Its name text is ``A``."""
-    from pokesim_core.gen2 import symbols
+    from pokecore.gen2 import symbols
     table = symbols(version)
     struct = bytearray(48)
     struct[0], struct[2], struct[23] = species, 33, 35   # Tackle with full PP
@@ -138,7 +138,7 @@ def give_gen1_mon(emulator, species=0x99, level=5):
 
     Addresses are Red's. A ``YellowEmulator`` translates them on Yellow.
     """
-    from pokesim_core import gen1
+    from pokecore import gen1
     struct = bytearray(gen1.PARTY_STRUCT)
     struct[0], struct[3], struct[8], struct[29] = species, level, 33, 35   # Tackle with full PP
     struct[1:3] = struct[34:36] = (20).to_bytes(2, 'big')

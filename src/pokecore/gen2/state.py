@@ -36,7 +36,7 @@ def _tables(version):
 
 
 def memory_reader(memory, version):
-    """A :class:`pokesim_core.gen2.ram.Memory` that resolves names through Core's memory map."""
+    """A :class:`pokecore.gen2.ram.Memory` that resolves names through Core's memory map."""
     return Memory(memory, _tables(version))
 
 
@@ -245,7 +245,7 @@ def npc_trade_qualifies(mon, trade):
     """Whether ``mon`` is a Pokémon the person accepts: the requested species, not an Egg,
     and female when the trade asks for one.
 
-    ``mon`` is a :class:`pokesim_core.gen2.ram.Mon`, or a mapping with ``species``, ``egg``
+    ``mon`` is a :class:`pokecore.gen2.ram.Mon`, or a mapping with ``species``, ``egg``
     and ``gender``. Core cannot tell gender without species tables, so a female-only trade
     needs ``gender`` filled in.
     """

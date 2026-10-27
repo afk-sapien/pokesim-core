@@ -4,8 +4,8 @@ Cartridge cases are in test_gen2_maps_roms.py.
 """
 from types import SimpleNamespace
 
-from pokesim_core import gen2
-from pokesim_core.gen2 import maps
+from pokecore import gen2
+from pokecore.gen2 import maps
 
 ICE, DOOR, WALL, FLOOR = 0x23, 0x72, 0x07, 0x00
 ROOM = 1

@@ -4,14 +4,14 @@ import json
 
 import pytest
 
-import pokesim_core.shortcuts as shortcuts
-from pokesim_core.controls import ControllerPort, switch_pokemon, use_item
-from pokesim_core.gen1 import W_CUR_MAP, W_TILEMAP, W_X, W_Y
-from pokesim_core.shortcuts import (STOP_REASONS, AdvanceDialogue, StopReason, Walk, advance_dialogue, describe,
+import pokecore.shortcuts as shortcuts
+from pokecore.controls import ControllerPort, switch_pokemon, use_item
+from pokecore.gen1 import W_CUR_MAP, W_TILEMAP, W_X, W_Y
+from pokecore.shortcuts import (STOP_REASONS, AdvanceDialogue, StopReason, Walk, advance_dialogue, describe,
                                     result_schema, walk)
-from pokesim_core.shortcuts.dialogue import merge_lines
-from pokesim_core.shortcuts.machine import Done
-from pokesim_core.shortcuts.walk import W_PLAYER_FACING
+from pokecore.shortcuts.dialogue import merge_lines
+from pokecore.shortcuts.machine import Done
+from pokecore.shortcuts.walk import W_PLAYER_FACING
 
 from test_shortcuts import Game, put
 from test_shortcuts_gen2 import Game2
@@ -358,8 +358,8 @@ def test_abort_after_inputs_does_not_claim_the_screen_settled(start, button, cal
 
 
 def test_abort_at_an_unanswered_prompt_reports_the_prompt():
-    from pokesim_core.controls import machine_options
-    from pokesim_core.shortcuts.machine import Abort, Shortcut, run
+    from pokecore.controls import machine_options
+    from pokecore.shortcuts.machine import Abort, Shortcut, run
 
     class PromptAbort(Shortcut):
         def flow(self):

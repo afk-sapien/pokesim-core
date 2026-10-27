@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from pokesim_core import cartridges, gen1_link_metadata, gen2_link_metadata, timecapsule as tc
-from pokesim_core.cartridges import identify, unpack
-from pokesim_core.rom import inspect_rom, require_rom
+from pokecore import cartridges, gen1_link_metadata, gen2_link_metadata, timecapsule as tc
+from pokecore.cartridges import identify, unpack
+from pokecore.rom import inspect_rom, require_rom
 
 ROMS = os.environ.get('POKESIM_CORE_ROMS')
 
@@ -50,7 +50,7 @@ def test_real_cartridges_carry_link_code():
 # shortcuts.json manifest, a list of entries like
 #   {"rom": "red", "state": "wild-battle.state", "machine": "RunAway", "args": [], "kwargs": {},
 #    "expect": "completed"}
-# ``machine`` is a class from ``pokesim_core.shortcuts`` and ``rom`` is any version, Gen 1 or Gen 2.
+# ``machine`` is a class from ``pokecore.shortcuts`` and ``rom`` is any version, Gen 1 or Gen 2.
 # ``expect`` is "completed" (effect seen and the screen settled) or "refused" (the
 # game or the shortcut refused, and the screen still settled). No states ship here.
 STATES = os.environ.get('POKESIM_CORE_SHORTCUT_STATES')
@@ -75,11 +75,11 @@ def _rom_for(version):
 @pytest.mark.skipif(not (ROMS and STATES), reason='set POKESIM_CORE_ROMS and POKESIM_CORE_SHORTCUT_STATES to run')
 @pytest.mark.parametrize('case', _shortcut_cases(), ids=lambda case: f"{case['machine']}:{case['state']}")
 def test_shortcuts_finish_at_a_resting_screen_on_real_cartridges(case):
-    from pokesim_core import shortcuts
-    from pokesim_core.emulator import Emulator
+    from pokecore import shortcuts
+    from pokecore.emulator import Emulator
     emulator = Emulator(str(_rom_for(case['rom'])), sound_emulated=False)
     emulator.load((Path(STATES) / case['state']).read_bytes())
-    from pokesim_core.emulator import BUTTONS
+    from pokecore.emulator import BUTTONS
     for button in BUTTONS:
         emulator.release(button)
     machine = getattr(shortcuts, case['machine'])(*case.get('args', []), version=case['rom'], **case.get('kwargs', {}))

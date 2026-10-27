@@ -2,7 +2,7 @@ Experimental state-aware actions and compatibility
 ==================================================
 
 Applications call PokeSim Core. All helpers below live in
-pokesim_core.state_actions and accept the existing ControllerPort. Inputs
+pokecore.state_actions and accept the existing ControllerPort. Inputs
 still go through the consumer's send adapter, locks and action recording.
 
 Observed actions
@@ -27,7 +27,7 @@ this helper.
 
 Example::
 
-    from pokesim_core.state_actions import open_menu, select_visible_option
+    from pokecore.state_actions import open_menu, select_visible_option
 
     opened = open_menu(port, max_frames=120)
     if opened['completed']:
@@ -65,7 +65,7 @@ Enable diagnostics explicitly when recording::
     emulator.tick(6000, render=False, sound=False)
     recording = emulator.stop_recording()
 
-Core raises pokesim_core.emulator.ReplayDivergence on mismatch. Its details
+Core raises pokecore.emulator.ReplayDivergence on mismatch. Its details
 dictionary identifies the last verified offset and first failed checkpoint,
 absolute frame, expected and actual hashes, nearby input events, and up to
 64 changed RAM bytes with addresses and expected/actual values. The emulator
@@ -96,7 +96,7 @@ missing files are reported as missing coverage, never as successful validation.
 
 Run the public synthetic suite from the Core checkout::
 
-    python -m pokesim_core.compatibility compatibility/synthetic.json \
+    python -m pokecore.compatibility compatibility/synthetic.json \
         --baseline compatibility/synthetic-baseline.json \
         --output /tmp/compatibility-result.json --repeats 3
 

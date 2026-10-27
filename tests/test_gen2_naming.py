@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core.gen2 import charmap, memory_map
-from pokesim_core.naming import GEN2_KEYS, enter_name, gen2_name_step, gen2_naming
+from pokecore.gen2 import charmap, memory_map
+from pokecore.naming import GEN2_KEYS, enter_name, gen2_name_step, gen2_naming
 
 CURSOR_OBJECT = 0xC800
 DESTINATION = 0xD100

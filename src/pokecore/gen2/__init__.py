@@ -3,14 +3,14 @@
 Core ships the per-version memory maps and character maps. Species, move, item and map
 tables stay with the consumer and are passed in as ``data`` (a :class:`GameTables` or any
 object of the same shape). The submodules ``memory_map`` and ``charmap`` hold the
-per-version tables (``memory_map.symbols(version)`` and ``charmap.charmap(version)``). The table-free readers in :mod:`pokesim_core.gen2.state` need
+per-version tables (``memory_map.symbols(version)`` and ``charmap.charmap(version)``). The table-free readers in :mod:`pokecore.gen2.state` need
 only a version name. The submodules ``clock`` and ``save`` drive the cartridge clock and the
-Save menu on a Core emulator and need the emulator extra when called. :mod:`pokesim_core.gen2.maps`
-decodes live map collision and ice slides. :mod:`pokesim_core.gen2.hooks` finds verified ROM code
-addresses for emulator hooks and :mod:`pokesim_core.gen2.resets` holds trusted setup writes.
-:mod:`pokesim_core.gen2.cable` drives Cable Club and Time Capsule trades on Core emulators.
-:mod:`pokesim_core.gen2.puzzles` reads and solves the Ruins of Alph picture boards.
-:mod:`pokesim_core.gen2.sprites` decodes front portraits from the cartridge.
+Save menu on a Core emulator and need the emulator extra when called. :mod:`pokecore.gen2.maps`
+decodes live map collision and ice slides. :mod:`pokecore.gen2.hooks` finds verified ROM code
+addresses for emulator hooks and :mod:`pokecore.gen2.resets` holds trusted setup writes.
+:mod:`pokecore.gen2.cable` drives Cable Club and Time Capsule trades on Core emulators.
+:mod:`pokecore.gen2.puzzles` reads and solves the Ruins of Alph picture boards.
+:mod:`pokecore.gen2.sprites` decodes front portraits from the cartridge.
 """
 from . import cable, clock, hooks, maps, puzzles, resets, save, sprites
 from .battle_power import battle_power, hidden_power

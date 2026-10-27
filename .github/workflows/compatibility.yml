@@ -34,7 +34,7 @@ jobs:
           uv run --no-sync bash -c 'cd ../pyboy-rs && maturin build --release --locked --out "$OLDPWD/dist"'
           uv pip install dist/pyboy_rs-*.whl pillow numpy -e ".[dev]"
       - run: uv run --no-sync pytest
-      - run: uv run --no-sync python -m pokesim_core.compatibility compatibility/synthetic.json --baseline compatibility/synthetic-baseline.json --output compatibility-result.json --repeats 1
+      - run: uv run --no-sync python -m pokecore.compatibility compatibility/synthetic.json --baseline compatibility/synthetic-baseline.json --output compatibility-result.json --repeats 1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         if: always()
         with:

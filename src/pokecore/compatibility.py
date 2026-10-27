@@ -188,7 +188,7 @@ def run_suite(manifest, repeats=3, require_private=False):
         runs = []
         for _ in range(repeats):
             try:
-                completed = subprocess.run([sys.executable, '-m', 'pokesim_core.compatibility',
+                completed = subprocess.run([sys.executable, '-m', 'pokecore.compatibility',
                                             '--worker', str(path), str(index)],
                                            capture_output=True, text=True, timeout=case.get('timeout_seconds', 180))
                 if completed.returncode:

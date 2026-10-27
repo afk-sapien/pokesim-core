@@ -1,7 +1,7 @@
 import pytest
 
-from pokesim_core import gen1, gen1_ui, yellow
-from pokesim_core.cartridges import by_version
+from pokecore import gen1, gen1_ui, yellow
+from pokecore.cartridges import by_version
 
 
 def yellow_memory():
@@ -106,7 +106,7 @@ def test_starter_pikachu_identity():
 
 
 def test_yellow_link_build_is_additive():
-    from pokesim_core import gen1_link_metadata as link
+    from pokecore import gen1_link_metadata as link
     yellow_build = link.build(yellow.YELLOW_SHA1)
     red = link.BUILDS['ea9bcae617fdf159b045185467ae58b2e4a48b9a']
     assert yellow_build['version'] == 'Yellow'

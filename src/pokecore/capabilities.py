@@ -3,23 +3,23 @@ from copy import deepcopy
 from .movement import DIRECTIONS
 
 _SPECS = {
-    'walk_tiles': {'function': 'pokesim_core.movement.walk_tiles', 'versions': ['red', 'blue'],
+    'walk_tiles': {'function': 'pokecore.movement.walk_tiles', 'versions': ['red', 'blue'],
                    'starts': ['overworld'], 'arguments': {
                        'direction': {'type': 'string', 'enum': list(DIRECTIONS)},
                        'count': {'type': 'integer', 'minimum': 1, 'maximum': 8}},
                    'decisions': 'Caller chooses direction and distance. No route planning.'},
-    'collect_dialogue': {'function': 'pokesim_core.dialogue.collect_dialogue', 'versions': ['red', 'blue'],
+    'collect_dialogue': {'function': 'pokecore.dialogue.collect_dialogue', 'versions': ['red', 'blue'],
                          'starts': ['dialogue', 'transition', 'overworld'], 'arguments': {},
                          'decisions': 'Continues text only. Stops before choices.'},
-    'choose_move': {'function': 'pokesim_core.shortcuts.choose_move', 'versions': ['red', 'blue', 'yellow', 'gold', 'silver', 'crystal'],
+    'choose_move': {'function': 'pokecore.shortcuts.choose_move', 'versions': ['red', 'blue', 'yellow', 'gold', 'silver', 'crystal'],
                     'starts': ['battle_menu', 'move_menu'], 'arguments': {
                         'slot': {'type': 'integer', 'minimum': 0, 'maximum': 3}},
                     'decisions': 'Caller selects the move slot. Battle turns still occur.'},
-    'switch_pokemon': {'function': 'pokesim_core.shortcuts.switch_pokemon', 'versions': ['red', 'blue', 'yellow', 'gold', 'silver', 'crystal'],
+    'switch_pokemon': {'function': 'pokecore.shortcuts.switch_pokemon', 'versions': ['red', 'blue', 'yellow', 'gold', 'silver', 'crystal'],
                        'starts': ['overworld', 'pause', 'party', 'battle_menu', 'move_menu', 'switch_prompt'],
                        'arguments': {'party_slot': {'type': 'integer', 'minimum': 0, 'maximum': 5}},
                        'decisions': 'Caller selects the party member.'},
-    'use_item': {'function': 'pokesim_core.shortcuts.use_item', 'versions': ['red', 'blue', 'yellow', 'gold', 'silver', 'crystal'],
+    'use_item': {'function': 'pokecore.shortcuts.use_item', 'versions': ['red', 'blue', 'yellow', 'gold', 'silver', 'crystal'],
                  'starts': ['overworld', 'pause', 'bag', 'party', 'item_target', 'battle_menu', 'move_menu'],
                  'arguments': {'item': {'type': 'integer', 'minimum': 1, 'maximum': 255},
                                'target': {'type': ['integer', 'null'], 'minimum': 0, 'maximum': 5},

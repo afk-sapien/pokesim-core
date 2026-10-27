@@ -1,7 +1,7 @@
 import pytest
 
-from pokesim_core import dvs
-from pokesim_core.gen1_battle_power import BattlePower, Battler, calculated_stat, stat_exp_bonus, stored_strength
+from pokecore import dvs
+from pokecore.gen1_battle_power import BattlePower, Battler, calculated_stat, stat_exp_bonus, stored_strength
 
 # Synthetic tables in the documented shapes. They are not cartridge data.
 SPECIES = {1: {'stats': [50, 60, 40, 70, 55], 'types': [0, 0]},

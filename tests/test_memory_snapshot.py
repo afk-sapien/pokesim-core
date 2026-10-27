@@ -5,11 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core import memory_snapshot
-from pokesim_core.emulator import Memory
-from pokesim_core.gen2.ram import Memory as Gen2Memory
-from pokesim_core.memory_snapshot import READ_ONLY, snapshot_emulator, snapshot_memory_class
-from pokesim_core.storage import memory_bytes
+from pokecore import memory_snapshot
+from pokecore.emulator import Memory
+from pokecore.gen2.ram import Memory as Gen2Memory
+from pokecore.memory_snapshot import READ_ONLY, snapshot_emulator, snapshot_memory_class
+from pokecore.storage import memory_bytes
 
 # ld hl, $C000 / loop: inc (hl) / jr loop. Work RAM byte $C000 changes every frame.
 PROGRAM = bytes((0x21, 0x00, 0xC0, 0x34, 0x18, 0xFD))
@@ -29,7 +29,7 @@ def cartridge():
 
 def boot(ram=None):
     pytest.importorskip('pyboy_rs')
-    from pokesim_core.emulator import Emulator
+    from pokecore.emulator import Emulator
     return snapshot_emulator(Emulator)(io.BytesIO(cartridge()), ram_file=io.BytesIO(ram or bytes(32768)),
                                        sound_emulated=False)
 
@@ -158,14 +158,14 @@ def test_memory_bytes_uses_the_snapshot_window(machine):
 
 
 def test_gen1_fields_are_identical_through_the_snapshot(machine, monkeypatch):
-    from pokesim_core.snapshot import read_fields
+    from pokecore.snapshot import read_fields
     monkeypatch.setenv('POKESIM_CORE_DECODER', 'python')
     assert read_fields(machine.memory) == read_fields(Memory(machine))
 
 
 def test_snapshot_emulator_keeps_the_public_api():
     pytest.importorskip('pyboy_rs')
-    from pokesim_core.emulator import Emulator
+    from pokecore.emulator import Emulator
     cls = snapshot_emulator(Emulator)
     assert cls is snapshot_emulator(Emulator) and issubclass(cls, Emulator)
     public = {name for name in dir(Emulator) if not name.startswith('_')}

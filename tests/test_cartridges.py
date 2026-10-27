@@ -3,9 +3,9 @@ import zipfile
 
 import pytest
 
-from pokesim_core import cartridges
-from pokesim_core.cartridges import CARTRIDGES, by_version, identify, read_header, unpack
-from pokesim_core.rom import BLUE_SHA1, KNOWN_ROM_SHA1, RED_SHA1, inspect_rom, require_rom
+from pokecore import cartridges
+from pokecore.cartridges import CARTRIDGES, by_version, identify, read_header, unpack
+from pokecore.rom import BLUE_SHA1, KNOWN_ROM_SHA1, RED_SHA1, inspect_rom, require_rom
 
 
 def synthetic_rom(cartridge, size=None):

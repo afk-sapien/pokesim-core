@@ -1,9 +1,9 @@
 """Whole-word keyword search, ported from PokeSim's screen and nickname robustness tests."""
 import pytest
 
-from pokesim_core import gen2, textmatch
-from pokesim_core.gen2 import screens
-from pokesim_core.textmatch import ScreenText, has_word
+from pokecore import gen2, textmatch
+from pokecore.gen2 import screens
+from pokecore.textmatch import ScreenText, has_word
 
 # Words the Gen 1 and Gen 2 screen classifiers search for. A nickname equal to or
 # containing one of them must not read as that menu word.

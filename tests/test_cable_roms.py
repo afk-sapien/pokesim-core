@@ -13,12 +13,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from pokesim_core import gen1_link_metadata, gen2_link_metadata
-from pokesim_core.centers import location, safe_center
-from pokesim_core.gen1_cable import CableEndpoint
-from pokesim_core.gen2 import GameTables
-from pokesim_core.gen2.cable import CableDriver, CableSide, TimeCapsuleSide
-from pokesim_core.timecapsule import communication_ok
+from pokecore import gen1_link_metadata, gen2_link_metadata
+from pokecore.centers import location, safe_center
+from pokecore.gen1_cable import CableEndpoint
+from pokecore.gen2 import GameTables
+from pokecore.gen2.cable import CableDriver, CableSide, TimeCapsuleSide
+from pokecore.timecapsule import communication_ok
 from rom_games import BEDROOM, new_gen1_game, new_gen2_game
 
 pytest.importorskip('pyboy_rs')

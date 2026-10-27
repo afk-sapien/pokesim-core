@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import time
 
-from pokesim_core.emulator import Emulator, demo_rom
+from pokecore.emulator import Emulator, demo_rom
 
 
 def main():

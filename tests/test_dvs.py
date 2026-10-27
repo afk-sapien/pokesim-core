@@ -2,7 +2,7 @@ from collections import Counter
 
 import pytest
 
-from pokesim_core.dvs import dv_probabilities
+from pokecore.dvs import dv_probabilities
 
 
 def test_every_encoded_dv_combination_against_independent_histogram():
