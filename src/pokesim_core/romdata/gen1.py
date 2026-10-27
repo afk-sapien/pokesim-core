@@ -6,6 +6,7 @@ as in every other Gen I decoder in Core. Each species also carries its ``dex`` n
 from __future__ import annotations
 
 from ..gen1 import decode_text
+from ..rom import rom_offset
 
 RECORD = 28
 INDEX_COUNT = 190
@@ -20,8 +21,7 @@ def word(rom, offset):
 
 def banked(base, address):
     """File offset of ``address`` in the same bank as the file offset ``base``."""
-    bank = base // 0x4000
-    return address if bank == 0 else bank * 0x4000 + (address - 0x4000)
+    return rom_offset(base // 0x4000, address)
 
 
 def machines(raw, count):

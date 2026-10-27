@@ -16,6 +16,7 @@ from __future__ import annotations
 import zlib
 
 from .identity import GEN1_INDEX
+from .rom import rom_offset
 from .yellow import is_yellow
 
 BASE_STATS = 0x383DE
@@ -138,7 +139,7 @@ def base_stats(rom: bytes, dex: int, yellow: bool = False) -> bytes:
 
 def decode(rom: bytes, bank: int, pointer: int) -> tuple[list[list[int]], int, int]:
     """Return colour indices 0..3, plus the picture's width and height in tiles."""
-    bits = _Bits(rom, bank * 0x4000 + (pointer % 0x4000))
+    bits = _Bits(rom, rom_offset(bank, pointer))
     head = bits.read(8)
     width, height = head >> 4, head & 0x0F
     if not (1 <= width <= 7 and 1 <= height <= 7):

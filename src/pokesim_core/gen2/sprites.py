@@ -11,6 +11,8 @@ Unown's portrait is its letter A unless ``unown`` names another letter, 0 to 25.
 """
 from __future__ import annotations
 
+from ..rom import rom_offset as offset
+
 _GOLD = {'BaseData': (0x14, 0x5B0B), 'PokemonPalettes': (0x02, 0x6D3D),
          'PokemonPicPointers': (0x12, 0x4000), 'UnownPicPointers': (0x1F, 0x4000)}
 LABELS = {
@@ -23,11 +25,6 @@ LABELS = {
 _GS_PIC_BANKS = {0x13: 0x1F, 0x14: 0x20, 0x1F: 0x2E}
 UNOWN = 201
 SIZE = 56
-
-
-def offset(bank, address):
-    """The ROM offset of a (bank, address) label. Bank 0 is the address itself."""
-    return bank * 0x4000 + (address & 0x3FFF) if bank else address
 
 
 def decompress(raw, start, limit=65536):
