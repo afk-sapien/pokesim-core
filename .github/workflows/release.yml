@@ -63,7 +63,7 @@ jobs:
           for file in dist/*; do
             python3 -m venv "clean-$(basename "$file")"
             "clean-$(basename "$file")/bin/python" -m pip install -q "$file"
-            "clean-$(basename "$file")/bin/python" -c "import pokecore, pokesim_core, sys; assert pokecore.__version__ == pokesim_core.__version__ == sys.argv[1], pokecore.__version__" "$VERSION"
+            "clean-$(basename "$file")/bin/python" -c "import pokecore, sys; assert pokecore.__version__ == sys.argv[1], pokecore.__version__" "$VERSION"
           done
           (cd dist && sha256sum pokesim_core-* > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
           mv notes.md dist/notes.md

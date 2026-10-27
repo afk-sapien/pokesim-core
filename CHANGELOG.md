@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Removed
+
+- The deprecated `pokesim_core` import alias. Import `pokecore` instead. The
+  distribution name `pokesim-core`, the wheel file names, the native
+  `pokesim_core_native` crate and the `POKESIM_CORE_*` environment variables are
+  unchanged.
+
 ## 0.8.0
 
 ### Changed
