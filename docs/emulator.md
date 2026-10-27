@@ -130,7 +130,7 @@ returns the next button toward `target` (map, x, y). Without `walk` the driver r
 
 The separate, unpublished `pokesim-core-native` distribution in `native/` uses
 PyO3 and Maturin to decode a complete WRAM snapshot in one native call. It is
-optional and not part of the `pokesim-core` metadata. Core uses it
+optional and not part of the `pokecore` metadata. Core uses it
 automatically when it is installed. CI builds and tests it in its own job.
 
 ```bash

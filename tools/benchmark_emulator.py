@@ -99,7 +99,7 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps({"frames": args.frames, "repeats": args.repeats, "cpu": args.cpu,
         "rom_sha256": hashlib.sha256(args.rom.read_bytes()).hexdigest(), "emulator": runtime_provenance(),
-        "core_version": version("pokesim-core"), "reference_version": version("pyboy"),
+        "core_version": version("pokecore"), "reference_version": version("pyboy"),
         "checkpoints": [{"label": p.stem, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in args.states],
         "all_outputs_match": True, "samples": rows, "summary": summary}, indent=2) + "\n")
     print(args.output)

@@ -1,6 +1,6 @@
 # API compatibility
 
-The Python import is `pokecore`. The distribution and repository stay
+The Python import and the distribution are `pokecore`. The repository stays
 `pokesim-core`. `__version__` identifies the package release and `API_VERSION`
 identifies the major data contract. It is 1 and changes only for an incompatible change to documented field shapes.
 

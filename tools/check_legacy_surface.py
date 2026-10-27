@@ -1,6 +1,6 @@
 """Check that the Core 0.1.x names used by the PokeBench benchmark still import and behave.
 
-Needs no emulator. Run it in an environment that has only pokesim-core installed.
+Needs no emulator. Run it in an environment that has only pokecore installed.
 The list is the set of imports PokeBench makes from Core, plus the GameBoy compatibility
 shims that its engine relies on. Extend it when a consumer adds an import.
 """

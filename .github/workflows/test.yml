@@ -87,7 +87,7 @@ jobs:
           python -m pip install build
           python -m build --wheel --outdir dist
           python -m venv clean
-          clean/bin/python -m pip install dist/pokesim_core-*.whl pytest
+          clean/bin/python -m pip install dist/pokecore-*.whl pytest
           clean/bin/python -c "import importlib.util as u; assert u.find_spec('pyboy_rs') is None and u.find_spec('pyboy') is None"
       - name: Import the surface PokeBench uses and run the tests that need no emulator
         run: |
