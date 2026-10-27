@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `romdata.load(rom, version=None)` reads species, evolutions, learnsets, TM and
+  HM learners, wild encounters (with Gen II morning, day and night slots), trainer
+  parties and starters from the caller's Red, Blue, Yellow, Gold, Silver or Crystal
+  cartridge. Core ships only the addresses. `GameData.with_overrides` applies a
+  randomizer's override map and returns the effective data. With no overrides it is
+  byte-identical to the ROM reading.
+
 ## 0.7.1
 
 ### Changed
