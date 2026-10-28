@@ -15,7 +15,7 @@ from ..gen2.memory_map import symbols as core_symbols
 from ..gen2.ram import Memory
 from ..gen2.tables import GameTables
 from ..textmatch import has_word
-from .screens import normalize
+from .screens import MAIN_MENU_WORDS, normalize, pregame_menu
 
 # Menu and battle symbols the shortcuts read, as (Gold and Silver, Crystal) addresses from the pret
 # symbol files. Bank 1 holds 0xD000 to 0xDFFF, everything else is bank 0.
@@ -43,6 +43,8 @@ UI_SYMBOLS = {
     'wCurMoveNum': (0xCFC7, 0xD0D5),
 }
 LCDC = 0xFF40
+# Bit 0 of wGameTimerPaused counts play time. Reset clears it and only a started game sets it.
+W_GAME_TIMER_PAUSED = {'gold': 0xCFE5, 'silver': 0xCFE5, 'crystal': 0xCFBC}
 # Tiles.
 BOX_TL, BOX_H, BOX_TR, BOX_V, BOX_BL, BOX_BR = 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E
 CURSOR, IDLE_CURSOR, MORE = 0xED, 0xEC, 0xEE
@@ -102,6 +104,10 @@ class View:
             return bool(self.raw[LCDC] & 0x80)
         except (TypeError, IndexError, KeyError, ValueError):
             return True
+
+    def started(self):
+        """True once the game counts play time, so never on the intro, title or main menu."""
+        return bool(self.raw[W_GAME_TIMER_PAUSED[self.version]] & 1)
 
 
 def rows_of(view):
@@ -237,6 +243,8 @@ def classify(view, rows=None):
         x, y = cursor
         if battle and cursor in BATTLE_MENU and 'FIGHT' in rows[14] and 'RUN' in rows[16]:
             return 'battle_menu', extra
+        if not battle and any(main <= words for main in MAIN_MENU_WORDS):
+            return 'main_menu', extra
         if x == 0 and y % 2 and roster(view, rows):
             if 'USEONWHICH' in text or 'TEACHWHICH' in text or 'GIVETOWHICH' in text or 'TOWHICH' in text:
                 return 'item_target', extra
@@ -274,6 +282,8 @@ def classify(view, rows=None):
             return 'mart_list', extra
         if x == 4 and y in (2, 4, 6, 8) and view.tile(0, 0) == BOX_TL and view.tile(0, 11) == BOX_BL:
             return 'pc_items', extra
+        if not battle and not view.started() and not pregame_menu(rows):
+            return 'title', extra
         return 'menu', extra
     if bills_list(view, rows):
         loaded = view.byte('wBillsPC_LoadedBox')
@@ -282,6 +292,8 @@ def classify(view, rows=None):
         return 'quantity', extra
     if text or battle:
         return 'dialogue', extra
+    if not view.started():
+        return 'title', extra
     if roster(view, rows):
         return 'party', extra
     if view.byte('wWindowStackSize') == 0:

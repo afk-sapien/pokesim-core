@@ -93,15 +93,16 @@ def new_gen1_game(rom):
                              sound_emulated=False, log_level='ERROR')
     emulator.set_emulation_speed(0)
     memory = emulator.memory
+    version = 'yellow' if b'YELLOW' in rom[0x134:0x144] else 'red'
     for step in range(600):
         screen = read_screen(memory, raw_text=True)
         if 'NEW NAME' in '\n'.join(screen['rows']) and screen['menu_index'] == 0:
             gen1_save.press(emulator, 'down')
             continue
-        if (step > 30 and current_screen(memory) == 'overworld'
+        if (step > 30 and current_screen(memory, version=version) == 'overworld'
                 and memory[0xD158] not in (0, 0x50) and memory[0xD34A] not in (0, 0x50)):
             gen1_save.press(emulator, None, 60)
-            if current_screen(memory) == 'overworld':
+            if current_screen(memory, version=version) == 'overworld':
                 return emulator
         gen1_save.press(emulator, 'start' if step < 3 else 'a')
     emulator.stop(save=False)

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.2
+
+### Fixed
+
+- `current_screen` no longer reports `overworld` on the intro and title screens
+  after a soft reset. WRAM still holds the last game there, so the screen is now
+  read from the play time flag, which only a started game sets. Title art that
+  shows a cursor tile is no longer a `menu`.
+
+### Added
+
+- The `title` and `main_menu` screen names for Red, Blue, Yellow, Gold, Silver and
+  Crystal. Oak's speech before a new game stays `dialogue` and the OPTION screen
+  stays `menu`.
+
 ## 0.9.1
 
 ### Fixed

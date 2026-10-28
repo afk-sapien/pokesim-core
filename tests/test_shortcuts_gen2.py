@@ -88,6 +88,8 @@ class BankedMemory:
     def __init__(self):
         self.banks = defaultdict(lambda: bytearray(0x10000))
         self.banks[0][0xFF40] = 0x80
+        # wGameTimerPaused for Gold and Silver, then Crystal: the game has started.
+        self.banks[0][0xCFE5] = self.banks[0][0xCFBC] = 1
 
     def __getitem__(self, key):
         bank, address = key if isinstance(key, tuple) else (0, key)
@@ -1378,6 +1380,26 @@ def test_queries_and_screens_read_gen2_memory():
             game.sync()
         assert current_screen(game.memory, 'crystal') == expected
 
+
+
+@pytest.mark.parametrize('version', ['gold', 'silver', 'crystal'])
+def test_pre_game_screens_read_the_play_time_flag(version):
+    timer = {'gold': 0xCFE5, 'silver': 0xCFE5, 'crystal': 0xCFBC}[version]
+    game = Game2(version)
+    game.sync()
+    assert current_screen(game.memory, version) == 'overworld'
+    # A soft reset leaves the last game in WRAM but clears the play time flag.
+    game.memory.banks[0][timer] = 0
+    assert current_screen(game.memory, version) == 'title'
+    game.open_menu(['CONTINUE', 'NEW GAME', 'OPTION'], {}, game.go_overworld)
+    game.sync()
+    assert current_screen(game.memory, version) == 'main_menu'
+    # Title art can show a cursor tile beside stray font tiles.
+    game.open_menu(['ABCDEF', 'GHIJKL'], {}, game.go_overworld)
+    game.sync()
+    assert current_screen(game.memory, version) == 'title'
+    game.memory.banks[0][timer] = 1
+    assert current_screen(game.memory, version) == 'menu'
 
 def test_list_items_reads_every_pocket(monkeypatch):
     from pokecore.shortcuts import queries
