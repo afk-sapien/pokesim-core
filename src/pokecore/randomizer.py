@@ -19,8 +19,8 @@ from dataclasses import dataclass
 import hashlib
 import random
 
-__all__ = ['HM_GATES', 'MAX_DRAWS', 'Options', 'decode_share_code', 'encode_share_code', 'hm_gates',
-           'missing_hm_learners', 'randomize']
+__all__ = ['HM_GATES', 'MAX_DRAWS', 'Options', 'decode_share_code', 'default_moves', 'encode_share_code',
+           'hm_gates', 'missing_hm_learners', 'randomize']
 
 MAX_DRAWS = 1000
 PREFIX = 'PSR1'
@@ -170,9 +170,31 @@ def _draw(data, rng, options):
     if options.starters:
         overrides['starters'] = [remap[species] for species in data.starters]
     if options.trainers:
-        overrides['trainers'] = {key: {'party': [dict(mon, species=remap[mon['species']]) for mon in trainer['party']]}
+        overrides['trainers'] = {key: {'party': [_trainer_mon(data, mon, remap[mon['species']])
+                                                 for mon in trainer['party']]}
                                  for key, trainer in data.trainers.items()}
     return overrides
+
+
+def _trainer_mon(data, mon, species):
+    """``mon`` as ``species``. Gen II parties with explicit moves get that species' default moveset."""
+    mon = dict(mon, species=species)
+    if 'moves' in mon:
+        mon['moves'] = default_moves(data.learnsets.get(species, []), mon['level'])
+    return mon
+
+
+def default_moves(learnset, level):
+    """The four moves a wild or trainer Pokemon at ``level`` knows, as the cartridge fills them.
+
+    Each learnset move up to ``level`` goes into the next free slot, or pushes out the oldest
+    move once all four are full. A move already known is skipped. Empty slots are 0.
+    """
+    moves = []
+    for learned, move in learnset:
+        if learned <= level and move and move not in moves:
+            moves = (moves + [move])[-4:]
+    return moves + [0] * (4 - len(moves))
 
 
 def randomize(rom_data, seed, options=None, gates=None):

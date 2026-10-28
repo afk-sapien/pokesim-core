@@ -131,3 +131,16 @@ def test_randomized_cartridge_patches_and_reads_back(version):
     assert not randomizer.missing_hm_learners(effective)
     patched = romdata.patch_rom(rom, overrides)
     assert romdata.load(patched, version=version).canonical() == effective.canonical()
+
+
+@pytest.mark.parametrize('version', sorted(DIGESTS))
+def test_shuffled_trainer_moves_are_learnable(version):
+    data = romdata.load(_rom(version))
+    for seed in (12345, 2024):
+        effective = data.with_overrides(randomizer.randomize(data, seed, randomizer.Options(trainers=True)))
+        parties = [mon for trainer in effective.trainers.values() for mon in trainer['party']]
+        with_moves = [mon for mon in parties if 'moves' in mon]
+        assert bool(with_moves) == (data.generation == 2)
+        for mon in with_moves:
+            known = {move for level, move in data.learnsets[mon['species']] if level <= mon['level']}
+            assert len(mon['moves']) == 4 and set(mon['moves']) - {0} <= known, (version, seed, mon)

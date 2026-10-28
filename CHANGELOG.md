@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.1
+
+### Fixed
+
+- Shuffling Gen II trainer parties now gives each party member with explicit
+  moves the default moveset of its new species, read from the cartridge's
+  learnset. Before, the new species kept the old species' moves. Gen I parties
+  and draws without trainers are unchanged, so their share codes still give the
+  same overrides.
+
+### Added
+
+- `randomizer.default_moves(learnset, level)` returns the four moves the
+  cartridge fills for a Pokemon at a level.
+
 ## 0.9.0
 
 ### Changed
