@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.3
+
+### Fixed
+
+- Gold and Silver no longer read in-game screens as `title`. 0.9.2 took the play
+  time flag from the wrong address, so Bill's PC, battles and dialogue could read
+  as the title and stall `change_box`. The flag is now `wGameTimerPaused` at
+  0xD8B8, found from the cartridge's own game timer code, and the title also needs
+  the map to be still (`hMapAnims` clear). Crystal is unchanged.
+
 ## 0.9.2
 
 ### Fixed

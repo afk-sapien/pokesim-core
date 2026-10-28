@@ -3,6 +3,8 @@
 Collected only when POKESIM_CORE_ROMS (red.gb, blue.gb, yellow.gb) or POKESIM_CORE_GEN2_ROMS
 (gold.gbc, silver.gbc, crystal.gbc) names a folder of ROMs. Each cartridge boots with an empty
 save, shows the intro and title, opens the NEW GAME menu on START and reaches the overworld.
+POKESIM_CORE_SHORTCUT_STATES adds in-game states, such as Bill's PC on Gold and Silver,
+that must never read as the title or the main menu.
 """
 import io
 import os
@@ -71,3 +73,32 @@ def test_a_new_game_reads_as_the_overworld(version):
         assert current_screen(emulator.memory, version) == 'overworld'
     finally:
         emulator.stop(save=False)
+
+
+STATES = os.environ.get('POKESIM_CORE_SHORTCUT_STATES')
+# Bill's PC Change Box, a wild battle and the overworld, where 0.9.2 read Gold and Silver as the title.
+IN_GAME = ['gold-billspc-changebox.state', 'silver-billspc-changebox.state', 'gold-route34-wild-battle.state',
+           'gold-goldenrod-overworld.state', 'silver-np-gate-overworld.state', 'crystal-league-overworld.state',
+           'red-navigation-wild-battle.state', 'yellow-fuchsia-overworld.state']
+
+
+@pytest.mark.parametrize('state', IN_GAME)
+def test_in_game_screens_never_read_as_pre_game(state):
+    if not STATES or not (Path(STATES) / state).exists():
+        pytest.skip(f'set POKESIM_CORE_SHORTCUT_STATES to a folder holding {state}')
+    version = state.split('-')[0]
+    rom = _rom(version)
+    # A presses page through dialogue and battle text. The rest open and close menus.
+    for plan in (['a'] * 30, ['start', 'down', 'a', None, 'b', 'b', 'down', 'down', 'a', 'a', 'b', 'b', 'b']):
+        emulator = _boot(rom, version)
+        try:
+            emulator.load((Path(STATES) / state).read_bytes())
+            seen = []
+            for button in plan:
+                gen1_save.press(emulator, button, 6)
+                for _ in range(4):
+                    emulator.tick(4, False, False)
+                    seen.append(current_screen(emulator.memory, version))
+            assert not {'title', 'main_menu'} & set(seen), seen
+        finally:
+            emulator.stop(save=False)

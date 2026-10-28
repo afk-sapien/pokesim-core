@@ -41,10 +41,12 @@ UI_SYMBOLS = {
     'wPCItems': (0xD617, 0xD8F2),
     'wPlayerSubStatus5': (0xCB4A, 0xC66C),
     'wCurMoveNum': (0xCFC7, 0xD0D5),
+    # Bit 0 counts play time. Reset clears it and only a started game sets it.
+    'wGameTimerPaused': (0xD8B8, 0xCFBC),
 }
 LCDC = 0xFF40
-# Bit 0 of wGameTimerPaused counts play time. Reset clears it and only a started game sets it.
-W_GAME_TIMER_PAUSED = {'gold': 0xCFE5, 'silver': 0xCFE5, 'crystal': 0xCFBC}
+# hMapAnims is 1 while the overworld animates. The intro, title and main menu never set it.
+H_MAP_ANIMS = {'gold': 0xFFE0, 'silver': 0xFFE0, 'crystal': 0xFFDE}
 # Tiles.
 BOX_TL, BOX_H, BOX_TR, BOX_V, BOX_BL, BOX_BR = 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E
 CURSOR, IDLE_CURSOR, MORE = 0xED, 0xEC, 0xEE
@@ -105,9 +107,9 @@ class View:
         except (TypeError, IndexError, KeyError, ValueError):
             return True
 
-    def started(self):
-        """True once the game counts play time, so never on the intro, title or main menu."""
-        return bool(self.raw[W_GAME_TIMER_PAUSED[self.version]] & 1)
+    def pre_game(self):
+        """True on the intro, title and main menu: play time is not counting and the map is not animating."""
+        return not self.byte('wGameTimerPaused') & 1 and not self.raw[H_MAP_ANIMS[self.version]]
 
 
 def rows_of(view):
@@ -282,7 +284,7 @@ def classify(view, rows=None):
             return 'mart_list', extra
         if x == 4 and y in (2, 4, 6, 8) and view.tile(0, 0) == BOX_TL and view.tile(0, 11) == BOX_BL:
             return 'pc_items', extra
-        if not battle and not view.started() and not pregame_menu(rows):
+        if not battle and view.pre_game() and not pregame_menu(rows):
             return 'title', extra
         return 'menu', extra
     if bills_list(view, rows):
@@ -292,7 +294,7 @@ def classify(view, rows=None):
         return 'quantity', extra
     if text or battle:
         return 'dialogue', extra
-    if not view.started():
+    if view.pre_game():
         return 'title', extra
     if roster(view, rows):
         return 'party', extra
