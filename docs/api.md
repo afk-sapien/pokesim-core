@@ -380,6 +380,9 @@ that runs it on a port.
   version=None)`, `list_moves(memory, slot, version=None)`, `list_box(memory,
   box=None, version=None)` and `current_screen(memory, version=None)`. Screen names
   are in `shortcuts.SCREENS`.
+- Before a game starts, the intro and title screens are `title` and the CONTINUE or
+  NEW GAME menu is `main_menu`, in all six games. The play time flag tells them
+  apart from a loaded game, because a soft reset can keep the last game in WRAM.
 
 Gen 2 (Gold, Silver, Crystal):
 

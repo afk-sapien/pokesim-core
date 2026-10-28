@@ -14,6 +14,7 @@ from pokecore.shortcuts import (RunAway, buy_item, change_box, choose_move, depo
                                     release_pokemon, reorder_party, run_away, sell_item, switch_pokemon,
                                     tm_number, toss_item, use_field_move, use_item, withdraw_item,
                                     withdraw_pokemon)
+from pokecore.shortcuts import current_screen
 from pokecore.shortcuts.screens import _quantity, menu_rows, text_lines
 from pokecore.gen1_ui import read_screen
 
@@ -693,6 +694,31 @@ def test_screen_helpers_read_contractions_glyph_pairs_and_quantity_boxes():
     memory[W_TILEMAP + 9 * 20 + 7] = 0x79
     put(memory, 8, 10, '×03')
     assert _quantity(read_screen(memory))
+
+
+@pytest.mark.parametrize('version', ['red', 'yellow'])
+def test_pre_game_screens_read_the_play_time_flag(version):
+    memory = bytearray(0x10000)
+    memory[0xFF40], memory[0xFF47] = 0x80, 0xE4
+    # Yellow keeps wStatusFlags6 one byte below Red.
+    flags = 0xD732 if version == 'red' else 0xD731
+    memory[W_TILEMAP:W_TILEMAP + 360] = bytes([0x7F]) * 360
+    memory[flags] = 1
+    assert current_screen(memory, version=version) == 'overworld'
+    # A soft reset can leave the last game in WRAM but clears the play time flag.
+    memory[flags] = 0
+    assert current_screen(memory, version=version) == 'title'
+    memory[0xCC24], memory[0xCC25], memory[0xCC28] = 2, 0, 1
+    memory[W_TILEMAP + 2 * 20] = 0xED
+    put(memory, 1, 2, 'NEW GAME')
+    put(memory, 1, 4, 'OPTION')
+    assert current_screen(memory, version=version) == 'main_menu'
+    # Title art can show a cursor tile beside stray font tiles.
+    put(memory, 1, 2, 'ABCDEFGH')
+    put(memory, 1, 4, 'IJKLMN')
+    assert current_screen(memory, version=version) == 'title'
+    memory[flags] = 1
+    assert current_screen(memory, version=version) == 'menu'
 
 
 def test_use_item_keeps_the_old_keyword_names():

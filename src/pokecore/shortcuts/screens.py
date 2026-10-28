@@ -4,6 +4,12 @@
 writes memory and never guesses a menu from a nickname: party rows must match the
 owned party, and menu words are matched against whole visible rows.
 
+Before the game starts, the intro and title screen are ``title`` and the CONTINUE and
+NEW GAME menu is ``main_menu``. A soft reset can keep the last game in WRAM, so the
+title is told apart by the play time flag only a started game sets: bit 0 of
+``wStatusFlags6`` in Gen 1 and of ``wGameTimerPaused`` in Gen 2. Text boxes are read
+first, so Oak's speech before a new game is ``dialogue``.
+
 ``continue_ready`` recognizes the cartridge's continue-only text wait from live
 stack words, the same check PokeBench uses, so callers never press A on a menu.
 """
@@ -19,7 +25,18 @@ from .items import generation
 SCREENS = ('overworld', 'dialogue', 'transition', 'naming', 'battle_menu', 'move_menu', 'move_list',
            'pause', 'bag', 'item_action', 'party', 'party_action', 'item_target', 'yes_no',
            'switch_prompt', 'quantity', 'mart', 'mart_list', 'pc', 'bills_pc', 'players_pc',
-           'pc_items', 'pc_party', 'pc_box', 'pc_mon_action', 'fly_map', 'menu', 'unknown', 'unsupported')
+           'pc_items', 'pc_party', 'pc_box', 'pc_mon_action', 'fly_map', 'menu', 'title', 'main_menu', 'unknown',
+           'unsupported')
+# Bit 0 of wStatusFlags6 counts play time. Init clears it and only a started game sets it.
+W_STATUS_FLAGS_6 = 0xD732
+# Whole menu rows of the CONTINUE, NEW GAME and OPTION menu shown before the game starts.
+MAIN_MENU_WORDS = ({'CONTINUE', 'NEWGAME'}, {'NEWGAME', 'OPTION'})
+
+
+def pregame_menu(rows):
+    """True for the OPTION screen. Title art can hold a cursor tile, so other pre-game menus are the title."""
+    return any('TEXT SPEED' in row for row in rows)
+
 
 # wListPointer values (Red, Yellow) for each ITEMLISTMENU or PCPOKEMONLISTMENU list.
 _LISTS = {'bag': (0xD31D, 0xD31C), 'pc_items': (0xD53A, 0xD539), 'pc_party': (0xD163, 0xD162),
@@ -174,6 +191,8 @@ def current_screen(memory, ui=None, *, version=None):
         if cursor[0] == 5 and memory[0xCC24] in (7, 8) and memory[0xCC28] <= 5:
             return 'move_list'
         choices = {normalize(option['text']) for option in menu_rows(memory, screen)}
+        if not battle and any(words <= choices for words in MAIN_MENU_WORDS):
+            return 'main_menu'
         if {'USE', 'TOSS'} <= choices:
             return 'item_action'
         if {'STATS', 'SWITCH', 'CANCEL'} <= choices:
@@ -194,11 +213,15 @@ def current_screen(memory, ui=None, *, version=None):
             return 'switch_prompt' if battle and 'CHANGEPOK' in text else 'yes_no'
         if battle and cursor[0] == 5 and 13 <= cursor[1] <= 16:
             return 'move_menu'
+        if not battle and not memory[W_STATUS_FLAGS_6] & 1 and not pregame_menu(rows):
+            return 'title'
         return 'menu'
     if _quantity(screen) and (not rows[14][1:10].strip() or normalize(rows[14]) in _QUANTITY_PROMPTS):
         return 'quantity'
     if screen['textbox'] or battle:
         return 'dialogue'
+    if not memory[W_STATUS_FLAGS_6] & 1:
+        return 'title'
     if screen['pause']:
         return 'transition'
     if memory[0xC102] == 255:
