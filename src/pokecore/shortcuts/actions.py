@@ -1004,8 +1004,11 @@ class PCShortcut(GameShortcut):
                 return
             # Gen 1 leaves the PC menu visible behind this acknowledgment.
             # A port without stack readiness therefore still classifies it as PC.
+            # BILL's PC waits after each of its two lines.
             if (self.gen == 1 and self.obs.screen == 'pc'
-                    and normalize(self.obs.text) in ('ACCESSEDMYPC', 'ACCESSEDITEMSTORAGESYSTEM')):
+                    and normalize(self.obs.text).endswith(('ACCESSEDMYPC', 'ACCESSEDITEMSTORAGESYSTEM',
+                                                           'ACCESSEDBILLSPC', 'ACCESSEDSOMEONESPC',
+                                                           'ACCESSEDPOKEMONSTORAGESYSTEM'))):
                 yield 'a'
             else:
                 yield from self.text_or_wait()

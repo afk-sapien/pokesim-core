@@ -509,12 +509,14 @@ class Shortcut:
     def list_wait(self):
         """Whether a list stopped mid-draw at a nickname holding <CONT> (0x55) until A or B.
 
-        Gen 1 shows the wait as text. Gen 2 keeps the box list on screen, so it reads the
-        stack when the caller passes ``sp`` and otherwise the blinking ▼ on a PC list.
+        Gen 1 trusts the stack when the caller passes ``sp``. Yellow draws the list off
+        screen during the wait, so without ``sp`` only a wait read as dialogue counts.
+        Gen 2 keeps the box list on screen, so it reads the stack when the caller
+        passes ``sp`` and otherwise the blinking ▼ on a PC list.
         """
         obs = self.obs
         if self.gen == 1:
-            return obs.screen == 'dialogue' and self.ready()
+            return obs.screen == 'dialogue' and self.ready() if obs.ready is None else bool(obs.ready)
         if obs.ui.get('sp') is not None:
             return gen2ui.cont_wait(obs.raw, obs.ui['sp'])
         return obs.screen in ('pc_box', 'pc_party') and bool(obs.ready)

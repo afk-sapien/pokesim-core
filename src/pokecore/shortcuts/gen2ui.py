@@ -373,21 +373,27 @@ _CONT_CACHE = {}
 
 
 def cont_wait(memory, sp):
-    """True while text waits for A or B at the ▼ that <CONT> (0x55) prints.
+    """True while text waits for A or B at a ▼ that the text engine prints.
 
     ``memory`` is raw emulator memory and ``sp`` the CPU stack pointer. Box nicknames
-    print without CorrectNickErrors, so a traded 0x55 stops the Bill's PC list mid-draw.
-    Only live stack words are read. False when the routine is not found.
+    print without CorrectNickErrors, so a traded <CONT> (0x55), <PARA> (0x51) or
+    <PROMPT> (0x58) stops the Bill's PC list mid-draw. PromptButton is found from
+    _ContText, and every home bank call to it is a continue-only text wait. Only live
+    stack words are read. False when the routine is not found.
     """
     if not 0xC000 <= sp < 0xE000:
         return False
     header = bytes(memory[0x134:0x150])
     if header not in _CONT_CACHE:
-        found = list(re.finditer(_CONT_WAIT, bytes(memory[0:0x4000]), re.DOTALL))
-        _CONT_CACHE[header] = found[0].end() - 5 if len(found) == 1 else None
-    address = _CONT_CACHE[header]
-    return address is not None and any(memory[p] + 256 * memory[p + 1] == address
-                                       for p in range(sp, min(sp + 80, 0xDFFF), 2))
+        home = bytes(memory[0:0x4000])
+        found = list(re.finditer(_CONT_WAIT, home, re.DOTALL))
+        returns = frozenset()
+        if len(found) == 1:
+            call = found[0].group()[10:13]
+            returns = frozenset(match.end() for match in re.finditer(re.escape(call), home))
+        _CONT_CACHE[header] = returns
+    returns = _CONT_CACHE[header]
+    return any(memory[p] + 256 * memory[p + 1] in returns for p in range(sp, min(sp + 80, 0xDFFF), 2))
 
 
 def fly_destination(view):

@@ -618,6 +618,28 @@ def test_deposit_and_withdraw_pokemon():
     assert 'box position' in withdraw_pokemon(game.port(), 3)['outcome']
 
 
+def test_bills_pc_two_line_acknowledgment_over_visible_menu_without_readiness():
+    game = pc_game([mon('ONE')], 2)
+    game.choices[('pc', "BILL's PC")] = lambda: game.show("Accessed BILL's PC.")
+    acknowledgments = iter(['Accessed POKéMON Storage System.', None])
+
+    def acknowledge():
+        text = next(acknowledgments)
+        game.show(text) if text else game.go('bills_pc')
+
+    game.a['pc'] = acknowledge
+    game.choices[('bills_pc', 'WITHDRAW PKMN')] = 'pc_box'
+    game.a['pc_box'] = lambda: game.go('pc_mon_action')
+    game.choices[('pc_mon_action', 'WITHDRAW')] = lambda: (
+        game.party.append(mon('BOXED')), game.sync(), game.memory.__setitem__(0xDA80, 1),
+        game.say('BOXED is taken out.', then='bills_pc'))
+    port = game.port()
+    port.continue_ready = lambda: None
+    result = withdraw_pokemon(port, 1)
+    assert result['control']['completed'] and len(game.party) == 2
+    assert game.inputs[:4] == ["BILL's PC", 'a', 'a', 'WITHDRAW PKMN']
+
+
 def test_release_needs_the_flag_and_confirms():
     game = pc_game([mon('ONE')], 2)
     with pytest.raises(ValueError):
