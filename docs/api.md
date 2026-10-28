@@ -85,6 +85,10 @@ deterministic: the same `GameData`, seed and options always give the same map.
   species per seed and applies it to the chosen parts. Levels never change, so
   `romdata.patch_rom` can write the result. The seed is a whole number from 0 to
   2**64 - 1. Bad seeds raise `ValueError`.
+- A shuffled Gen II party member that has explicit moves gets the new species'
+  default moveset from the cartridge's learnset, as `default_moves(learnset,
+  level)` fills it: the last four distinct moves learned at or below the level,
+  padded with 0. Gen I parties carry no moves and keep the cartridge's defaults.
 - When wild encounters are randomized, a draw is kept only if every HM the story
   requires has a wild learner catchable before the game asks for it. Otherwise it
   draws again, up to `MAX_DRAWS`, then raises `RuntimeError`. Only wild slots

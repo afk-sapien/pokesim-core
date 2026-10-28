@@ -98,6 +98,45 @@ def test_missing_hm_learners():
     assert randomizer.missing_hm_learners(game(surfers=(4, 1)), ((SURF, ('grass:9', 'water:2')),)) == [SURF]
 
 
+def learnable(data, mon):
+    """True when every move ``mon`` knows is in its species' learnset at or below its level."""
+    known = {move for level, move in data.learnsets.get(mon['species'], []) if level <= mon['level']}
+    return all(move == 0 or move in known for move in mon['moves'])
+
+
+def test_default_moves_fill_like_the_cartridge():
+    learnset = [[1, 33], [1, 45], [4, 39], [7, 33], [9, 52], [12, 98], [15, 44], [50, 1]]
+    assert randomizer.default_moves(learnset, 1) == [33, 45, 0, 0]
+    assert randomizer.default_moves(learnset, 9) == [33, 45, 39, 52]
+    assert randomizer.default_moves(learnset, 15) == [39, 52, 98, 44]
+    assert randomizer.default_moves([], 30) == [0, 0, 0, 0]
+
+
+def test_gen2_trainer_moves_follow_the_new_species():
+    data = game('gold')
+    tables = data.as_dict()
+    tables['learnsets'] = {number: [[1, number * 10], [5, number * 10 + 1], [9, number * 10 + 2]]
+                           for number in range(1, 7)}
+    tables['trainers']['2:1'] = {'class': 2, 'index': 1, 'party': [
+        {'level': 6, 'species': 1, 'item': 0, 'moves': [10, 11, 0, 0]},
+        {'level': 9, 'species': 3, 'item': 0, 'moves': [30, 31, 32, 0]}]}
+    data = GameData('gold', tables)
+    for seed in range(30):
+        effective = data.with_overrides(randomizer.randomize(data, seed, Options(trainers=True), gates=()))
+        for trainer in effective.trainers.values():
+            for mon in trainer['party']:
+                if 'moves' in mon:
+                    assert len(mon['moves']) == 4 and learnable(effective, mon)
+                    assert mon['moves'] == randomizer.default_moves(effective.learnsets[mon['species']], mon['level'])
+
+
+def test_gen1_parties_have_no_explicit_moves():
+    data = game()
+    overrides = randomizer.randomize(data, 4, Options(trainers=True), gates=GATES)
+    assert all(set(mon) == {'level', 'species'} for trainer in overrides['trainers'].values()
+               for mon in trainer['party'])
+
+
 def test_impossible_gates_raise():
     with pytest.raises(RuntimeError, match='No draw'):
         randomizer.randomize(game(surfers=()), 1, gates=GATES)
