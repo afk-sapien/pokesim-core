@@ -106,6 +106,8 @@ class Mon:
     data: object = field(default=None, repr=False, compare=False)
     pokerus: int = 0
     caught: int = 0
+    # The nickname as stored. A traded name can hold control codes, such as <CONT> (0x55), that ``nick`` drops.
+    nick_bytes: bytes = field(default=b'', repr=False)
 
     @property
     def name(self):
@@ -223,7 +225,7 @@ def decode_mon(raw, name, data, *, egg=False, box=None, position=None):
     return Mon(species, data.text(name), level, hp, stats[0], status, raw[1], moves,
                tuple(value & 63 for value in raw[23:27]), max_pp, stats,
                int.from_bytes(raw[8:11], 'big'), dvs, training, int.from_bytes(raw[6:8], 'big'),
-               raw[27], egg, box, position, data, raw[28], int.from_bytes(raw[29:31], 'big'))
+               raw[27], egg, box, position, data, raw[28], int.from_bytes(raw[29:31], 'big'), bytes(name))
 
 
 @dataclass(frozen=True)

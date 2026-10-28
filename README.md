@@ -24,10 +24,10 @@ pip install "pyboy-rs @ $base/$wheel#sha256=$sha"
 ```
 
 Then Core, with the hash from the
-[release's](https://github.com/afk-sapien/pokesim-core/releases/tag/v0.9.3) `SHA256SUMS.txt`:
+[release's](https://github.com/afk-sapien/pokesim-core/releases/tag/v0.9.4) `SHA256SUMS.txt`:
 
 ```bash
-pip install "pokecore[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.9.3/pokecore-0.9.3-py3-none-any.whl#sha256=<sha256>"
+pip install "pokecore[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.9.4/pokecore-0.9.4-py3-none-any.whl#sha256=<sha256>"
 ```
 
 ## Example

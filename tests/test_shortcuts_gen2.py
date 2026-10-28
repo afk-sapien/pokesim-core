@@ -1619,3 +1619,56 @@ def test_party_checks_accept_a_reader_without_the_egg_field():
     game = pc_game()
     result = deposit_pokemon(game.port(read_party=without_egg_field(game)), 1)
     assert done(result) and [m['nick'] for m in game.box] == ['ROCK', 'BIRD', 'TWO'], result
+
+
+# A traded nickname holding <CONT> (0x55) ----------------------------------------------
+
+def cont_memory(header):
+    """Raw memory holding _ContText at 0x1200, whose PromptButton returns to 0x120D."""
+    raw = bytearray(0x10000)
+    raw[0x134:0x13C] = header
+    raw[0x1200:0x1212] = bytes.fromhex('b72003cd0000cd0000d5cd0000d1fa0000b7')
+    return raw
+
+
+def test_cont_wait_reads_the_prompt_return_from_live_stack_words():
+    raw = cont_memory(b'CONTTEST')
+    assert not gen2ui.cont_wait(raw, 0xDF00)
+    raw[0xDF06:0xDF08] = (0x120D).to_bytes(2, 'little')
+    assert gen2ui.cont_wait(raw, 0xDF00)
+    # Words below the stack pointer are dead, and a stack outside WRAM is never read.
+    assert not gen2ui.cont_wait(raw, 0xDF08) and not gen2ui.cont_wait(raw, 0xFFFE)
+    # A cartridge without the routine never reports the wait.
+    empty = bytearray(0x10000)
+    empty[0x134:0x13C], empty[0xDF00:0xDF02] = b'NOROUTIN', (0x120D).to_bytes(2, 'little')
+    assert not gen2ui.cont_wait(empty, 0xDF00)
+
+
+def test_box_list_presses_a_through_a_cont_wait():
+    """Scrolling Bill's PC redraws the names, and the 0x55 one stops the list until A."""
+    from types import SimpleNamespace
+
+    from pokecore.shortcuts import WithdrawPokemon
+    raw = cont_memory(b'CONTLIST')
+    machine = WithdrawPokemon(5, version='gold')
+    position = [0]
+
+    def look(waiting):
+        raw[0xDF00:0xDF02] = (0x120D if waiting else 0).to_bytes(2, 'little')
+        machine.obs = SimpleNamespace(screen='pc_box', ui={'sp': 0xDF00}, raw=raw, ready=None)
+
+    look(False)
+    flow = machine.move_index(5, lambda obs: position[0])
+    pressed = []
+    try:
+        button = next(flow)
+        while True:
+            pressed.append(button)
+            if button == 'down':
+                position[0] += 1
+            # Every move that scrolls the 0x55 name back into view stops the list again.
+            look(button == 'down' and position[0] >= 3)
+            button = flow.send(None)
+    except StopIteration as stop:
+        assert stop.value is True
+    assert pressed == ['down', 'down', 'down', 'a', 'down', 'a', 'down', 'a'], pressed

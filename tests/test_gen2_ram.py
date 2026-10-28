@@ -168,6 +168,16 @@ def test_mon_shiny_and_gender():
     assert gen2.decode_mon(bytes(32), b'', data) is None
 
 
+def test_mon_keeps_the_stored_nickname_bytes():
+    # WETFUND<CONT>ll: a traded nickname holding 0x55 stays visible to callers.
+    data = SimpleNamespace(species={1: {'stats': [45] * 6, 'gender_ratio': 31}}, moves={}, text=lambda raw: '')
+    name = bytes([0x96, 0x84, 0x93, 0x85, 0x94, 0x8D, 0x83, 0x55, 0x8B, 0x8B, 0x50])
+    raw = bytearray(32)
+    raw[0], raw[31] = 1, 5
+    mon = gen2.decode_mon(bytes(raw), name, data)
+    assert mon.nick_bytes == name and 'nick_bytes' not in mon.to_dict()
+
+
 def test_version_of_rejects_unknown_roms():
     try:
         gen2.version_of(bytes(32 * 16384))
