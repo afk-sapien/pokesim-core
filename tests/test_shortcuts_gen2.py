@@ -1624,10 +1624,14 @@ def test_party_checks_accept_a_reader_without_the_egg_field():
 # A traded nickname holding <CONT> (0x55) ----------------------------------------------
 
 def cont_memory(header):
-    """Raw memory holding _ContText at 0x1200, whose PromptButton returns to 0x120D."""
+    """Raw memory holding _ContText at 0x1200, whose PromptButton (0x0A60) call returns to 0x120D.
+
+    A <PARA> handler at 0x1180 calls PromptButton too and returns to 0x1183.
+    """
     raw = bytearray(0x10000)
     raw[0x134:0x13C] = header
-    raw[0x1200:0x1212] = bytes.fromhex('b72003cd0000cd0000d5cd0000d1fa0000b7')
+    raw[0x1200:0x1212] = bytes.fromhex('b72003cd5009cd7009d5cd600ad1fa0000b7')
+    raw[0x1180:0x1183] = bytes.fromhex('cd600a')
     return raw
 
 
@@ -1636,6 +1640,10 @@ def test_cont_wait_reads_the_prompt_return_from_live_stack_words():
     assert not gen2ui.cont_wait(raw, 0xDF00)
     raw[0xDF06:0xDF08] = (0x120D).to_bytes(2, 'little')
     assert gen2ui.cont_wait(raw, 0xDF00)
+    # Any text engine call to PromptButton counts, and the other calls in _ContText do not.
+    for address, waiting in ((0x1183, True), (0x1206, False), (0x1209, False)):
+        raw[0xDF06:0xDF08] = address.to_bytes(2, 'little')
+        assert gen2ui.cont_wait(raw, 0xDF00) is waiting, hex(address)
     # Words below the stack pointer are dead, and a stack outside WRAM is never read.
     assert not gen2ui.cont_wait(raw, 0xDF08) and not gen2ui.cont_wait(raw, 0xFFFE)
     # A cartridge without the routine never reports the wait.

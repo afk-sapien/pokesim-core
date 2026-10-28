@@ -229,10 +229,11 @@ def current_screen(memory, ui=None, *, version=None):
     return 'overworld'
 
 
-# Offsets of the return addresses inside the pinned text-wait routine.
+# The text-wait routine. Its calls return to the empty groups, and the link cable
+# branch (one call on Red and Blue, a far call between pushes on Yellow) to ``link``.
 _TEXT_WAIT = (rb'\xf0(.)\xf5\xf0(.)\xf5\xaf\xe0\1\x3e\x06\xe0\2'
-              rb'\xe5\xfa..\xa7\x28\x03\xcd..\x21..\xcd..\xe1\xcd..'
-              rb'\x3e\x2d\xcd..\xf0.\xe6\x03\x28\xe1\xf1\xe0\2\xf1\xe0\1\xc9')
+              rb'\xe5\xfa..\xa7\x28(?P<skip>.)(?P<link>.{3,16}?)\x21..\xcd..(?P<arrow>)\xe1\xcd..(?P<joypad>)'
+              rb'\x3e\x2d\xcd..(?P<delay>)\xf0.\xe6\x03\x28.\xf1\xe0\2\xf1\xe0\1\xc9')
 _POKEDEX_WAIT = rb'\xcd..\xf0.\xe6\x03\x28\xf7\xf1\xe0.\xcd..\xcd..\xcd..\xcd..\xcd..'
 _WAIT_CACHE = {}
 
@@ -245,8 +246,14 @@ def _wait_returns(memory):
     cached = _WAIT_CACHE.get(header) if header is not None else None
     if cached is not None:
         return cached
-    matches = list(re.finditer(_TEXT_WAIT, bytes(memory[0:0x4000]), re.DOTALL))
-    text = {matches[0].start() + offset for offset in (23, 29, 33, 38)} if len(matches) == 1 else set()
+    matches = [m for m in re.finditer(_TEXT_WAIT, bytes(memory[0:0x4000]), re.DOTALL)
+               if m.group('skip')[0] == len(m.group('link'))]
+    text = set()
+    if len(matches) == 1:
+        found = matches[0]
+        text = {found.start(name) for name in ('arrow', 'joypad', 'delay')}
+        link = found.group('link')
+        text |= {found.start('link') + i + 3 for i in range(len(link) - 2) if link[i] == 0xCD}
     pokedex = set()
     for bank in (16, 15, 17, 18):
         try:
@@ -267,11 +274,16 @@ def continue_ready(memory, sp):
     """True when the game waits for A or B only to continue printed text.
 
     ``sp`` is the CPU stack pointer (``emulator.register_file.SP``). Only live stack
-    words are inspected. Returns False when the routine is not found.
+    words are inspected. Returns None when the routine is not found, so shortcuts
+    fall back to text that stopped changing. Yellow's Red-layout memory is read
+    through to the raw stack, since its shifted WRAM would misalign the words.
     """
     if not 0xC000 <= sp < 0xE000:
         return False
+    memory = getattr(memory, 'raw', memory)
     text, pokedex = _wait_returns(memory)
+    if not text:
+        return None
     live = {memory[p] + 256 * memory[p + 1] for p in range(sp, min(sp + 80, 0xDFFF), 2)}
     return bool(live & text or live & pokedex)
 

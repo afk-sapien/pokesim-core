@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.5
+
+### Fixed
+
+- Yellow's Bill's PC opens without `sp`. It waits after both lines of "Accessed
+  BILL's PC." and "Accessed POKéMON Storage System.", and the shortcut used to stop
+  with "The PC did not open." after the first.
+- Yellow stack readiness. `continue_ready` now finds Yellow's text wait routine, whose
+  link cable branch differs from Red and Blue, and reads the raw stack, since the
+  Red-layout view shifts WRAM by one byte.
+- Gen 2 Bill's PC lists press A through nicknames holding `<PARA>` (0x51) or
+  `<PROMPT>` (0x58). Any text engine call to PromptButton now counts as a wait.
+- Gen 1 PC lists trust known stack readiness off the dialogue screen. Yellow draws
+  the list off screen during a `<CONT>` wait.
+
+### Changed
+
+- `continue_ready` returns None instead of False when the text wait routine is not
+  found, so shortcuts fall back to text that stopped changing.
+
 ## 0.9.4
 
 ### Fixed

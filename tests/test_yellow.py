@@ -2,6 +2,7 @@ import pytest
 
 from pokecore import gen1, gen1_ui, yellow
 from pokecore.cartridges import by_version
+from pokecore.shortcuts import screens
 
 
 def yellow_memory():
@@ -29,6 +30,21 @@ def test_address_translation():
     assert yellow.address(0xFFF4) == 0xFFF9
     assert yellow.address(0xFFF8) == 0xFFF5
     assert yellow.address(0xFFF5) == 0xFFF5
+
+
+def test_continue_ready_finds_the_yellow_text_wait_through_the_raw_stack():
+    raw = bytearray(65536)
+    raw[0x134:0x13C] = b'YELWAIT!'
+    # Yellow's text wait, operands zeroed. Its link cable branch pushes around a far call.
+    raw[0x3852:0x388E] = bytes.fromhex('f08bf5f08cf5afe08b3e06e08ce5fa0000a7280cd5c52100000600cd0000c1d1'
+                                       '210000cd0000e1cd00003e2dcd0000f000e6032800f1e08cf1e08bc9')
+    view = yellow.RedLayoutMemory(raw)
+    sp = 0xDE00
+    assert screens.continue_ready(view, sp) is False
+    for wait in (0x3870, 0x3878, 0x387C, 0x3881):
+        raw[sp + 4:sp + 6] = wait.to_bytes(2, 'little')
+        assert screens.continue_ready(view, sp) is True, hex(wait)
+    assert screens.continue_ready(bytearray(65536), sp) is None
 
 
 def test_red_layout_view_reads_and_writes():
