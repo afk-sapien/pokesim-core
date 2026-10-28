@@ -367,6 +367,29 @@ def ready(view):
     return True if view.tile(18, 17) == MORE else None
 
 
+# _ContText: ld a, [wLinkMode] / or a / jr nz / ... / push de / call PromptButton / pop de / ld a, [wLinkMode] / or a.
+_CONT_WAIT = rb'\xb7\x20\x03\xcd..\xcd..\xd5\xcd..\xd1\xfa..\xb7'
+_CONT_CACHE = {}
+
+
+def cont_wait(memory, sp):
+    """True while text waits for A or B at the ▼ that <CONT> (0x55) prints.
+
+    ``memory`` is raw emulator memory and ``sp`` the CPU stack pointer. Box nicknames
+    print without CorrectNickErrors, so a traded 0x55 stops the Bill's PC list mid-draw.
+    Only live stack words are read. False when the routine is not found.
+    """
+    if not 0xC000 <= sp < 0xE000:
+        return False
+    header = bytes(memory[0x134:0x150])
+    if header not in _CONT_CACHE:
+        found = list(re.finditer(_CONT_WAIT, bytes(memory[0:0x4000]), re.DOTALL))
+        _CONT_CACHE[header] = found[0].end() - 5 if len(found) == 1 else None
+    address = _CONT_CACHE[header]
+    return address is not None and any(memory[p] + 256 * memory[p + 1] == address
+                                       for p in range(sp, min(sp + 80, 0xDFFF), 2))
+
+
 def fly_destination(view):
     return ' '.join(tile_text(view, 2, 18, 1).split())
 

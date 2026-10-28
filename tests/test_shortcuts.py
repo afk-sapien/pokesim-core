@@ -876,3 +876,30 @@ def test_choose_move_recognizes_forced_damage_inside_blocking_label_selection():
     assert done(result), result
     assert result['shortcut']['forced'] == 'locked'
     assert game.inputs.count('FIGHT') == 1
+
+
+def test_box_list_presses_a_through_a_cont_wait():
+    """A box nickname holding <CONT> (0x55) stops the list redraw at a ▼ until A."""
+    from types import SimpleNamespace
+
+    from pokecore.shortcuts import WithdrawPokemon
+    machine = WithdrawPokemon(5)
+    position = [0]
+
+    def look(waiting):
+        machine.obs = SimpleNamespace(screen='dialogue' if waiting else 'pc_box', ui={}, ready=waiting or None)
+
+    look(False)
+    flow = machine.move_index(5, lambda obs: position[0])
+    pressed = []
+    try:
+        button = next(flow)
+        while True:
+            pressed.append(button)
+            if button == 'down':
+                position[0] += 1
+            look(button == 'down' and position[0] >= 3)
+            button = flow.send(None)
+    except StopIteration as stop:
+        assert stop.value is True
+    assert pressed == ['down', 'down', 'down', 'a', 'down', 'a', 'down', 'a'], pressed

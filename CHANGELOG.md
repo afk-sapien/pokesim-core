@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.4
+
+### Fixed
+
+- Bill's PC lists now press A through a nickname holding `<CONT>` (0x55). A traded
+  nickname with that byte stops the list redraw at a ▼ until A or B, so withdraw,
+  release and deposit used to stall with `no_response` on every slot past it. Gen 1
+  sees the wait as text. Gen 2 reads it from the stack when `ui` carries `sp`, and
+  otherwise falls back to the blinking ▼.
+
+### Added
+
+- Gen 2 `Mon.nick_bytes` holds the stored nickname bytes, so callers can spot a
+  `<CONT>` byte or other control codes. It is not part of `to_dict`.
+
 ## 0.9.3
 
 ### Fixed

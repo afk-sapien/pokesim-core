@@ -268,6 +268,8 @@ class Shortcut:
         screen, extra = gen2ui.classify(view, rows)
         screen = ui.get('screen') or screen
         ready = ui.get('continue_ready')
+        if not ready and ui.get('sp') is not None and gen2ui.cont_wait(memory, ui['sp']):
+            ready = True
         if ready is None:
             ready = gen2ui.ready(view)
         return Observation(memory, view, ui, screen, rows, extra['cursor'], extra['battle'], ready,
@@ -489,6 +491,9 @@ class Shortcut:
         """Move a list cursor to ``index`` with up/down. ``current`` reads the cursor index."""
         stuck = 0
         for _ in range(tries or 120):
+            if self.list_wait():
+                yield 'a'
+                continue
             here = current(self.obs)
             if here == index:
                 return True
@@ -500,6 +505,19 @@ class Shortcut:
             else:
                 stuck = 0
         return False
+
+    def list_wait(self):
+        """Whether a list stopped mid-draw at a nickname holding <CONT> (0x55) until A or B.
+
+        Gen 1 shows the wait as text. Gen 2 keeps the box list on screen, so it reads the
+        stack when the caller passes ``sp`` and otherwise the blinking ▼ on a PC list.
+        """
+        obs = self.obs
+        if self.gen == 1:
+            return obs.screen == 'dialogue' and self.ready()
+        if obs.ui.get('sp') is not None:
+            return gen2ui.cont_wait(obs.raw, obs.ui['sp'])
+        return obs.screen in ('pc_box', 'pc_party') and bool(obs.ready)
 
     def pick_list(self, index):
         """Highlight list entry ``index`` (0 based, including scroll) and press A."""
