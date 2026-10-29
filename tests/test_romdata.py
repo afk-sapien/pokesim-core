@@ -6,10 +6,12 @@ from pokecore.romdata import Layout, gen1, gen2
 
 
 class Rom:
-    """Bank 1 of a two-bank cartridge, filled front to back. Addresses equal file offsets."""
+    """Bank 1 of a two-bank cartridge, filled front to back. Addresses equal file offsets.
+    Bank 0 holds only the header title, which ``romdata.load`` checks."""
 
-    def __init__(self):
+    def __init__(self, title):
         self.data = bytearray(0x8000)
+        self.data[0x134:0x134 + len(title)] = title.encode()
         self.at = 0x4000
 
     def put(self, raw):
@@ -30,7 +32,7 @@ def name(text):
 
 
 def gen1_cartridge():
-    rom = Rom()
+    rom = Rom('POKEMON RED')
     dex_order = rom.put([1, 2] + [0] * (gen1.INDEX_COUNT - 2))
     base_stats = rom.put([1, 45, 49, 49, 45, 65, 22, 3, 45, 64] + [0] * 5 + [33, 45, 0, 0, 3, 0b101] + [0] * 6 + [0]
                          + [2, 60, 62, 63, 60, 80, 22, 3, 45, 141] + [0] * 5 + [33, 45, 73, 0, 3, 0b100] + [0] * 6 + [0])
@@ -69,7 +71,7 @@ def gen1_cartridge():
 
 
 def gen2_cartridge():
-    rom = Rom()
+    rom = Rom('POKEMON_GLDAAUE')
     record = [0, 45, 49, 65, 45, 49, 65, 22, 22, 45, 64, 0, 0, 31, 100, 20, 5] + [0] * 5 + [3, 0x17, 0b11] + [0] * 7
     base_stats = rom.put(record + record)
     names = rom.put(name('ALPHA').ljust(10, b'\x50') + name('BETA').ljust(10, b'\x50'))
@@ -290,6 +292,21 @@ def test_load_needs_a_known_cartridge_or_version():
         romdata.load(rom)
     with pytest.raises(ValueError, match='No ROM layout'):
         romdata.load(rom, version='green')
+
+
+@pytest.mark.parametrize('rom, title', [
+    (bytes(0x8000), ''),
+    (b'\0' * 0x134 + b'DEMO GAME' + bytes(0x8000), 'DEMO GAME'),
+    (bytes(0x100), None),
+    (gen1_cartridge()[0], 'POKEMON RED'),
+])
+def test_load_refuses_other_cartridges_before_reading(rom, title, monkeypatch):
+    monkeypatch.setitem(romdata.LAYOUTS, 'gold', gen2_cartridge()[1])
+    for version in (None, 'gold'):
+        with pytest.raises(romdata.UnsupportedCartridge) as refused:
+            romdata.load(rom, version=version)
+        assert refused.value.title == title
+    assert issubclass(romdata.UnsupportedCartridge, ValueError)
 
 
 @pytest.fixture

@@ -45,6 +45,14 @@ class Cartridge:
         return bool(self.cgb & 0x80)
 
 
+class UnsupportedCartridge(ValueError):
+    """The ROM is not a Pokémon cartridge Core can read. ``title`` is its header title, or None."""
+
+    def __init__(self, message, title=None):
+        super().__init__(message)
+        self.title = title
+
+
 @dataclass(frozen=True)
 class Header:
     """Decoded cartridge header fields from 0x134 through 0x14F."""
