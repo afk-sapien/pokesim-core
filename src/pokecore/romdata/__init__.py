@@ -21,13 +21,13 @@ from copy import deepcopy
 import hashlib
 import json
 
-from ..cartridges import identify
+from ..cartridges import UnsupportedCartridge, identify, read_header, resembles
 from . import gen1, gen2
 from .layouts import LAYOUTS, Layout, layout, rom_offset
 from .patch import effective_data, patch_rom
 
-__all__ = ['GameData', 'LAYOUTS', 'Layout', 'OVERRIDE_KEYS', 'effective_data', 'load', 'load_cached', 'layout',
-           'patch_rom', 'rom_offset']
+__all__ = ['GameData', 'LAYOUTS', 'Layout', 'OVERRIDE_KEYS', 'UnsupportedCartridge', 'effective_data', 'load',
+           'load_cached', 'layout', 'patch_rom', 'rom_offset']
 
 FIELDS = ('species', 'evolutions', 'learnsets', 'tm_moves', 'encounters', 'fishing', 'fish_groups', 'trainers',
           'starters')
@@ -200,19 +200,34 @@ def load(rom, version=None) -> GameData:
     """Read game data from ROM bytes.
 
     Without ``version`` the ROM must be a verified clean cartridge. Pass ``version`` to
-    read a modified ROM of that version with the same layout.
+    read a modified ROM of that version with the same layout. Its header title must
+    still name a Pokémon game of that generation. Otherwise, as for an unknown ROM
+    without ``version``, :class:`UnsupportedCartridge` (a ValueError) is raised before
+    anything is read.
     """
     rom = bytes(rom)
     cartridge = identify(rom)
     if version is None:
         if cartridge is None:
-            raise ValueError('Unknown ROM. Pass version= to read a modified cartridge.')
+            raise UnsupportedCartridge(f'Unknown ROM {_title(rom)!r}. Pass version= to read a modified cartridge.',
+                                       _title(rom))
         version = cartridge.version
     elif cartridge is not None and cartridge.version != version:
         raise ValueError(f'This ROM is {cartridge.version}, not {version}')
     found = layout(version)
+    similar = resembles(rom)
+    if cartridge is None and (similar is None or similar.generation != found.generation):
+        raise UnsupportedCartridge(f'{_title(rom)!r} is not a Gen {found.generation} Pokémon cartridge, '
+                                   f'so it cannot be read as {version}', _title(rom))
     reader = gen1 if found.generation == 1 else gen2
     return GameData(version, reader.read(rom, found))
+
+
+def _title(rom):
+    try:
+        return read_header(rom).title
+    except ValueError:
+        return None
 
 
 _LOADED = {}

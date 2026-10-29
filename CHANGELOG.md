@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.1
+
+### Fixed
+
+- `romdata.load` refuses a cartridge that is not a Pokémon game before reading it. It
+  raised IndexError on a short demo ROM passed with `version=`. It now raises the new
+  `UnsupportedCartridge` (a ValueError, also in `pokecore.cartridges`), whose message
+  and `title` name the header title. With `version=` the header title must name a
+  Pokémon game of that generation. Read errors on a Pokémon cartridge are unchanged.
+
 ## 0.10.0
 
 ### Added
