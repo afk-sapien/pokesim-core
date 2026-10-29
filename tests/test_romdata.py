@@ -53,9 +53,18 @@ def gen1_cartridge():
     rom.set_word(trainers + 4, shared)
     trainers_end = rom.at
     starter = rom.put([1])
+    old_rod = rom.put([2, 5])
+    good_rod = rom.put([10, 1, 12, 2])
+    # Map 7 lists a second group, which the game never reaches.
+    group = rom.put([3, 15, 1, 20, 2, 25, 1])
+    other = rom.put([1, 30, 2])
+    super_rod = rom.put([7, 0, 0, 7, 0, 0, 0xFF])
+    rom.set_word(super_rod + 1, group)
+    rom.set_word(super_rod + 4, other)
     found = Layout('red', 1, base_stats=base_stats, species_count=2, names=names, evos_moves=evos_moves,
                    tm_moves=tm_moves, tm_count=55, wild=(('wild', wild),), trainers=trainers, trainer_classes=3,
-                   trainers_end=trainers_end, starters=((starter,),), dex_order=dex_order)
+                   trainers_end=trainers_end, starters=((starter,),), dex_order=dex_order,
+                   old_rod=old_rod, good_rod=good_rod, super_rod=super_rod)
     return bytes(rom.data), found
 
 
@@ -78,9 +87,24 @@ def gen2_cartridge():
     rom.set_word(trainers + 4, shared)
     trainers_end = rom.at
     starter = rom.put([2])
+    # Fish group 1 bites half the time. Its Super Rod's last slot is time group 1.
+    old_rod = rom.put([0xB2, 1, 10, 0xFF, 2, 10])
+    good_rod = rom.put([0xFF, 1, 20])
+    super_rod = rom.put([0x7F, 2, 40, 0xFF, 0, 1])
+    fish_groups = rom.put([0x80, 0, 0, 0, 0, 0, 0])
+    for rod, table in enumerate((old_rod, good_rod, super_rod)):
+        rom.set_word(fish_groups + 1 + 2 * rod, table)
+    time_fish_groups = rom.put([1, 5, 2, 6, 1, 30, 2, 35])
+    map_groups = rom.words(2)
+    headers = [0] * 8 + [1] + [0] * 9
+    rom.set_word(map_groups, rom.put(headers))
+    rom.set_word(map_groups + 2, rom.put([0] * 8 + [1]))
+    map_groups_end = rom.at
     found = Layout('gold', 2, base_stats=base_stats, species_count=2, names=names, evos_moves=evos_moves,
                    tm_moves=tm_moves, tm_count=60, wild=(('johto_grass', grass), ('johto_water', water)),
-                   trainers=trainers, trainer_classes=3, trainers_end=trainers_end, starters=((starter, starter),))
+                   trainers=trainers, trainer_classes=3, trainers_end=trainers_end, starters=((starter, starter),),
+                   fish_groups=fish_groups, fish_group_count=1, time_fish_groups=time_fish_groups,
+                   map_groups=map_groups, map_group_count=2, map_groups_end=map_groups_end)
     return bytes(rom.data), found
 
 
@@ -142,6 +166,53 @@ def test_gen2_tables(gold):
     assert '2:1' not in gold.trainers
     assert gold.trainers['3:1']['party'] == [{'level': 30, 'species': 2, 'item': 4}]
     assert gold.starters == [2]
+
+
+def test_gen1_fishing(red):
+    assert red.fishing_slots('old_rod', 3) == {'bite': 1.0, 'slots': [{'level': 5, 'species': 2, 'probability': 1.0}]}
+    assert red.fishing_slots('good_rod', 0) == {'bite': 1 / 3, 'slots': [
+        {'level': 10, 'species': 1, 'probability': 0.5}, {'level': 12, 'species': 2, 'probability': 0.5}]}
+    hooked = red.fishing_slots('super_rod', 7)
+    assert hooked['bite'] == 3 / 7
+    assert [(slot['level'], slot['species']) for slot in hooked['slots']] == [(15, 1), (20, 2), (25, 1)]
+    assert red.fishing_slots('super_rod', 0) is None
+    with pytest.raises(ValueError, match='Unknown rod'):
+        red.fishing_slots('old', 0)
+
+
+def test_gen2_fishing(gold):
+    assert gold.fish_groups == {257: 1, 513: 1}
+    old = gold.fishing_slots('old_rod', 257)
+    assert old == {'bite': 0.5, 'slots': [{'level': 10, 'species': 1, 'probability': 179 / 256},
+                                          {'level': 10, 'species': 2, 'probability': 77 / 256}]}
+    day = gold.fishing_slots('super_rod', 513)['slots']
+    assert [(slot['level'], slot['species'], slot['probability']) for slot in day] == [(40, 2, 0.5), (30, 1, 0.5)]
+    nite = gold.fishing_slots('super_rod', 513, time='nite')['slots']
+    assert (nite[1]['level'], nite[1]['species']) == (35, 2)
+    assert gold.fishing_slots('old_rod', 258) is None
+    assert gold.fishing_slots('old_rod', 257, swarm='qwilfish') == old
+    with pytest.raises(ValueError, match='Unknown time'):
+        gold.fishing_slots('old_rod', 257, time='noon')
+
+
+def test_fishing_survives_overrides(red, gold):
+    for data in (red, gold):
+        effective = data.with_overrides({'species_map': {1: 2, 2: 1}})
+        assert (effective.fishing, effective.fish_groups) == (data.fishing, data.fish_groups)
+
+
+def test_tables_without_fishing_load():
+    data = romdata.GameData('red', {name: {} for name in ('species', 'evolutions', 'learnsets', 'encounters',
+                                                            'trainers')} | {'tm_moves': [], 'starters': []})
+    assert data.fishing == {} and data.fishing_slots('old_rod', 0) is None
+
+
+def test_load_cached_reads_each_rom_once(monkeypatch):
+    rom, found = gen1_cartridge()
+    monkeypatch.setitem(romdata.LAYOUTS, 'red', found)
+    first = romdata.load_cached(rom, version='red')
+    assert romdata.load_cached(bytearray(rom), version='red') is first
+    assert romdata.load_cached(rom[:-1] + b'\x01', version='red') is not first
 
 
 @pytest.mark.parametrize('game', ['red', 'gold'])

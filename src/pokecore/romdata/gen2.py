@@ -94,6 +94,57 @@ def encode_encounter(table):
     return bytes([table['rate'], *_flat(table['slots'], WATER_SLOTS)])
 
 
+RODS = ('old_rod', 'good_rod', 'super_rod')
+FISH_GROUP = 7
+MAP_HEADER = 9
+MAP_FISH_GROUP = 8
+
+
+def fish_groups(rom, layout):
+    """{map ID: fish group} for each map whose header names a fish group."""
+    pointers = [banked(layout.map_groups, word(rom, layout.map_groups + 2 * n)) for n in range(layout.map_group_count)]
+    ends = sorted(pointers) + [layout.map_groups_end]
+    groups = {}
+    for number, start in enumerate(pointers, 1):
+        end = ends[ends.index(start) + 1]
+        for index in range((end - start) // MAP_HEADER):
+            group = rom[start + MAP_HEADER * index + MAP_FISH_GROUP]
+            if group:
+                groups[number * 256 + index + 1] = group
+    return groups
+
+
+def fishing(rom, layout):
+    """Rod tables for each fish group. ``bite`` is the chance a cast hooks anything,
+    and each slot's ``probability`` is its chance once something bites.
+
+    A rod table lists cumulative cutoffs out of 256, ending at 255. A slot with
+    species 0 reads its species and level from a time table, one pair for morning and
+    day and one for night, so every table carries slots for each time of day.
+    """
+    tables = {}
+    for group in range(1, layout.fish_group_count + 1):
+        base = layout.fish_groups + FISH_GROUP * (group - 1)
+        for rod, name in enumerate(RODS):
+            offset = banked(base, word(rom, base + 1 + 2 * rod))
+            slots = {time: [] for time in TIMES}
+            low = 0
+            while True:
+                cutoff, species, level = rom[offset:offset + 3]
+                for time in TIMES:
+                    pair = (species, level)
+                    if species == 0:
+                        at = layout.time_fish_groups + 4 * level + 2 * (time == 'nite')
+                        pair = (rom[at], rom[at + 1])
+                    slots[time].append({'level': pair[1], 'species': pair[0], 'probability': (cutoff + 1 - low) / 256})
+                low = cutoff + 1
+                offset += 3
+                if cutoff == 0xFF:
+                    break
+            tables[f'{name}:{group}'] = {'kind': name, 'group': group, 'bite': rom[base] / 256, 'slots': slots}
+    return tables
+
+
 def party_sites(rom, offset, end, version):
     """(offset, trainer) for each trainer from ``offset`` up to ``end``. The offset is the party's
     first byte, after the name and type."""
@@ -166,6 +217,8 @@ def read(rom, layout):
         'learnsets': learnsets,
         'tm_moves': list(rom[layout.tm_moves:layout.tm_moves + tm_count]),
         'encounters': encounters(rom, layout),
+        'fishing': fishing(rom, layout) if layout.fish_groups is not None else {},
+        'fish_groups': fish_groups(rom, layout) if layout.map_groups is not None else {},
         'trainers': trainers(rom, layout),
         'starters': [rom[sites[0]] for sites in layout.starters],
     }

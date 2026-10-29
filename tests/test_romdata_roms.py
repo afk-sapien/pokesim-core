@@ -3,7 +3,8 @@
 Collected only when POKESIM_CORE_ROMS (red.gb, blue.gb, yellow.gb) or POKESIM_CORE_GEN2_ROMS
 (gold.gbc, silver.gbc, crystal.gbc) names a folder of ROMs. The digests cover every table
 ``romdata.load`` reads. Each table was checked entry by entry against the pret disassemblies
-(trainer parties, wild encounters, evolutions, learnsets, base stats, TM and HM lists).
+(trainer parties, wild encounters, evolutions, learnsets, base stats, TM and HM lists), and
+the rod tables were checked against pret's map lists and fish data.
 """
 import hashlib
 import os
@@ -16,13 +17,18 @@ from pokecore import randomizer, romdata
 from pokecore.cartridges import read_header
 
 DIGESTS = {
-    'red': '6f1325b59eeeacb2ec8ddef1009f509d0a811e9787c8990e0c76bab38eff3fe1',
-    'blue': '16cbb347027f3b8ca09fd5574e9d7f9c6f3dc85e5c32e5ce8031df01c30e2b95',
-    'yellow': 'e2d47ea892e2fb8173e2ee0a004e0c9b19f3f2292872c112e7fbc694fe3bdb73',
-    'gold': 'a5c68ac36e4ef0fff72ab13720d35e94f783a2a0139a88e3c9866df0c731fb0e',
-    'silver': '92942d4a0c2a0d4e756b64bf0695936f17bac343b96ddba2e77ebfca749bfdb5',
-    'crystal': '4cc03a36c63f8161a794dbb7d15e897fdd6f29545e89265c33fea2c2602678cb',
+    'red': '7933d07df8b7f52219e174d27c9a40986284808b922dc3bee6ee52d7c6e6930b',
+    'blue': 'ca903350df3f59e11c899ea17953e6bb2f050da18440e7a7c43345ae7c9fd15c',
+    'yellow': '0d2aa270845d031c225226a95c46bbcd05b334a94e4cd01e5e4491fb2fbd1aff',
+    'gold': '3336d8c5ea452a84be9430462a33dcbdab2f6b5caf7e100e591a6c09dcec8b36',
+    'silver': '57275221d2a1e38641d8cadf0e8ce540852164f9c52e43dde2dcccac7d66f701',
+    'crystal': '58464c09856e72e7dee5751de5976d2c34a4f8106283c617303ba2b17f5ae2b9',
 }
+# rod tables, maps with a fish group
+FISHING = {'red': (35, 0), 'blue': (35, 0), 'yellow': (33, 0), 'gold': (39, 366), 'silver': (39, 366),
+           'crystal': (39, 383)}
+PALLET_TOWN = 0
+OLIVINE_POKECENTER_1F = 1 * 256 + 1
 # species, encounter tables, trainers, starters
 COUNTS = {
     'red': (151, 58, 391, [176, 177, 153]),
@@ -54,6 +60,31 @@ def test_tables_match_the_checked_reading(version):
     assert data.version == version
     assert hashlib.sha256(data.canonical()).hexdigest() == DIGESTS[version]
     assert (len(data.species), len(data.encounters), len(data.trainers), data.starters) == COUNTS[version]
+    assert (len(data.fishing), len(data.fish_groups)) == FISHING[version]
+
+
+def _hooks(data, rod, map_id):
+    found = data.fishing_slots(rod, map_id)
+    return found['bite'], [(data.species[slot['species']]['name'], slot['level'], round(slot['probability'] * 256))
+                           for slot in found['slots']]
+
+
+@pytest.mark.parametrize('version', sorted(DIGESTS))
+def test_fishing_matches_pret(version):
+    data = romdata.load(_rom(version))
+    if data.generation == 1:
+        assert _hooks(data, 'old_rod', PALLET_TOWN) == (1.0, [('MAGIKARP', 5, 256)])
+        assert _hooks(data, 'good_rod', PALLET_TOWN) == (1 / 3, [('GOLDEEN', 10, 128), ('POLIWAG', 10, 128)])
+        expected = ((0.5, [('STARYU', 10, 102), ('TENTACOOL', 10, 76), ('STARYU', 5, 51), ('TENTACOOL', 20, 27)])
+                    if version == 'yellow' else (1 / 3, [('TENTACOOL', 15, 128), ('POLIWAG', 15, 128)]))
+        assert _hooks(data, 'super_rod', PALLET_TOWN) == expected
+        return
+    # FISHGROUP_SHORE
+    assert data.fish_groups[OLIVINE_POKECENTER_1F] == 1
+    assert _hooks(data, 'old_rod', OLIVINE_POKECENTER_1F) == (
+        0.5, [('MAGIKARP', 10, 180), ('MAGIKARP', 10, 38), ('KRABBY', 10, 38)])
+    assert _hooks(data, 'super_rod', OLIVINE_POKECENTER_1F) == (
+        0.5, [('KRABBY', 40, 103), ('CORSOLA', 40, 76), ('KRABBY', 40, 52), ('KINGLER', 40, 25)])
 
 
 @pytest.mark.parametrize('version', sorted(DIGESTS))

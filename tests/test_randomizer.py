@@ -24,7 +24,7 @@ def game(version='red', surfers=(3,)):
     trainers = {'1:1': {'class': 1, 'index': 1, 'party': [{'level': 5, 'species': 1}]},
                 '1:2': {'class': 1, 'index': 2, 'party': [{'level': 7, 'species': 2}, {'level': 8, 'species': 6}]}}
     tables = {'species': species, 'evolutions': {}, 'learnsets': {}, 'tm_moves': [], 'encounters': encounters,
-              'trainers': trainers, 'starters': [1, 4]}
+              'fishing': {}, 'fish_groups': {}, 'trainers': trainers, 'starters': [1, 4]}
     assert set(tables) == set(FIELDS)
     return GameData(version, tables)
 

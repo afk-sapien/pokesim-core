@@ -13,6 +13,7 @@ INDEX_COUNT = 190
 NAME_LENGTH = 10
 SLOTS = 10
 EVOLUTION_METHODS = {1: 'level', 2: 'item', 3: 'trade'}
+GOOD_ROD_SLOTS = 2
 
 
 def word(rom, offset):
@@ -91,6 +92,46 @@ def _sized(slots, count):
     if len(slots) != count:
         raise ValueError(f'An encounter table needs {count} slots, got {len(slots)}')
     return slots
+
+
+def fish(level, species, probability):
+    return {'level': level, 'species': species, 'probability': probability}
+
+
+def fishing(rom, layout):
+    """Rod tables. ``bite`` is the chance a cast hooks anything, and each slot's
+    ``probability`` is its chance once something bites.
+
+    The Old and Good Rod hook the same Pokemon on every map. The Good Rod draws a random
+    byte until bit 0 is set (no bite) or bits 1 and 2 pick one of its two slots, so it
+    bites a third of the time. Red and Blue's Super Rod does the same over a map's 2 to
+    4 slots. Yellow's bites half the time and weighs its 4 slots by the cutoffs in its code.
+    """
+    old_rod = layout.old_rod
+    tables = {'old_rod': {'kind': 'old_rod', 'bite': 1.0, 'slots': [fish(rom[old_rod + 1], rom[old_rod], 1.0)]},
+              'good_rod': {'kind': 'good_rod', 'bite': GOOD_ROD_SLOTS / (4 + GOOD_ROD_SLOTS),
+                           'slots': [fish(level, species, 1 / GOOD_ROD_SLOTS)
+                                     for level, species in slots_at(rom, layout.good_rod, GOOD_ROD_SLOTS)]}}
+    offset = layout.super_rod
+    while (map_id := rom[offset]) != 0xFF:
+        if layout.super_rod_odds is None:
+            group = banked(offset, word(rom, offset + 1))
+            count = rom[group]
+            table = {'bite': count / (4 + count),
+                     'slots': [fish(level, species, 1 / count) for level, species in slots_at(rom, group + 1, count)]}
+            offset += 3
+        else:
+            cutoffs = [rom[layout.super_rod_odds + 6 * n] for n in range(3)] + [256]
+            weights = [high - low for low, high in zip([0] + cutoffs, cutoffs)]
+            table = {'bite': 0.5, 'slots': [fish(rom[offset + 2 + 2 * n], rom[offset + 1 + 2 * n], weight / 256)
+                                            for n, weight in enumerate(weights)]}
+            offset += 9
+        tables.setdefault(f'super_rod:{map_id}', {'kind': 'super_rod', 'map': map_id, **table})
+    return tables
+
+
+def slots_at(rom, offset, count):
+    return [(rom[offset + 2 * n], rom[offset + 2 * n + 1]) for n in range(count)]
 
 
 def party_sites(rom, offset, end):
@@ -178,6 +219,8 @@ def read(rom, layout):
         'learnsets': learnsets,
         'tm_moves': list(rom[layout.tm_moves:layout.tm_moves + tm_count]),
         'encounters': encounters(rom, layout.wild[0][1]),
+        'fishing': fishing(rom, layout) if layout.old_rod is not None else {},
+        'fish_groups': {},
         'trainers': trainers(rom, layout),
         'starters': [rom[sites[0]] for sites in layout.starters],
     }

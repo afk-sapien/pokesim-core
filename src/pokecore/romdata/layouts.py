@@ -2,6 +2,8 @@
 
 Banked addresses are the ``bank:address`` pairs from the pret symbol files for the
 verified retail ROMs (pokered and pokeyellow, pokegold and pokesilver, pokecrystal11).
+The Gen I rod sites are operands inside pret's ItemUse*Rod and ReadSuperRodData code,
+found in the retail ROMs by those routines' bytes.
 Red and Blue share every address below. Starter sites are the bytes that hold a
 starter's species in Oak's or Elm's scripts. The first site of each starter is the one
 that decides which Pokemon the player receives. The others repeat the same species for
@@ -34,6 +36,19 @@ class Layout:
     # Gen I only: the dex order table and Red/Blue's separate Mew record.
     dex_order: int | None = None
     mew_base_stats: int | None = None
+    # Gen I rods: the Old Rod's species byte (its level follows), GoodRodMons, the Super
+    # Rod's map list, and Yellow's first Super Rod slot cutoff (the next two follow 6 bytes apart).
+    old_rod: int | None = None
+    good_rod: int | None = None
+    super_rod: int | None = None
+    super_rod_odds: int | None = None
+    # Gen II rods: FishGroups, TimeFishGroups, and the map headers that pick a fish group.
+    fish_groups: int | None = None
+    fish_group_count: int = 0
+    time_fish_groups: int | None = None
+    map_groups: int | None = None
+    map_group_count: int = 0
+    map_groups_end: int | None = None
 
 
 _RED_BLUE = dict(
@@ -45,6 +60,7 @@ _RED_BLUE = dict(
     trainers=rom_offset(0x0E, 0x5D3B), trainer_classes=47, trainers_end=rom_offset(0x0E, 0x652E),
     # Charmander, Squirtle, Bulbasaur: the ball's own species, then the rival's pick at the ball to its left.
     starters=((0x1D10E, 0x1D126), (0x1D11F, 0x1D104), (0x1D130, 0x1D115)),
+    old_rod=rom_offset(0x03, 0x6253), good_rod=rom_offset(0x03, 0x627F), super_rod=rom_offset(0x03, 0x6919),
 )
 
 _GOLD_SILVER = dict(
@@ -59,6 +75,8 @@ _GOLD_SILVER = dict(
     # Chikorita, Cyndaquil, Totodile: givepoke, then pokepic, cry and getmonname in the same ball script.
     starters=((0x180174, 0x180150, 0x180152, 0x180169), (0x1800F6, 0x1800D2, 0x1800D4, 0x1800EB),
               (0x180138, 0x180114, 0x180116, 0x18012D)),
+    fish_groups=rom_offset(0x24, 0x69F7), fish_group_count=13, time_fish_groups=rom_offset(0x24, 0x6BDE),
+    map_groups=rom_offset(0x25, 0x40ED), map_group_count=26, map_groups_end=rom_offset(0x25, 0x4E11),
 )
 
 LAYOUTS = {
@@ -73,6 +91,8 @@ LAYOUTS = {
         trainers=rom_offset(0x0E, 0x5DD1), trainer_classes=47, trainers_end=rom_offset(0x0E, 0x65B2),
         # Pikachu: the gift itself, then wPlayerStarter.
         starters=((0x1CB66, 0x1CB41),),
+        old_rod=rom_offset(0x03, 0x6100), good_rod=rom_offset(0x03, 0x612C), super_rod=rom_offset(0x3D, 0x5EDA),
+        super_rod_odds=rom_offset(0x3D, 0x5EC5),
     ),
     'gold': Layout('gold', **_GOLD_SILVER),
     'silver': Layout('silver', **_GOLD_SILVER),
@@ -87,6 +107,8 @@ LAYOUTS = {
         trainers=rom_offset(0x0E, 0x5999), trainer_classes=67, trainers_end=rom_offset(0x0E, 0x7A67),
         starters=((0x78D21, 0x78CFD, 0x78CFF, 0x78D16), (0x78CA3, 0x78C7F, 0x78C81, 0x78C98),
                   (0x78CE5, 0x78CC1, 0x78CC3, 0x78CDA)),
+        fish_groups=rom_offset(0x24, 0x6488), fish_group_count=13, time_fish_groups=rom_offset(0x24, 0x666F),
+        map_groups=rom_offset(0x25, 0x4000), map_group_count=26, map_groups_end=rom_offset(0x25, 0x4DD8),
     ),
 }
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.10.0
+
+### Added
+
+- Fishing tables read from the ROM. `GameData.fishing` holds every rod table, with
+  each slot's species, level and `probability` once something bites, and each table's
+  `bite` chance per cast. Gen I has `old_rod`, `good_rod` and `super_rod:<map>` tables.
+  Gen II has `<rod>:<fish group>` tables with slots for each time of day, and
+  `GameData.fish_groups` maps each map ID to its fish group.
+- `GameData.fishing_slots(rod, map_id, time=, swarm=)` answers what a rod hooks on a
+  map, including Gen II's time of day and Qwilfish or Remoraid swarms.
+- `romdata.load_cached(rom, version=None)` reads each ROM once, keyed by the SHA-256 of
+  its bytes.
+
+### Changed
+
+- `GameData.canonical()` now includes the fishing tables, so its digests change.
+  Overrides do not change fishing yet. A ROM randomized by another tool is read as it is.
+
 ## 0.9.5
 
 ### Fixed
