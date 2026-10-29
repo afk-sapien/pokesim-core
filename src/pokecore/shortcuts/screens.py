@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 
 from ..gen1 import W_TILEMAP, decode_text, read_party
-from ..gen1_ui import read_screen
+from ..gen1_ui import _VISIBLE_GLYPHS, read_screen
 from ..yellow import red_layout
 from .items import generation
 
@@ -81,12 +81,15 @@ _CONTRACTIONS = {0xBB: "'d", 0xBC: "'l", 0xBD: "'s", 0xBE: "'t", 0xBF: "'v", 0xE
 
 
 def text_lines(memory):
-    """Text box rows 12 to 17 joined with spaces, with contractions spelled out."""
-    rows = read_screen(memory)['rows']
+    """Text box rows 12 to 17 joined with spaces, with contractions spelled out.
+
+    Rows are decoded tile by tile, since PK and MN tiles each print two letters.
+    A short read returns what it holds.
+    """
     raw = bytes(memory[W_TILEMAP + 240:W_TILEMAP + 360])
     out = []
-    for offset, row in enumerate(rows[12:18]):
-        line = ''.join(_CONTRACTIONS.get(raw[offset * 20 + col], char) for col, char in enumerate(row))
+    for start in range(0, len(raw), 20):
+        line = ''.join(_CONTRACTIONS.get(tile) or _VISIBLE_GLYPHS[tile] for tile in raw[start:start + 20])
         if line.strip():
             out.append(' '.join(line.split()))
     return ' '.join(out)

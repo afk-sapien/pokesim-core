@@ -710,6 +710,13 @@ def test_screen_helpers_read_contractions_glyph_pairs_and_quantity_boxes():
     memory = bytearray(0x10000)
     put(memory, 1, 14, "It won't work.")
     assert text_lines(memory) == "It won't work."
+    # Yellow's Vermilion PC: PK and MN print two letters each, which ran past the last row.
+    memory[W_TILEMAP + 240:W_TILEMAP + 360] = bytes(120)
+    put(memory, 1, 14, "PKMN won't go.")
+    put(memory, 1, 17, 'PKMN PKMN PKMN PKMN')
+    assert text_lines(memory) == "PKMN won't go. PKMN PKMN PKMN PKMN"
+    assert text_lines(memory[:W_TILEMAP + 300]) == "PKMN won't go."
+    memory[W_TILEMAP + 240:W_TILEMAP + 360] = bytes(120)
     memory[0xCC24], memory[0xCC25], memory[0xCC28] = 2, 1, 0
     put(memory, 2, 2, 'WITHDRAW PKMN')
     assert menu_rows(memory, read_screen(memory))[0]['text'] == 'WITHDRAW PKMN'
