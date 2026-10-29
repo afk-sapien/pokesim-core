@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.2
+
+### Fixed
+
+- Gen I `text_lines` decodes the text box tile by tile. PK and MN tiles print two
+  letters each, so a bottom row such as Yellow's "WITHDRAW PKMN" ran past the
+  tilemap and raised IndexError, and earlier rows could read the wrong tile as a
+  contraction. A short memory read now returns the rows it holds. The Gen II text box
+  already reads tile by tile and is unchanged.
+
 ## 0.10.1
 
 ### Fixed
