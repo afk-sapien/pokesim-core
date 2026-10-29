@@ -1,9 +1,10 @@
 """Game data read from the caller's own cartridge, with an override layer for randomizers.
 
 Core ships no game tables. :func:`load` reads species base data, evolutions, level-up
-learnsets, the TM and HM move list, wild encounter tables, trainer parties and starters
-straight from a ROM, using only the per-version addresses in :mod:`.layouts`. A modified
-or randomized ROM of a supported version reads the same way when ``version`` is given.
+learnsets, the TM and HM move list, wild encounter and fishing tables, trainer parties
+and starters straight from a ROM, using only the per-version addresses in :mod:`.layouts`.
+A modified or randomized ROM of a supported version reads the same way when ``version``
+is given. :func:`load_cached` reads each ROM once.
 
 :meth:`GameData.with_overrides` returns the effective data after an override map, without
 touching the ROM. With no overrides the effective data is the ROM data, byte for byte in
@@ -17,6 +18,7 @@ tutor moves) numbered after the TMs, matching positions in ``tm_moves``.
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
 
 from ..cartridges import identify
@@ -24,10 +26,15 @@ from . import gen1, gen2
 from .layouts import LAYOUTS, Layout, layout, rom_offset
 from .patch import effective_data, patch_rom
 
-__all__ = ['GameData', 'LAYOUTS', 'Layout', 'OVERRIDE_KEYS', 'effective_data', 'load', 'layout', 'patch_rom',
-           'rom_offset']
+__all__ = ['GameData', 'LAYOUTS', 'Layout', 'OVERRIDE_KEYS', 'effective_data', 'load', 'load_cached', 'layout',
+           'patch_rom', 'rom_offset']
 
-FIELDS = ('species', 'evolutions', 'learnsets', 'tm_moves', 'encounters', 'trainers', 'starters')
+FIELDS = ('species', 'evolutions', 'learnsets', 'tm_moves', 'encounters', 'fishing', 'fish_groups', 'trainers',
+          'starters')
+OPTIONAL = {'fishing': {}, 'fish_groups': {}}
+RODS = ('old_rod', 'good_rod', 'super_rod')
+# GetFishGroupIndex swaps these fish groups for their swarm groups on a swarm day.
+SWARMS = {'qwilfish': (11, 6), 'remoraid': (12, 7)}
 OVERRIDE_KEYS = ('species_map', 'species', 'evolutions', 'learnsets', 'tm_moves', 'encounters', 'trainers',
                  'starters')
 
@@ -40,8 +47,40 @@ class GameData:
         self.version = version
         self.generation = self.layout.generation
         for name in FIELDS:
-            setattr(self, name, tables[name])
+            setattr(self, name, tables[name] if name in tables or name not in OPTIONAL else deepcopy(OPTIONAL[name]))
         self.overrides = overrides or {}
+
+    def fishing_slots(self, rod, map_id, *, time='day', swarm=None):
+        """What ``rod`` can hook on ``map_id``, or None when nothing bites there.
+
+        ``rod`` is 'old_rod', 'good_rod' or 'super_rod'. Returns ``{'bite': p, 'slots':
+        [{'level', 'species', 'probability'}]}``. ``bite`` is the chance a cast hooks
+        anything, and a slot's ``probability`` is its chance once something bites, so
+        a cast meets a slot with ``bite * probability``. Gen I's Old and Good Rod hook the
+        same Pokemon on every map. Gen II tables depend on ``time`` ('morn', 'day' or
+        'nite') and, on a swarm day, ``swarm`` ('qwilfish' or 'remoraid').
+
+        The tables are read from the ROM. Overrides do not change them yet.
+        """
+        if rod not in RODS:
+            raise ValueError(f'Unknown rod {rod!r}. Use one of {", ".join(RODS)}')
+        if self.generation == 1:
+            table = self.fishing.get(rod if rod != 'super_rod' else f'super_rod:{map_id}')
+            return None if table is None else {'bite': table['bite'], 'slots': deepcopy(table['slots'])}
+        group = self.fish_groups.get(map_id)
+        if group is None:
+            return None
+        if swarm is not None:
+            if swarm not in SWARMS:
+                raise ValueError(f'Unknown swarm {swarm!r}. Use one of {", ".join(SWARMS)}')
+            normal, swarming = SWARMS[swarm]
+            group = swarming if group == normal else group
+        table = self.fishing.get(f'{rod}:{group}')
+        if table is None:
+            return None
+        if time not in table['slots']:
+            raise ValueError(f'Unknown time {time!r}. Use one of {", ".join(table["slots"])}')
+        return {'bite': table['bite'], 'slots': deepcopy(table['slots'][time])}
 
     def as_dict(self):
         return {'version': self.version, 'generation': self.generation,
@@ -174,3 +213,21 @@ def load(rom, version=None) -> GameData:
     found = layout(version)
     reader = gen1 if found.generation == 1 else gen2
     return GameData(version, reader.read(rom, found))
+
+
+_LOADED = {}
+
+
+def load_cached(rom, version=None) -> GameData:
+    """:func:`load`, read once per ROM content and ``version``.
+
+    Repeat calls hash the ROM bytes (about a millisecond) and return the same
+    :class:`GameData`, so treat it as read-only. A handful of ROMs are kept.
+    """
+    rom = bytes(rom)
+    key = (hashlib.sha256(rom).digest(), version)
+    data = _LOADED.pop(key, None) or load(rom, version)
+    _LOADED[key] = data
+    while len(_LOADED) > 8:
+        del _LOADED[next(iter(_LOADED))]
+    return data
