@@ -24,10 +24,10 @@ pip install "pyboy-rs @ $base/$wheel#sha256=$sha"
 ```
 
 Then Core, with the hash from the
-[release's](https://github.com/afk-sapien/pokesim-core/releases/tag/v0.10.2) `SHA256SUMS.txt`:
+[release's](https://github.com/afk-sapien/pokesim-core/releases/tag/v0.11.0) `SHA256SUMS.txt`:
 
 ```bash
-pip install "pokecore[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.10.2/pokecore-0.10.2-py3-none-any.whl#sha256=<sha256>"
+pip install "pokecore[emulator] @ https://github.com/afk-sapien/pokesim-core/releases/download/v0.11.0/pokecore-0.11.0-py3-none-any.whl#sha256=<sha256>"
 ```
 
 ## Example
@@ -72,6 +72,8 @@ with GameBoy("/path/to/pokemon-red.gb") as game:
   storage (`gen1`, `gen1_ui`), with Yellow mapped onto the Red layout (`yellow`)
 - Gen 2 readers: party, boxes, items, player, Pokedex, clock, Day Care and full
   snapshots (`gen2`)
+- Save summaries from a cartridge `.sav` with no emulator: badges, Pokedex, party,
+  boxes, play time and story stage (`save_summary`, `pokecore summary`)
 - Battle power, DV odds and Time Capsule conversion, using the caller's game
   tables (`gen1_battle_power`, `dvs`, `timecapsule`)
 - Game data read from the caller's cartridge, with an override map for

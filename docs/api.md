@@ -221,6 +221,31 @@ locate sprite positions, and `sprite_tile(memory, sprite, *, version=None)` retu
 the (x, y) tile of sprite slot `sprite`: 0 is the player and 1 to 15 the map's objects.
 Read Yellow through `yellow.red_layout` as with the other addresses.
 
+## Save summary
+
+`save_summary.summarize_save(save, *, rom=None)` reads a 32 KiB cartridge save, given
+as bytes or a path, without an emulator. It raises `SaveError`, a `ValueError`, for
+the wrong size, a bad checksum, or a ROM from the other generation. The command
+`pokecore summary SAVE [--rom ROM] [--json]` prints the same thing and exits 1 on a
+refusal.
+
+The result is a frozen `SaveSummary` with `to_dict()`: `generation`, `version`,
+`player_name`, `rival_name`, `trainer_id`, `badges`, `johto_badges`, `kanto_badges`,
+`badge_count`, `dex_owned`, `dex_seen`, `hall_of_fame`, `money`, `play_time` (hours,
+minutes, seconds), `party` (`PartyMon` with `species`, `level`, `name`, `egg`),
+`box_counts`, `box_total`, `map_id`, `kanto_entered`, `red_beaten` and `stage`.
+
+Crystal and Yellow are told from the save alone. Red or Blue and Gold or Silver read
+as `version=None` without the ROM, and species names always need it. `species` is the
+stored byte, the internal index in Gen I and the dex number in Gen II.
+
+`stage` is one of `new game`, `N badges` (`1 badge`), `league entered`, `champion`,
+`post-game` (Gen I), `kanto entered` and `red beaten` (Gen II). In Gen I, `champion`
+means the save is still inside the League after the first win. Gen II has no flag for
+beating Red. The credits set the Hall of Fame counter to 200 instead, so `red_beaten`
+is that counter at 200 or more, and `hall_of_fame` then no longer counts real wins.
+`kanto_entered` is any Kanto badge, the Fast Ship's arrival, or Kanto's power restored.
+
 ## Emulator module
 
 Importing the module is safe without the emulator extra. Constructing `GameBoy`
