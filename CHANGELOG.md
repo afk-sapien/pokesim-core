@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.0
+
+### Added
+
+- `save_summary.summarize_save` reads a Gen I or Gen II cartridge save from its SRAM
+  with no emulator: names, badges, Pokedex counts, Hall of Fame count, money, play
+  time, party, box totals, map and a story stage. Bad checksums are refused with
+  `SaveError`. The ROM is optional and only adds the version and species names.
+- The `pokecore summary <save>` command prints a summary, with `--rom` and `--json`.
+
 ## 0.10.2
 
 ### Fixed
