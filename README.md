@@ -1,5 +1,11 @@
 # PokeSim Core
 
+> [!IMPORTANT]
+> Development moved to [afk-sapien/PokeSim](https://github.com/afk-sapien/PokeSim), under
+> [`packages/pokecore`](https://github.com/afk-sapien/PokeSim/tree/main/packages/pokecore).
+> New releases are tagged `pokecore-v*` there. This repository is archived and read only.
+> Its releases, up to v0.11.0, and their assets stay available, so existing pins keep working.
+
 Shared Pokemon Red, Blue, Yellow, Gold, Silver and Crystal primitives for
 simulation and agent research. Core decodes game memory, identifies cartridges,
 drives the games' own menus and wraps the pyboy-rs emulator. PokeSim and a
